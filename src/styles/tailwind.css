@@ -1,0 +1,22 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body,
+#app {
+  height: 100%;
+}
+
+body.ow-dark {
+  background: #1a1b2e;
+  color: #e4e1f5;
+}
+
+/* Desktop: comfortable max width for ion-content inner */
+@media (min-width: 1024px) {
+  .ow-desktop-frame {
+    max-width: 1600px;
+    margin: 0 auto;
+  }
+}

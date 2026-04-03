@@ -24,8 +24,17 @@ const router = createRouter({
   ],
 });
 
+const AUTH_FREE_MODES: readonly string[] = ["note"];
+
 router.beforeEach((to) => {
   const auth = useAuthStore();
+
+  if (to.name === "editor") {
+    const mode = to.params.mode as string;
+    if (!AUTH_FREE_MODES.includes(mode) && !auth.loggedIn) {
+      return { name: "login", query: { mode, redirect: to.fullPath } };
+    }
+  }
 
   if (to.name === "admin") {
     if (!auth.loggedIn || !auth.isAdmin) {
@@ -33,7 +42,7 @@ router.beforeEach((to) => {
     }
   }
 
-  if (auth.loggedIn && (to.name === "onboard" || to.name === "login")) {
+  if (auth.loggedIn && to.name === "login") {
     return { name: "editor", params: { mode: "film" } };
   }
 });

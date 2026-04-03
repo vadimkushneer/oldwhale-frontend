@@ -221,11 +221,7 @@ function start() {
     mode: p.mode,
     color: p.color,
   });
-  if (p.mode === "note") {
-    router.replace(`/editor/${p.mode}`);
-  } else {
-    router.replace({ path: "/login", query: { mode: p.mode } });
-  }
+  router.replace(`/editor/${p.mode}`);
 }
 
 onMounted(() => {

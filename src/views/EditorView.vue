@@ -336,9 +336,17 @@
           <button
             type="button"
             class="mt-4 block w-full rounded-lg border-0 bg-ow-accent/20 py-3 font-mono text-xs text-ow-accent"
-            @click="logout"
+            @click="goHome"
           >
             На главную
+          </button>
+          <button
+            v-if="auth.loggedIn"
+            type="button"
+            class="mt-2 block w-full rounded-lg border-0 bg-red-500/10 py-3 font-mono text-xs text-red-400/80"
+            @click="doLogout"
+          >
+            Выйти
           </button>
         </div>
       </div>
@@ -525,7 +533,12 @@ function loadProj(id: string) {
   menuOpen.value = false;
 }
 
-function logout() {
+function goHome() {
+  menuOpen.value = false;
+  router.replace("/");
+}
+
+function doLogout() {
   auth.logout();
   profile.clear();
   menuOpen.value = false;

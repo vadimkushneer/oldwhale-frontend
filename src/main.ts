@@ -15,8 +15,8 @@ const pinia = createPinia();
 
 const app = createApp(App).use(IonicVue).use(pinia).use(router);
 
-router.isReady().then(() => {
+router.isReady().then(async () => {
   const auth = useAuthStore();
-  void auth.hydrate();
+  await auth.hydrate();
   app.mount("#app");
 });

@@ -157,7 +157,8 @@ async function submit() {
       await auth.register(login.value, email.value, pass.value);
     }
     const redir = route.query.redirect as string | undefined;
-    router.replace(redir || "/editor");
+    const mode = (route.query.mode as string) || "film";
+    router.replace(redir || `/editor/${mode}`);
   } catch {
     /* error in store */
   } finally {

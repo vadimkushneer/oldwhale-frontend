@@ -222,9 +222,9 @@ function start() {
     color: p.color,
   });
   if (p.mode === "note") {
-    router.replace("/editor");
+    router.replace(`/editor/${p.mode}`);
   } else {
-    router.replace("/login");
+    router.replace({ path: "/login", query: { mode: p.mode } });
   }
 }
 

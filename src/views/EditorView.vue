@@ -37,7 +37,7 @@
                   ? 'bg-ow-bg text-ow-t1 shadow-ow-in'
                   : 'bg-transparent text-ow-t3'
               "
-              @click="editor.switchMode(m.id)"
+              @click="goMode(m.id)"
             >
               <ModeIcon :id="m.id" />
               {{ m.label }}
@@ -56,7 +56,7 @@
             type="button"
             class="shrink-0 rounded-lg border-0 px-2 py-1 font-mono text-[10px]"
             :class="editor.mode === m.id ? 'bg-ow-surf text-ow-t1' : 'text-ow-t3'"
-            @click="editor.switchMode(m.id)"
+            @click="goMode(m.id)"
           >
             {{ m.label }}
           </button>
@@ -374,8 +374,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from "vue";
-import { useRouter } from "vue-router";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
 import { IonContent, IonPage } from "@ionic/vue";
 import WhaleMark from "@/components/WhaleMark.vue";
 import ModeIcon from "@/components/ModeIcon.vue";
@@ -387,13 +387,29 @@ import { useAuthStore } from "@/stores/auth";
 import { useEditorStore } from "@/stores/editor";
 import { useProfileStore } from "@/stores/profile";
 import { blocksToPlainText, downloadText } from "@/services/exportPlain";
+import { VALID_MODES, type EditorMode } from "@/router";
 
 const router = useRouter();
+const route = useRoute();
 const auth = useAuthStore();
 const profile = useProfileStore();
 const editor = useEditorStore();
 const winW = useWindowWidth();
 const isMobile = computed(() => winW.value < 768);
+
+function goMode(m: string) {
+  router.replace({ name: "editor", params: { mode: m } });
+}
+
+watch(
+  () => route.params.mode as string | undefined,
+  (m) => {
+    if (m && VALID_MODES.includes(m as EditorMode) && m !== editor.mode) {
+      editor.switchMode(m);
+    }
+  },
+  { immediate: true },
+);
 
 const menuOpen = ref(false);
 const projectsOpen = ref(false);
@@ -518,7 +534,10 @@ function logout() {
 
 onMounted(() => {
   profile.loadFromStorage();
-  const m = profile.profile?.mode || "film";
+  const routeMode = route.params.mode as string | undefined;
+  const m = (routeMode && VALID_MODES.includes(routeMode as EditorMode))
+    ? routeMode
+    : profile.profile?.mode || "film";
   editor.initFromProfile(m);
   try {
     const d = localStorage.getItem("ow_note_draft");

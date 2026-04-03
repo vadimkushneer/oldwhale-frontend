@@ -1,6 +1,6 @@
 <template>
   <ion-page>
-    <ion-content :fullscreen="true" class="bg-ow-bg">
+    <ion-content :fullscreen="true" class="ow-content">
       <div class="flex h-full min-h-0 flex-col text-ow-t1">
         <!-- Top bar -->
         <header

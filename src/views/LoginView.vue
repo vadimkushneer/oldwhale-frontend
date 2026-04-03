@@ -1,8 +1,8 @@
 <template>
   <ion-page>
-    <ion-content class="bg-ow-bg">
+    <ion-content :fullscreen="true" class="ow-content">
       <div
-        class="box-border flex min-h-full items-center justify-center p-6 font-mono"
+        class="box-border flex min-h-screen items-center justify-center p-6 font-mono"
       >
         <div class="w-full max-w-[360px]">
           <div class="mb-10 text-center">

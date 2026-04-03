@@ -1,14 +1,14 @@
 <template>
   <ion-page>
     <ion-header class="ion-no-border">
-      <ion-toolbar class="bg-ow-bg text-ow-t1">
+      <ion-toolbar class="ow-toolbar">
         <ion-buttons slot="start">
           <ion-back-button default-href="/editor" text="Редактор" />
         </ion-buttons>
         <ion-title>Администрирование</ion-title>
       </ion-toolbar>
     </ion-header>
-    <ion-content class="bg-ow-bg">
+    <ion-content :fullscreen="true" class="ow-content">
       <div class="ow-desktop-frame box-border p-4 text-ow-t1">
         <section
           class="mb-8 rounded-2xl border border-white/10 bg-ow-surf/80 p-4 shadow-ow-sm"

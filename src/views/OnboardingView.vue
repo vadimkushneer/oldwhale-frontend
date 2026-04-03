@@ -1,9 +1,9 @@
 <template>
   <ion-page>
-    <ion-content :fullscreen="true" class="bg-ow-bg">
+    <ion-content :fullscreen="true" class="ow-content">
       <div
         ref="containerRef"
-        class="relative flex min-h-full select-none flex-col items-center justify-center overflow-hidden font-mono touch-none"
+        class="relative flex min-h-screen select-none flex-col items-center justify-center overflow-hidden font-mono touch-none"
         style="touch-action: none"
         @pointerdown="onPointerDown"
         @pointermove="onPointerMove"
@@ -171,7 +171,15 @@ function onWheel(e: WheelEvent) {
   active.value = clamp(active.value + step);
 }
 
+function isInteractiveTarget(target: EventTarget | null) {
+  return (target as HTMLElement | null)?.closest?.(
+    "button,a,input,textarea,select,label,[role='button']",
+  );
+}
+
 function onPointerDown(e: PointerEvent) {
+  // setPointerCapture on the parent steals the pointer from buttons — clicks never fire.
+  if (isInteractiveTarget(e.target)) return;
   dragRef.value = { y: e.clientY, lastActive: active.value };
   (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
 }
@@ -189,6 +197,7 @@ function onPointerUp() {
 }
 
 function onTouchStart(e: TouchEvent) {
+  if (isInteractiveTarget(e.target)) return;
   dragRef.value = { y: e.touches[0].clientY, lastActive: active.value };
 }
 

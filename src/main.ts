@@ -11,8 +11,12 @@ import "@ionic/vue/css/structure.css";
 
 import "./styles/tailwind.css";
 
-const app = createApp(App).use(IonicVue).use(createPinia()).use(router);
+const pinia = createPinia();
 
-const auth = useAuthStore();
-void auth.hydrate();
-app.mount("#app");
+const app = createApp(App).use(IonicVue).use(pinia).use(router);
+
+router.isReady().then(() => {
+  const auth = useAuthStore();
+  void auth.hydrate();
+  app.mount("#app");
+});

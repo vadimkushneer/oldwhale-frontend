@@ -12,8 +12,10 @@ Ionic Vue 3 + Vite + Tailwind CSS + Pinia + Vue Router. PWA via `vite-plugin-pwa
 ## Environment
 
 - `.env.development` sets `VITE_API_URL` (default `http://127.0.0.1:8080`). Override for staging/production.
-- `.env.production` sets `VITE_API_URL` for production builds (e.g. the hosted API on Render).
+- `.env.production` sets `VITE_API_URL` for local `npm run build` / `build:gh-pages` (commit a sensible default or keep it out of git and rely on CI only).
 - **`VITE_BASE_PATH`** (build-time only, read in `vite.config.ts`): public path where the app is served. Use `/` for a site at the domain root. For GitHub project pages at `https://<user>.github.io/<repo>/`, set it to `/<repo>/` (trailing slash is normalized automatically).
+
+**GitHub Pages does not read `.env` at runtime.** The site is static; `VITE_*` values are inlined when GitHub Actions runs `vite build`. To point the UI at another API host without changing committed files, set repository variable **`VITE_API_URL`** under **Settings → Secrets and variables → Actions → Variables** (the workflow uses `vars.VITE_API_URL` when set, otherwise its default).
 
 ## Deploy to GitHub Pages
 
@@ -22,7 +24,7 @@ Ionic Vue 3 + Vite + Tailwind CSS + Pinia + Vue Router. PWA via `vite-plugin-pwa
 3. On the first run, approve **Pages** for the `github-pages` environment if GitHub prompts you.
 4. The workflow [.github/workflows/deploy-github-pages.yml](.github/workflows/deploy-github-pages.yml) builds with `npm run build:gh-pages`, which copies `dist/index.html` to `dist/404.html` so Vue Router history mode works on refresh.
 5. **Base path**: by default the workflow sets `VITE_BASE_PATH` to `/<repository-name>/`, which matches `https://<user>.github.io/<repo>/`. For a **user or organization site** whose URL is `https://<user>.github.io` with no repository segment, create a repository variable **`VITE_BASE_PATH`** with value `/` (and optionally **`VITE_API_URL`** if it differs from the default in the workflow).
-6. **Backend**: the production API URL is baked in at build time via `VITE_API_URL` (`.env.production` locally, or `vars.VITE_API_URL` in Actions). Ensure the API allows your Pages origin in CORS if you set `CORS_ORIGIN` on the server (otherwise the backend defaults to `*`). For Render, you can configure a health check against **`GET /health`** on the API.
+6. **Backend**: the production API URL is baked in at build time via `VITE_API_URL` (`.env.production` locally, or **`vars.VITE_API_URL`** in Actions). Example live stack: app at `https://vadimkushneer.github.io/oldwhale-frontend/`, API at `https://oldwhale-backend-ipwlt.ondigitalocean.app`. On the API host, set **`CORS_ORIGIN`** to your GitHub Pages **origin** (no path): `https://vadimkushneer.github.io` — or leave unset for `Access-Control-Allow-Origin: *`. Use **`GET /health`** for uptime checks.
 
 ## Desktop and mobile
 

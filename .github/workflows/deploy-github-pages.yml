@@ -27,7 +27,7 @@ jobs:
       - run: npm run build:gh-pages
         env:
           VITE_BASE_PATH: ${{ vars.VITE_BASE_PATH || format('/{0}/', github.event.repository.name) }}
-          VITE_API_URL: ${{ vars.VITE_API_URL || 'https://oldwhale-backend.onrender.com' }}
+          VITE_API_URL: ${{ vars.VITE_API_URL || 'https://oldwhale-backend-ipwlt.ondigitalocean.app' }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

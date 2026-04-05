@@ -3,7 +3,17 @@ import vue from "@vitejs/plugin-vue";
 import { VitePWA } from "vite-plugin-pwa";
 import path from "node:path";
 
+/** Vite requires a trailing slash for non-root bases. */
+function viteBase(): string {
+  const raw = (process.env.VITE_BASE_PATH ?? "/").trim();
+  if (raw === "" || raw === "/") return "/";
+  return raw.endsWith("/") ? raw : `${raw}/`;
+}
+
+const base = viteBase();
+
 export default defineConfig({
+  base,
   plugins: [
     vue(),
     VitePWA({
@@ -16,7 +26,7 @@ export default defineConfig({
         theme_color: "#1a1b2e",
         background_color: "#1a1b2e",
         display: "standalone",
-        start_url: "/",
+        start_url: base,
       },
       workbox: {
         globPatterns: ["**/*.{js,css,html,ico,svg,woff2}"],

@@ -7181,7 +7181,7 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
 // ══════════════════════════════════════════════
 
 const WHEEL_ITEMS = [
-  { num:"01", id:"note",    label:"Блокнот",      desc:"Мысли набегу. Без структуры, без правил — просто пишешь.",                     color:"#f472b6", mode:"note"  },
+  { num:"01", id:"note",    label:"Блокн0т",      desc:"Мысли набегу. Без структуры, без правил — просто пишешь.",                     color:"#f472b6", mode:"note"  },
   { num:"02", id:"film",    label:"Сценарий",  desc:"Сценарий по голливудскому стандарту. ИИ рядом — подсказывает, не мешает.",  color:"#34d399", mode:"film"  },
   { num:"03", id:"play",    label:"Пьеса",     desc:"Диалог как действие. Редактор думает вместе с драматургом.",                   color:"#7c6af7", mode:"play"  },
   { num:"04", id:"content", label:"Видео",     desc:"Быстрые идеи, чёткая структура. Фокус на смысл, а не на оформление.",         color:"#fbbf24", mode:"short" },

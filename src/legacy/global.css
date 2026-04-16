@@ -1,0 +1,66 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+body {
+  background: #1a1a2e;
+  overflow: hidden;
+}
+#root {
+  width: 100vw;
+  height: 100vh;
+}
+
+.topbar-hover:hover span,
+.topbar-hover:hover {
+  color: #e8e4d8 !important;
+}
+
+.gutter-label {
+  transition: color 0.08s;
+  cursor: default;
+  color: rgba(255, 255, 255, 0.42) !important;
+}
+.gutter-label:hover {
+  color: #e8e4d8 !important;
+}
+button {
+  -webkit-appearance: none;
+  appearance: none;
+}
+textarea,
+input {
+  -webkit-appearance: none;
+  appearance: none;
+}
+.flex-gap-4 > * + * {
+  margin-left: 4px;
+}
+.flex-gap-6 > * + * {
+  margin-left: 6px;
+}
+.flex-gap-8 > * + * {
+  margin-left: 8px;
+}
+.flex-gap-12 > * + * {
+  margin-left: 12px;
+}
+button {
+  border-radius: 0;
+}
+* {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+textarea {
+  resize: none;
+}
+.doc-zoom-wrap {
+  transform-origin: top center;
+  will-change: transform;
+}

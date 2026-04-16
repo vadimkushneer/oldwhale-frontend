@@ -41,7 +41,7 @@ From the **parent** of `oldwhale-frontend` (see root [`docker-compose.yml`](../d
 - **Frontend:** `http://localhost:5173` — bind mount of `./oldwhale-frontend`, named volume for `node_modules`, `VITE_API_URL=http://localhost:8080`, `DOCKER=1` (enables file polling for HMR).
 - **API:** `http://localhost:8080`
 
-The compose `web` service installs dependencies if `node_modules/.bin/vite` is missing, then runs `npm run dev -- --host 0.0.0.0 --port 5173`.
+The compose `web` service runs [`docker-entrypoint.sh`](./docker-entrypoint.sh): it runs `npm ci` when the named `node_modules` volume is empty, `package-lock.json` changed, or installs look incomplete (avoids stale volumes where `vite` exists but `@vitejs/plugin-react` is missing), then starts `npm run dev -- --host 0.0.0.0 --port 5173`.
 
 ## Production build
 

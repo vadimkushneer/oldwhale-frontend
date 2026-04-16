@@ -59,14 +59,14 @@ VITE_BASE_PATH="/<repository-name>/" VITE_API_URL="https://your-api.example" npm
 
 ## GitHub Pages
 
-The workflow at [`.github/workflows/deploy-github-pages.yml`](../.github/workflows/deploy-github-pages.yml) (monorepo root) runs `npm ci` and `npm run build:gh-pages` inside `oldwhale-frontend`, then uploads `oldwhale-frontend/dist`.
+When this directory is the **root of your Git repository**, use [`.github/workflows/deploy-github-pages.yml`](./.github/workflows/deploy-github-pages.yml): it runs `npm ci`, `npm run build:gh-pages`, and uploads `dist/` as the Pages artifact.
 
 Configure repository variables if needed:
 
 - `VITE_BASE_PATH` — defaults to `/${{ github.event.repository.name }}/`.
 - `VITE_API_URL` — defaults to the DigitalOcean URL used previously.
 
-If your Git remote is **only** this folder, copy the workflow into that repository’s root `.github/workflows/` and drop the `working-directory` / path prefixes.
+If you instead keep this folder inside a **monorepo** and push from the parent repo, add `defaults.run.working-directory` and point the artifact at `oldwhale-frontend/dist` (this repo layout assumes a standalone remote).
 
 ## Authentication (high level)
 

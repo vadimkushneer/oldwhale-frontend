@@ -13,7 +13,8 @@ const lines = raw.split(/\r?\n/);
 /** Babel block in source HTML: lines 64–7487 (1-based) */
 const body = lines.slice(63, 7487).join("\n");
 
-let out = body.replace(/^const \{ useState, useRef, useEffect, useLayoutEffect, useCallback \} = React;\r?\n/, "");
+let out = body.trimStart();
+out = out.replace(/^const \{ useState, useRef, useEffect, useLayoutEffect, useCallback \} = React;\r?\n/, "");
 
 out = out.replace(/\r?\n\r?\nfunction App\(\)[\s\S]*$/m, "\n");
 
@@ -29,6 +30,12 @@ export { Whale, Login, PlayHeaderEditor, EditorScreen, Onboarding };
 
 fs.mkdirSync(path.dirname(outPath), { recursive: true });
 let merged = header + out + footer;
+
+/** Babel UMD left this line; we already import hooks from "react". */
+merged = merged.replace(
+  /\nconst \{ useState, useRef, useEffect, useLayoutEffect, useCallback \} = React;\n/,
+  "\n",
+);
 
 /** Keep Vite/esbuild happy (duplicate object key) — last `color` wins in React anyway. */
 merged = merged.replace(

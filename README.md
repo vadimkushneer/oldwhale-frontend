@@ -63,7 +63,7 @@ When this directory is the **root of your Git repository**, use [`.github/workfl
 
 Configure repository variables if needed:
 
-- `VITE_BASE_PATH` — defaults to `/${{ github.event.repository.name }}/`.
+- `VITE_BASE_PATH` — in CI, defaults to `/<github.repository.name>/` (see workflow `env`).
 - `VITE_API_URL` — defaults to the DigitalOcean URL used previously.
 
 If you instead keep this folder inside a **monorepo** and push from the parent repo, add `defaults.run.working-directory` and point the artifact at `oldwhale-frontend/dist` (this repo layout assumes a standalone remote).

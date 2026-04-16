@@ -28,5 +28,92 @@ export { Whale, Login, PlayHeaderEditor, EditorScreen, Onboarding };
 `;
 
 fs.mkdirSync(path.dirname(outPath), { recursive: true });
-fs.writeFileSync(outPath, header + out + footer, "utf8");
+let merged = header + out + footer;
+
+/** Keep Vite/esbuild happy (duplicate object key) — last `color` wins in React anyway. */
+merged = merged.replace(
+  `resize:"none",overflow:"hidden",color:"#e8e4d8",
+          fontSize:"16px",`,
+  `resize:"none",overflow:"hidden",
+          fontSize:"16px",`,
+);
+
+/** Wire login/register to app-level async handlers (source HTML used a timeout stub). */
+merged = merged.replace(
+  `function Login({ onLogin }) {
+  const [tab, setTab] = useState("in");
+  const [login, setLogin] = useState("");
+  const [pass, setPass] = useState("");
+  const [email, setEmail] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const submit = () => {
+    if(!login||!pass) return;
+    setLoading(true);
+    setTimeout(()=>{ setLoading(false); onLogin(); }, 1600);
+  };`,
+  `function Login({
+  onLogin,
+  submitLogin,
+  submitRegister,
+  authError,
+}: {
+  onLogin: () => void;
+  submitLogin?: (login: string, password: string) => Promise<void>;
+  submitRegister?: (login: string, email: string, password: string) => Promise<void>;
+  authError?: string | null;
+}) {
+  const [tab, setTab] = useState("in");
+  const [login, setLogin] = useState("");
+  const [pass, setPass] = useState("");
+  const [email, setEmail] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const submit = async () => {
+    if (!login || !pass) return;
+    if (tab === "reg" && !email) return;
+    setLoading(true);
+    try {
+      if (submitLogin && submitRegister) {
+        if (tab === "in") await submitLogin(login, pass);
+        else await submitRegister(login, email, pass);
+        onLogin();
+      } else {
+        await new Promise((r) => setTimeout(r, 1600));
+        onLogin();
+      }
+    } catch {
+      /* parent surfaces authError */
+    } finally {
+      setLoading(false);
+    }
+  };`,
+);
+
+merged = merged.replace(
+  `          </button>
+        </div>
+
+        {/* Tagline */}`,
+  `          </button>
+          {authError ? (
+            <div
+              style={{
+                textAlign: "center",
+                marginTop: "14px",
+                color: "#f472b6",
+                fontSize: "11px",
+                letterSpacing: "1px",
+                lineHeight: 1.4,
+              }}
+            >
+              {authError}
+            </div>
+          ) : null}
+        </div>
+
+        {/* Tagline */}`,
+);
+
+fs.writeFileSync(outPath, merged, "utf8");
 console.log("Wrote", outPath, "bytes", fs.statSync(outPath).size);

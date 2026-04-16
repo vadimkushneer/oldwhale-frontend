@@ -50,7 +50,7 @@ export function EditorPage() {
     return <Navigate to="/login" replace state={{ from: { pathname: "/editor", search: "" } }} />;
   }
 
-  if (needsAuth && token && restoreStatus === "restoring") {
+  if (needsAuth && token && restoreStatus !== "ready") {
     return (
       <div
         style={{

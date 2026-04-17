@@ -33,7 +33,38 @@ Authenticate an **existing account** with **login** (not email) and **password**
 
 ## 4. Entry Points
 
-Router: **`BrowserRouter`** with **`basename={import.meta.env.BASE_URL}`**; paths are **app-relative**.
+**Router:** **`BrowserRouter`** with **`basename={import.meta.env.BASE_URL}`** (from Vite `base`, usually `/`); paths below are **app-relative** (prepend basename when deployed under a subpath).
+
+### 4.1. Onboarding (`/`) and reaching the login form
+
+On **`OnboardingPage`**, the user picks a **work mode** in the **`Onboarding`** UI (`src/legacy/legacyUiBundle.tsx`), then clicks **`НАЧАТЬ →`**. `OnboardingPage.tsx` persists the chosen profile object to **`localStorage`** under **`ow_profile`**, then navigates based on **`p.mode`**:
+
+| UI label | **`mode`** stored in profile | What happens after **`НАЧАТЬ →`** |
+|----------|-------------------------------|--------------------------------------|
+| **Сценарий** | **`film`** | `navigate("/login", { state: { from: { pathname: "/editor", search: "" } } })` — auth required before the editor. |
+| **Пьеса** | **`play`** | Same: **`/login`** with **`state.from`** pointing at **`/editor`**. |
+| **Видео** | **`short`** | Same. |
+| **Медиа** | **`media`** | Same. |
+| **Notebook** | **`note`** | `navigate("/editor")` — **no** mandatory **`/login`**. To sign in later: **«ВОЙТИ →»** in **`EditorScreen`** → **`EditorPage`** **`onLogin`** → **`/login`** with **`state.from`** pointing at **`/editor`** (same mechanism as the **`onLogin`** / guest row in §4.2). |
+
+**Step-by-step for structured modes** (exactly one of **`film`**, **`play`**, **`short`**, **`media`** ends up in **`ow_profile`**):
+
+1. User opens **`/`** and, in the **`Onboarding`** mode selector, picks **one** of the four structured options:
+
+   - **Сценарий** → profile will have **`mode: "film"`**;
+   - **Пьеса** → **`mode: "play"`**;
+   - **Видео** → **`mode: "short"`**;
+   - **Медиа** → **`mode: "media"`**.
+
+2. User clicks **`НАЧАТЬ →`**: profile JSON with the chosen **`mode`** is written to **`localStorage`** under **`ow_profile`**, then navigation goes to **`/login`** with **`location.state.from`** targeting **`/editor`**.
+3. User lands on **`LoginPage`** with the default **`ВОЙТИ`** tab; they enter **login** + **password** for an **existing** account (or may switch to **`РЕГИСТРАЦИЯ`** — see **`USER_FLOW_REGISTRATION.md`**).
+
+**Step-by-step for guest notebook** (**`mode: "note"`** in **`ow_profile`**):
+
+1. On **`/`**, user selects **Notebook** (in code the list label is **«Блокн0т»** with a digit zero — see `legacyUiBundle.tsx`), then **`НАЧАТЬ →`**: **`ow_profile`** stores **`mode: "note"`**, navigation goes to **`/editor`** with no JWT (**guest**, **`isGuest === true`** on **`EditorPage`**).
+2. To sign in later: in **`EditorScreen`**, user clicks **«ВОЙТИ →»** → **`onLogin`** from **`EditorPage`** runs **`navigate("/login", { state: { from: { pathname: "/editor", search: "" } } })`** — then follow the form login steps in **§6** and **§7.3**.
+
+### 4.2. Route summary for `/login`
 
 | # | Entry | Source / context | Trigger |
 |---|--------|-------------------|---------|
@@ -43,7 +74,7 @@ Router: **`BrowserRouter`** with **`basename={import.meta.env.BASE_URL}`**; path
 | 4 | **`/login`** + **`state.from`** | **`EditorPage`** — **`onLogin`** from **`EditorScreen`** (e.g. guest **«ВОЙТИ →»**). | `navigate("/login", { state: { from: … } })`. |
 | 5 | **`/login`** + **`state.from: /admin`** | **`AdminPage`** without session. | **`<Navigate to="/login" replace state={{ from: { pathname: "/admin", … } }} />`**. |
 
-**No deep link to tabs:** Only **`/login`** exists; **`РЕГИСТРАЦИЯ`** is a second tab on the same component.
+**No deep link to tabs:** Only the **`/login`** route exists; **`РЕГИСТРАЦИЯ`** is the second tab on the same **`Login`** component, not a separate URL.
 
 **Session restore (no `/login` visit):** User opens any route with **`ow_token`** already in **`localStorage`** → **`SessionInit`** runs **`restoreSession`** → on success, **`auth.user`** is set (see §7).
 
@@ -77,13 +108,14 @@ Router: **`BrowserRouter`** with **`basename={import.meta.env.BASE_URL}`**; path
 
 ### 7.2 Redirect target after successful form login
 
-Same as registration: **`location.state.from`** overrides default **`/editor`** (`LoginPage.tsx`).
+Same contract as post-registration navigation (`LoginPage.tsx`, see **`USER_FLOW_REGISTRATION.md`** §7.1): after **`loginThunk`** succeeds, **`onLogin()`** runs **`navigate(target, { replace: true })`** where **`target`** is **`from.pathname + from.search`** when **`location.state.from.pathname`** exists, otherwise **`/editor`**.
 
 ### 7.3 Guest opens editor, then chooses to log in
 
-1. User selects **Блокн0т** on onboarding → **`/editor`** with **`isGuest`** true.
-2. **«ВОЙТИ →»** calls **`onLogin`** → **`/login`** with **`from: /editor`**.
-3. Successful login → **`/editor`** with **`token`**; **`isGuest`** false.
+1. On **`/`**, user selects **Notebook** (**`mode: "note"`**; list label in code **«Блокн0т»**), **`НАЧАТЬ →`** → **`/editor`** as a **guest** (**`isGuest === true`** on **`EditorPage`**, no JWT).
+2. In **`EditorScreen`**, user clicks **«ВОЙТИ →»** → **`onLogin`** from **`EditorPage`** runs: **`navigate("/login", { state: { from: { pathname: "/editor", search: "" } } })`**.
+3. On **`/login`**, user enters **login** + **password** on the **`ВОЙТИ`** tab and submits successfully (§6).
+4. After **`loginThunk.fulfilled`** and **`onLogin()`**, navigation returns to **`/editor`** with a token; **`isGuest`** becomes **`false`**.
 
 ## 8. Exception / Error Flows
 
@@ -235,7 +267,7 @@ flowchart TD
 - [ ] Mock login **200** without **`token`** → **«Некорректный ответ сервера»**.
 - [ ] Store valid token, mock **`GET /api/me`** **200** → open **`/editor`** (needs auth): should show restore UI then editor (or **`/login`** if token cleared on failure).
 - [ ] Mock **`/api/me`** returns **`disabled: true`** → token cleared; **`/editor`** with structured profile should redirect to **`/login`** when **`!token`** after ready.
-- [ ] Guest **note** → **`/editor`** → **«ВОЙТИ →»** → **`/login`** → login → back to **`/editor`** authenticated.
+- [ ] **Notebook** (**`mode: "note"`**, UI label in code **«Блокн0т»**) → **`/editor`** → **«ВОЙТИ →»** → **`/login`** with **`from: /editor`** → successful login per §6 → back to **`/editor`** with JWT and **`isGuest === false`**.
 
 ## Evidence from Code
 

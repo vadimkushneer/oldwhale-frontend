@@ -15,7 +15,7 @@ Create a new application account by submitting **login**, **email**, and **passw
 **Excluded**
 
 - **Admin-provisioned users** (`POST /api/admin/users` on `AdminPage` via `adminApi` RTK Query) — separate actor, endpoint, and UI; not end-user self-registration.
-- **Guest “Блокн0т” (`note`)** profile: opens **`/editor`** without authentication; no registration on that path unless the user later chooses **«ВОЙТИ →»** (see entry points).
+- **Guest notebook profile** (**`mode: "note"`**; onboarding list label in code is **«Блокн0т»**, see `legacyUiBundle.tsx`): opens **`/editor`** without authentication; no self-service registration on that path until the user navigates to **`/login`** via **«ВОЙТИ →»** (see §4 and **`USER_FLOW_LOGIN.md`**).
 - **Password reset**, **email verification**, **OAuth/social signup**, **profile editing** — not implemented in this frontend (confirmed in `README.md`).
 
 ## 3. Actors
@@ -61,9 +61,29 @@ Router: `BrowserRouter` with `basename={import.meta.env.BASE_URL}` (from Vite `b
 
 ## 7. Alternative Flows
 
-- **Redirect target after registration** — Same as after login: if **`location.state.from`** was passed (e.g. from **`EditorPage`** or **`AdminPage`** guard), navigation uses that path instead of **`/editor`** (`LoginPage.tsx`).
-- **Registration after choosing a structured profile** — User picks **Сценарий / Пьеса / Видео / Медиа** on onboarding → **`/login`** with **`from: /editor`** → user switches to **`РЕГИСТРАЦИЯ`** → success → **`/editor`** with auth (profile already in **`localStorage`** as **`ow_profile`** from onboarding).
-- **No separate modal or wizard** — Registration is only the second tab on the same card UI.
+### 7.1. Post-registration redirect target
+
+Same contract as form login (`LoginPage.tsx`): when **`location.state.from`** is present (for example after a guard redirect from **`EditorPage`** or **`AdminPage`**), **`navigate(target, { replace: true })`** uses **`from.pathname` + `from.search`** instead of the default **`/editor`**. If **`from`** is absent, **`target`** is **`/editor`**.
+
+### 7.2. Registration after onboarding with a structured profile
+
+This covers choosing a **structured** mode on **`/`** (not the guest **Notebook** / **`note`**). Allowed UI label → **`mode`** in **`ow_profile`** pairs:
+
+- **Сценарий** → **`film`**
+- **Пьеса** → **`play`**
+- **Видео** → **`short`**
+- **Медиа** → **`media`**
+
+(Onboarding navigation to **`/login`** is spelled out in **`USER_FLOW_LOGIN.md`** §4.1; mode list markup lives in `legacyUiBundle.tsx`.)
+
+1. On **`/`**, in the **`Onboarding`** selector, the user picks **exactly one** of the four options above and clicks **`НАЧАТЬ →`**: **`ow_profile`** in **`localStorage`** stores JSON with that **`mode`**, then the app navigates to **`/login`** with **`state.from`** pointing at **`/editor`**.
+2. On **`LoginPage`**, the user switches to the **`РЕГИСТРАЦИЯ`** tab (there is **no** dedicated **`/register`** route).
+3. The user fills **login**, **email**, and **password**, then submits (**`СОЗДАТЬ АККАУНТ`** or **Enter** in login/password fields — steps in **§6**).
+4. On successful **`POST /api/auth/register`**, Redux stores **`token`** and **`user`**, persists **`ow_token`**, then **`onLogin()`** runs → navigation to **`/editor`** (or the **`from`** path) with an active session; onboarding profile data remains in **`ow_profile`**.
+
+### 7.3. UI constraints
+
+**No standalone wizard, modal, or `/register` route** — self-service registration is only the second **`РЕГИСТРАЦИЯ`** tab on the shared **`Login`** card at **`/login`**.
 
 ## 8. Exception / Error Flows
 
@@ -171,7 +191,7 @@ flowchart TD
 
 ## 16. Test Scenarios Derived from the Flow
 
-- [ ] From **`/`**, pick **Сценарий** (or any non-note mode) → **`/login`** → **`РЕГИСТРАЦИЯ`** → valid credentials → lands **`/editor`**, **`ow_token`** set, editor loads with profile.
+- [ ] On **`/`**, pick **Сценарий**, **Пьеса**, **Видео**, or **Медиа** (any structured mode, **`mode` ≠ `note`**) → confirm **`/login`** opens with **`state.from`** pointing at the editor → **`РЕГИСТРАЦИЯ`** tab → valid credentials → lands **`/editor`**, **`ow_token`** set, **`EditorScreen`** receives persisted **`ow_profile`**.
 - [ ] Direct **`/login`** (no `state`) → register → lands **`/editor`** (default target).
 - [ ] Hit **`/admin`** logged out → redirected to **`/login`** with `from` → register (if API allows non-admin user) → expect navigation to **`/admin`** then insufficient-rights UI if role is not admin — **product-dependent**; at minimum assert navigation to **`from`** path.
 - [ ] Submit with empty login/password/email where applicable → **no** request, **no** error banner.

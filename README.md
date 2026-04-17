@@ -76,6 +76,14 @@ If you instead keep this folder inside a **monorepo** and push from the parent r
 - **Logout:** local only (no backend logout endpoint).
 - **No** refresh-token, password reset, or profile-edit flows beyond OpenAPI.
 
+## Documentation
+
+- **[User flow: registration](./USER_FLOW_REGISTRATION.md)** — entry points, validation, API, navigation, and QA scenarios for self-service registration.
+- **[User flow: login](./USER_FLOW_LOGIN.md)** — form login, session restore (`/api/me`), guards, and failure paths for authenticated vs unauthenticated users.
+- **[E2E and visual testing](./e2e/README.md)** — how to run and update Playwright visual regression tests and behavioral E2E specs.
+
+**Russian (parallel docs):** [README.ru.md](./README.ru.md) · [USER_FLOW_REGISTRATION.ru.md](./USER_FLOW_REGISTRATION.ru.md) · [USER_FLOW_LOGIN.ru.md](./USER_FLOW_LOGIN.ru.md) · [e2e/README.ru.md](./e2e/README.ru.md)
+
 ## Admin
 
 Minimal `/admin` UI (list, create, patch role/disabled, delete). Matches the dark neumorphic palette. **Self-delete** and self-disable are blocked in the UI. **DELETE** treats HTTP **204** with an empty body as success (handled by RTK Query `fetchBaseQuery`).

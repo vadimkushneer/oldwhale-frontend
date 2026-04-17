@@ -29,6 +29,7 @@ function formatCreatedAt(iso: string) {
 export function AdminPage() {
   const user = useAppSelector((s) => s.auth.user);
   const token = useAppSelector((s) => s.auth.token);
+  const restoreStatus = useAppSelector((s) => s.auth.restoreStatus);
   const { data: users, isLoading, refetch } = useListUsersQuery(undefined, {
     skip: !token || user?.role !== "admin",
   });
@@ -42,7 +43,32 @@ export function AdminPage() {
   const [nRole, setNRole] = useState<UserRole>("user");
   const [formErr, setFormErr] = useState<string | null>(null);
 
-  if (!token || !user) {
+  if (!token) {
+    return <Navigate to="/login" replace state={{ from: { pathname: "/admin", search: "" } }} />;
+  }
+
+  if (restoreStatus !== "ready") {
+    return (
+      <div
+        style={{
+          width: "100vw",
+          minHeight: "100vh",
+          background: BG,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          color: T3,
+          fontFamily: "'Courier New',monospace",
+          letterSpacing: "2px",
+          fontSize: "11px",
+        }}
+      >
+        ВОССТАНОВЛЕНИЕ СЕССИИ…
+      </div>
+    );
+  }
+
+  if (!user) {
     return <Navigate to="/login" replace state={{ from: { pathname: "/admin", search: "" } }} />;
   }
 

@@ -6,7 +6,7 @@ import { clearAuth } from "../features/auth/authSlice";
 
 type Profile = { mode?: string; id?: string; label?: string; color?: string; desc?: string; num?: string };
 
-/** When JWT + user are valid but onboarding profile was never stored (or was cleared), editor still loads. */
+/** When JWT is valid but onboarding profile was never stored (or was cleared), editor still loads. */
 const FALLBACK_AUTH_PROFILE: Profile = { mode: "film" };
 
 function readProfile(): Profile | null {
@@ -19,6 +19,27 @@ function readProfile(): Profile | null {
   }
 }
 
+function RestoringSessionScreen() {
+  return (
+    <div
+      style={{
+        width: "100vw",
+        height: "100vh",
+        background: "#1a1b2e",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        color: "#5a587a",
+        fontFamily: "'Courier New',monospace",
+        letterSpacing: "2px",
+        fontSize: "11px",
+      }}
+    >
+      ВОССТАНОВЛЕНИЕ СЕССИИ…
+    </div>
+  );
+}
+
 export function EditorPage() {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
@@ -28,9 +49,15 @@ export function EditorPage() {
 
   const storedProfile = useMemo(() => readProfile(), []);
 
+  /**
+   * Presence of a JWT is the source of truth for "logged-in". `user` may be
+   * temporarily null while `/api/me` is restoring, or if restore fails with a
+   * non-401 error (e.g. network hiccup). In either case we should NOT force
+   * the user back through the login form — the token is still valid and any
+   * protected API call will surface a real 401 if it isn't.
+   */
   const profile: Profile | null =
-    storedProfile ??
-    (token && user && restoreStatus === "ready" ? FALLBACK_AUTH_PROFILE : null);
+    storedProfile ?? (token ? FALLBACK_AUTH_PROFILE : null);
 
   const needsAuth = profile?.mode !== "note";
   const isGuest = profile?.mode === "note" && !token;
@@ -45,55 +72,25 @@ export function EditorPage() {
     navigate("/", { replace: true });
   }, [dispatch, navigate]);
 
+  /**
+   * "На главную" navigates back to onboarding without touching the session:
+   * the JWT (`ow_token`) must survive so the next visit to a protected route
+   * doesn't demand credentials. The explicit `⏻ Выйти` button still calls
+   * `onLogout`, which fully clears auth.
+   */
+  const onGoHome = useCallback(() => {
+    navigate("/", { replace: false });
+  }, [navigate]);
+
   const onLogin = useCallback(() => {
     navigate("/login", { replace: false, state: { from: { pathname: "/editor", search: "" } } });
   }, [navigate]);
 
   if (!profile) {
-    if (token && restoreStatus !== "ready") {
-      return (
-        <div
-          style={{
-            width: "100vw",
-            height: "100vh",
-            background: "#1a1b2e",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            color: "#5a587a",
-            fontFamily: "'Courier New',monospace",
-            letterSpacing: "2px",
-            fontSize: "11px",
-          }}
-        >
-          ВОССТАНОВЛЕНИЕ СЕССИИ…
-        </div>
-      );
-    }
-    if (token && restoreStatus === "ready" && !user) {
-      return <Navigate to="/login" replace state={{ from: { pathname: "/editor", search: "" } }} />;
-    }
     if (!token && restoreStatus === "ready") {
       return <Navigate to="/" replace />;
     }
-    return (
-      <div
-        style={{
-          width: "100vw",
-          height: "100vh",
-          background: "#1a1b2e",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          color: "#5a587a",
-          fontFamily: "'Courier New',monospace",
-          letterSpacing: "2px",
-          fontSize: "11px",
-        }}
-      >
-        ВОССТАНОВЛЕНИЕ СЕССИИ…
-      </div>
-    );
+    return <RestoringSessionScreen />;
   }
 
   if (needsAuth && !token && restoreStatus === "ready") {
@@ -101,28 +98,7 @@ export function EditorPage() {
   }
 
   if (needsAuth && token && restoreStatus !== "ready") {
-    return (
-      <div
-        style={{
-          width: "100vw",
-          height: "100vh",
-          background: "#1a1b2e",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          color: "#5a587a",
-          fontFamily: "'Courier New',monospace",
-          letterSpacing: "2px",
-          fontSize: "11px",
-        }}
-      >
-        ВОССТАНОВЛЕНИЕ СЕССИИ…
-      </div>
-    );
-  }
-
-  if (needsAuth && token && restoreStatus === "ready" && !user) {
-    return <Navigate to="/login" replace state={{ from: { pathname: "/editor", search: "" } }} />;
+    return <RestoringSessionScreen />;
   }
 
   return (
@@ -153,6 +129,7 @@ export function EditorPage() {
         profile={profile}
         isGuest={Boolean(isGuest)}
         onLogout={onLogout}
+        onGoHome={onGoHome}
         onLogin={onLogin}
       />
     </div>

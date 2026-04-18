@@ -91,7 +91,8 @@ import {
 } from "../../util/doc";
 import { PlayHeaderEditor } from "./PlayHeader";
 
-function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
+function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin }) {
+  const goHome = onGoHome || onLogout;
   const [mode, setMode] = useState(profile?.mode || "film");
   const modeBlocksCache = useRef({});
   const [blocks, setBlocks]           = useState(() => { const m=profile?.mode||"film"; return (INIT[m]||INIT.film).map(b=>({...b})); });
@@ -5839,7 +5840,7 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
                   </span>
                   Поделиться
                 </button>
-                <button onClick={onLogout} style={{
+                <button onClick={goHome} style={{
                   display:"flex",alignItems:"center",width:"100%",
                   padding:"11px 20px",background:"transparent",border:"none",
                   color:T1,fontSize:"13px",cursor:"pointer",fontFamily:"inherit",textAlign:"left",
@@ -7106,7 +7107,7 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
             {/* Прочее */}
             <div style={{padding:"12px 0",borderTop:`1px solid ${T3}22`,marginTop:"auto"}}>
               <div style={{padding:"4px 20px 8px",color:T3,fontSize:"9px",letterSpacing:"3px"}}>ПРОЧЕЕ</div>
-              <button onClick={onLogout} style={{
+              <button onClick={goHome} style={{
                 display:"flex",alignItems:"center",width:"100%",
                 padding:"11px 20px",background:"transparent",border:"none",
                 color:T1,fontSize:"13px",cursor:"pointer",fontFamily:"inherit",textAlign:"left",

@@ -26,12 +26,43 @@ export function LoginPage() {
   const from = location.state?.from;
   const target = from?.pathname ? `${from.pathname}${from.search || ""}` : "/editor";
 
+  /**
+   * Do not trap a still-authenticated user on the login form. As soon as the
+   * persisted session is confirmed (restore finished with a user), bounce back
+   * to the original destination.
+   */
   useEffect(() => {
     if (token && user && restoreStatus === "ready") {
       ensureEditorProfileIfMissing();
       navigate(target, { replace: true });
     }
   }, [token, user, restoreStatus, navigate, target]);
+
+  /**
+   * While the app is revalidating an existing token against `/api/me`, show a
+   * restoring indicator instead of the login form — otherwise a logged-in user
+   * briefly sees (and could accidentally re-submit to) the credentials screen.
+   */
+  if (token && restoreStatus !== "ready") {
+    return (
+      <div
+        style={{
+          width: "100vw",
+          height: "100vh",
+          background: "#1a1b2e",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          color: "#5a587a",
+          fontFamily: "'Courier New',monospace",
+          letterSpacing: "2px",
+          fontSize: "11px",
+        }}
+      >
+        ВОССТАНОВЛЕНИЕ СЕССИИ…
+      </div>
+    );
+  }
 
   return (
     <Login

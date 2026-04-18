@@ -33,11 +33,25 @@ npm run test:e2e
 
 **How to update baselines after intentional UI changes**
 
+There are two update paths depending on what you changed:
+
+1. **UI drifted against the pixel-truth in [`reference.html`](../reference.html)** (intended, e.g. you hand-edited a token or an `src/legacy/routes/*` file to match a reference fix). Recapture the baseline directly from `reference.html`:
+
+```bash
+npm run test:e2e:capture-reference
+# or a subset:
+npm run test:e2e:capture-reference -- -g onboarding
+```
+
+  This spec (see [`visual/reference.capture.spec.ts`](visual/reference.capture.spec.ts)) loads `public/reference.html` via the Vite preview, drives its in-memory `screen` state through the visible UI, and writes full-page PNGs directly into `visual/routes.spec.ts-snapshots/` with the exact filenames consumed by `routes.spec.ts`. Gated on `CAPTURE_REFERENCE=1` so the main `test:e2e` run never overwrites baselines accidentally.
+
+2. **Intentional divergence from reference** (e.g. admin screens, which have no reference). Use the generic update flag:
+
 ```bash
 npm run test:e2e:update -- visual/routes.spec.ts
 ```
 
-(`test:e2e:update` is `playwright test --update-snapshots`.)
+  (`test:e2e:update` is `playwright test --update-snapshots`.)
 
 Regenerate snapshots on the **same OS** you care about, or run in CI/Linux (for example the `mcr.microsoft.com/playwright` image used in [`.github/workflows/e2e.yml`](../.github/workflows/e2e.yml)) so **`chromium-linux`** PNGs match what GitHub Actions uses. If you only refresh **darwin** snapshots locally, **linux** snapshots may still fail in CI until updated from Linux or a matching environment.
 
@@ -79,7 +93,8 @@ The **`webServer`** in Playwright config starts **`npm run e2e:serve`** (build +
 | All Playwright tests | `npm run test:e2e` |
 | Visual tests only | `npm run test:e2e -- visual/` |
 | Registration E2E only | `npm run test:e2e -- auth-registration.spec.ts` |
-| Update visual snapshots | `npm run test:e2e:update -- visual/routes.spec.ts` |
+| Recapture baselines from `reference.html` | `npm run test:e2e:capture-reference` |
+| Update visual snapshots from React render | `npm run test:e2e:update -- visual/routes.spec.ts` |
 
 ---
 

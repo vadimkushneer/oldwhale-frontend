@@ -11,7 +11,7 @@
     "e2e:serve": "VITE_API_URL=http://127.0.0.1:4173 npm run build && vite preview --host 127.0.0.1 --port 4173",
     "test:e2e": "playwright test",
     "test:e2e:update": "playwright test --update-snapshots",
-    "prepare-legacy": "node scripts/prepare-legacy.mjs"
+    "test:e2e:capture-reference": "CAPTURE_REFERENCE=1 playwright test visual/reference.capture.spec.ts"
   },
   "dependencies": {
     "@reduxjs/toolkit": "^2.5.0",

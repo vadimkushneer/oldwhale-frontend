@@ -8,15 +8,16 @@ import {
 } from "../features/admin/adminApi";
 import { useAppSelector } from "../hooks";
 import type { User, UserRole } from "../api/types";
-
-const BG = "#1a1b2e";
-const SURF = "#1f2040";
-const SH_OUT = "8px 8px 22px rgba(0,0,0,0.5), -4px -4px 12px rgba(255,255,255,0.038)";
-const SH_IN = "inset 3px 3px 10px rgba(0,0,0,0.5), inset -2px -2px 6px rgba(255,255,255,0.035)";
-const ACCENT = "#7c6af7";
-const T1 = "#e4e1f5";
-const T2 = "#9896b8";
-const T3 = "#5a587a";
+import {
+  ACCENT,
+  BG,
+  SH_IN,
+  SH_OUT,
+  SURF,
+  T1,
+  T2,
+  T3,
+} from "../legacy/ui/tokens";
 
 function formatCreatedAt(iso: string) {
   try {

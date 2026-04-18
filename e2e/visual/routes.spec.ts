@@ -129,6 +129,32 @@ test.describe("visual / routes", () => {
     await expect(page).toHaveScreenshot("editor-guest.png", shot);
   });
 
+  /**
+   * Authenticated editor modes. reference.html exposes film / play / media
+   * through the login wall, so parity in the React app requires a mocked
+   * /api/me (regular user) plus a stubbed ow_token in localStorage. The
+   * admin badge is NOT rendered for a regular user, matching the reference
+   * which has no admin concept at all.
+   */
+  for (const mode of ["film", "play", "media"] as const) {
+    test(`editor /${mode} (${mode} profile, authed)`, async ({ page }) => {
+      await page.addInitScript((m) => {
+        try {
+          localStorage.clear();
+        } catch {
+          /* ignore */
+        }
+        localStorage.setItem("ow_token", "e2e-mock-jwt");
+        localStorage.setItem("ow_profile", JSON.stringify({ mode: m }));
+      }, mode);
+      await installApiMocks(page, { me: mockRegular });
+      await page.goto("/editor", { waitUntil: "load", timeout: 90_000 });
+      await expect(page.getByText("МОИ ПРОЕКТЫ")).toBeVisible({ timeout: 30_000 });
+      await page.waitForLoadState("networkidle").catch(() => undefined);
+      await expect(page).toHaveScreenshot(`editor-${mode}.png`, shot);
+    });
+  }
+
   test("admin /admin", async ({ page }) => {
     await page.addInitScript(() => {
       try {

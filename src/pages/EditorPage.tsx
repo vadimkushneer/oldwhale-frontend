@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
-import { EditorScreen } from "../legacy/legacyUiBundle";
+import { EditorScreen } from "../legacy/routes/Editor";
 import { useAppDispatch, useAppSelector } from "../hooks";
 import { clearAuth } from "../features/auth/authSlice";
 

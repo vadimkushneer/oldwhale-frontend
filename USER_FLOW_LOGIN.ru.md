@@ -10,7 +10,7 @@
 
 **Включено**
 
-- **Вход по форме** на **`LoginPage`** (`/login`) через вкладку по умолчанию **`ВОЙТИ`** в **`Login`** (`src/legacy/legacyUiBundle.tsx`).
+- **Вход по форме** на **`LoginPage`** (`/login`) через вкладку по умолчанию **`ВОЙТИ`** в **`Login`** (`src/legacy/routes/Login/index.tsx`).
 - **`loginThunk`** в `src/features/auth/authSlice.ts`: `POST /api/auth/login`, сохранение токена, fulfilled/rejected.
 - **Восстановление сессии** при загрузке приложения, если есть токен: **`SessionInit`** в `src/app/App.tsx` диспатчит **`restoreSession`** → `GET /api/me` (зарегистрированный пользователь заходит без формы при действительном JWT).
 - **Защита и редиректы**, отправляющие неаутентифицированного пользователя на **`/login`** (`EditorPage`, `AdminPage`).
@@ -39,7 +39,7 @@
 
 ### 4.1. Онбординг (`/`) и переход к форме входа
 
-На **`OnboardingPage`** пользователь выбирает **режим работы** в UI **`Onboarding`** (`src/legacy/legacyUiBundle.tsx`), затем нажимает **`НАЧАТЬ →`**. В `OnboardingPage.tsx` выбранный объект профиля записывается в **`localStorage`** под ключом **`ow_profile`**, далее выполняется навигация в зависимости от **`p.mode`**:
+На **`OnboardingPage`** пользователь выбирает **режим работы** в UI **`Onboarding`** (`src/legacy/routes/Onboarding/index.tsx`), затем нажимает **`НАЧАТЬ →`**. В `OnboardingPage.tsx` выбранный объект профиля записывается в **`localStorage`** под ключом **`ow_profile`**, далее выполняется навигация в зависимости от **`p.mode`**:
 
 | Подпись в UI | Значение **`mode`** в сохранённом профиле | Действие после **`НАЧАТЬ →`** |
 |----------------|-------------------------------------------|--------------------------------|
@@ -49,7 +49,7 @@
 | **Медиа** | **`media`** | То же. |
 | **Блокнот** | **`note`** | `navigate("/editor")` — **без** обязательного визита на **`/login`**. Чтобы войти позже: **«ВОЙТИ →»** в **`EditorScreen`** → **`EditorPage`** вызывает **`onLogin`** → **`/login`** с **`state.from`** на **`/editor`** (тот же механизм, что в §4.2 для гостя с **`onLogin`**). |
 
-*В списке режимов онбординга подпись задаётся в коде как **«Блокн0т»** (символ «0»), см. `legacyUiBundle.tsx`; в профиле сохраняется **`mode: "note"`**.*
+*Подпись режима Блокнот в коде задаётся в `src/legacy/routes/Onboarding/index.tsx` (`WHEEL_ITEMS[0]`); в профиле сохраняется **`mode: "note"`**.*
 
 **Пошагово для структурированного режима** (в **`ow_profile`** окажется ровно один из: **`film`**, **`play`**, **`short`**, **`media`**):
 
@@ -65,7 +65,7 @@
 
 **Пошагово для гостевого блокнота** (в **`ow_profile`** будет **`mode: "note"`**):
 
-1. Пользователь на **`/`** выбирает **Блокнот** (в списке режимов в коде подпись элемента — **«Блокн0т»** с цифрой ноль, см. `legacyUiBundle.tsx`), затем нажимает **`НАЧАТЬ →`**: в **`ow_profile`** сохраняется **`mode: "note"`**, выполняется переход на **`/editor`** без JWT (**гость**, **`isGuest === true`** на **`EditorPage`**).
+1. Пользователь на **`/`** выбирает **Блокнот** в онбординг-колесе (см. `src/legacy/routes/Onboarding/index.tsx` — `WHEEL_ITEMS[0]`), затем нажимает **`НАЧАТЬ →`**: в **`ow_profile`** сохраняется **`mode: "note"`**, выполняется переход на **`/editor`** без JWT (**гость**, **`isGuest === true`** на **`EditorPage`**).
 2. При желании войти: в **`EditorScreen`** нажимает **«ВОЙТИ →»** → срабатывает **`onLogin`** с **`EditorPage`**: **`navigate("/login", { state: { from: { pathname: "/editor", search: "" } } })`** — далее сценарий формы входа в **§6** и **§7.3**.
 
 ### 4.2. Сводная таблица маршрутов на `/login`
@@ -153,7 +153,7 @@
 
 ### 8.4 Прочее
 
-- **«забыл пароль?»** — декоративный **`span`**, обработчика нет (`legacyUiBundle.tsx`).
+- **«забыл пароль?»** — декоративный **`span`**, обработчика нет (`src/legacy/routes/Login/index.tsx`).
 - **401** в **`adminApi`**: **`clearAuth()`** — глобальный выход при неавторизованном вызове админ API (не часть формы входа, но влияет на «вошёл ли пользователь»).
 
 ## 9. Правила валидации
@@ -280,7 +280,7 @@ flowchart TD
 | `src/app/App.tsx` | Маршруты; **`SessionInit`**, **`restoreSession`**, **`markRestoreSkipped`**. |
 | `src/pages/LoginPage.tsx` | **`loginThunk`**, **`lastError`**, **`navigate(target)`**, **`clearFormError`**. |
 | `src/features/auth/authSlice.ts` | **`loginThunk`**, **`restoreSession`**, **`loginLoading`**, **`clearAuth`**, **`ow_token`**. |
-| `src/legacy/legacyUiBundle.tsx` | **`Login`**: вкладка **`in`**, **`submitLogin`**, **`ВОЙТИ`**, **`забыл пароль?`**. |
+| `src/legacy/routes/Login/index.tsx` | **`Login`**: вкладка **`in`**, **`submitLogin`**, **`ВОЙТИ`**, **`забыл пароль?`**. |
 | `src/pages/EditorPage.tsx` | Гарды, **`onLogin`**, **`onLogout`**, UI восстановления, **`isGuest`**. |
 | `src/pages/OnboardingPage.tsx` | Переходы на **`/login`** / **`/editor`**. |
 | `src/pages/AdminPage.tsx` | Редирект на **`/login`** без сессии. |

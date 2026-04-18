@@ -1,5 +1,5 @@
 import { useNavigate, useLocation } from "react-router-dom";
-import { Login } from "../legacy/legacyUiBundle";
+import { Login } from "../legacy/routes/Login";
 import { useAppDispatch, useAppSelector } from "../hooks";
 import { clearFormError, loginThunk, registerThunk } from "../features/auth/authSlice";
 

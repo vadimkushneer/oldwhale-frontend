@@ -8,7 +8,7 @@ Authenticate an **existing account** with **login** (not email) and **password**
 
 **Included**
 
-- **Form-based login** on **`LoginPage`** (`/login`) via the default **`ВОЙТИ`** tab of **`Login`** (`src/legacy/legacyUiBundle.tsx`).
+- **Form-based login** on **`LoginPage`** (`/login`) via the default **`ВОЙТИ`** tab of **`Login`** (`src/legacy/routes/Login/index.tsx`).
 - **`loginThunk`** in `src/features/auth/authSlice.ts`: `POST /api/auth/login`, token persistence, fulfilled/rejected handling.
 - **Session restore** on app load when a token exists: **`SessionInit`** in `src/app/App.tsx` dispatches **`restoreSession`** → `GET /api/me` (registered user re-enters the app without submitting the login form, subject to token validity).
 - **Guards and redirects** that send unauthenticated users to **`/login`** (`EditorPage`, `AdminPage`).
@@ -37,7 +37,7 @@ Authenticate an **existing account** with **login** (not email) and **password**
 
 ### 4.1. Onboarding (`/`) and reaching the login form
 
-On **`OnboardingPage`**, the user picks a **work mode** in the **`Onboarding`** UI (`src/legacy/legacyUiBundle.tsx`), then clicks **`НАЧАТЬ →`**. `OnboardingPage.tsx` persists the chosen profile object to **`localStorage`** under **`ow_profile`**, then navigates based on **`p.mode`**:
+On **`OnboardingPage`**, the user picks a **work mode** in the **`Onboarding`** UI (`src/legacy/routes/Onboarding/index.tsx`), then clicks **`НАЧАТЬ →`**. `OnboardingPage.tsx` persists the chosen profile object to **`localStorage`** under **`ow_profile`**, then navigates based on **`p.mode`**:
 
 | UI label | **`mode`** stored in profile | What happens after **`НАЧАТЬ →`** |
 |----------|-------------------------------|--------------------------------------|
@@ -61,7 +61,7 @@ On **`OnboardingPage`**, the user picks a **work mode** in the **`Onboarding`** 
 
 **Step-by-step for guest notebook** (**`mode: "note"`** in **`ow_profile`**):
 
-1. On **`/`**, user selects **Notebook** (in code the list label is **«Блокн0т»** with a digit zero — see `legacyUiBundle.tsx`), then **`НАЧАТЬ →`**: **`ow_profile`** stores **`mode: "note"`**, navigation goes to **`/editor`** with no JWT (**guest**, **`isGuest === true`** on **`EditorPage`**).
+1. On **`/`**, user selects **Блокнот** in the onboarding wheel (see `src/legacy/routes/Onboarding/index.tsx` — `WHEEL_ITEMS[0]`), then **`НАЧАТЬ →`**: **`ow_profile`** stores **`mode: "note"`**, navigation goes to **`/editor`** with no JWT (**guest**, **`isGuest === true`** on **`EditorPage`**).
 2. To sign in later: in **`EditorScreen`**, user clicks **«ВОЙТИ →»** → **`onLogin`** from **`EditorPage`** runs **`navigate("/login", { state: { from: { pathname: "/editor", search: "" } } })`** — then follow the form login steps in **§6** and **§7.3**.
 
 ### 4.2. Route summary for `/login`
@@ -149,7 +149,7 @@ The client **does not** branch on “account missing” vs “bad password”. A
 
 ### 8.4 Other
 
-- **«забыл пароль?»** — decorative **`span`**, no handler (`legacyUiBundle.tsx`).
+- **«забыл пароль?»** — decorative **`span`**, no handler (`src/legacy/routes/Login/index.tsx`).
 - **`adminApi`** **401**: dispatches **`clearAuth()`** — user logged out globally when an admin API call is unauthorized (not part of login form, but affects “logged in” state).
 
 ## 9. Validation Rules
@@ -276,7 +276,7 @@ flowchart TD
 | `src/app/App.tsx` | Routes; **`SessionInit`** + **`restoreSession`** / **`markRestoreSkipped`**. |
 | `src/pages/LoginPage.tsx` | **`loginThunk`**, **`lastError`**, **`navigate(target)`**, **`clearFormError`**. |
 | `src/features/auth/authSlice.ts` | **`loginThunk`**, **`restoreSession`**, **`loginLoading`**, **`clearAuth`**, token key **`ow_token`**. |
-| `src/legacy/legacyUiBundle.tsx` | **`Login`**: default tab **`in`**, **`submitLogin`**, **`ВОЙТИ`** button, **`забыл пароль?`**. |
+| `src/legacy/routes/Login/index.tsx` | **`Login`**: default tab **`in`**, **`submitLogin`**, **`ВОЙТИ`** button, **`забыл пароль?`**. |
 | `src/pages/EditorPage.tsx` | Auth guards, **`onLogin`**, **`onLogout`**, restore loading UI, **`isGuest`**. |
 | `src/pages/OnboardingPage.tsx` | Navigation to **`/login`** vs **`/editor`**. |
 | `src/pages/AdminPage.tsx` | Redirect to **`/login`** when unauthenticated. |

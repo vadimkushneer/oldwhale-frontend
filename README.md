@@ -1,6 +1,6 @@
 # OldWhale frontend
 
-Single-page application for **OldWhale**: the screenplay / notebook / media editor, rebuilt as a **faithful migration** of the legacy single-file React app [`../ИИ начало_w590.html`](../ИИ%20начало_w590.html) (visual and behavioral source of truth). The UI bundle is generated into `src/legacy/legacyUiBundle.tsx` via `npm run prepare-legacy` whenever the HTML source changes.
+Single-page application for **OldWhale**: the screenplay / notebook / media editor, rebuilt as a **faithful migration** of the legacy single-file React app [`reference.html`](./reference.html) (visual and behavioral source of truth). Each route lives in its own module under `src/legacy/routes/`; reference-truth PNG baselines for Playwright's visual tests are captured directly from `reference.html` via `npm run test:e2e:capture-reference`.
 
 ## Tech stack
 
@@ -98,17 +98,22 @@ oldwhale-frontend/
   vite.config.ts
   tailwind.config.js
   postcss.config.js
-  scripts/
-    prepare-legacy.mjs    # Generates src/legacy/legacyUiBundle.tsx from ../ИИ начало_w590.html
+  reference.html          # Pixel/behavior source of truth (standalone HTML)
+  public/
+    reference.html        # Copy served by Vite preview for the capture spec
   src/
     app/App.tsx           # Router + session bootstrap
-    pages/                # Onboarding, Login, Editor shell, Admin
+    pages/                # Thin React Router page wrappers (Onboarding, Login, Editor, Admin)
     features/auth/        # authSlice + thunks
     features/admin/       # RTK Query adminApi
     api/                  # env helper + OpenAPI-aligned types
     legacy/
       global.css          # Global rules from legacy HTML
-      legacyUiBundle.tsx  # Generated editor + onboarding + login UI
+      ui/                 # tokens.ts (design tokens) + Whale.tsx (logo)
+      domain/             # blocks.tsx (BLOCK_DEFS, MODES, INIT, AIM/AIR, uid, makeScene)
+      hooks/              # useWindowWidth
+      util/               # doc.ts (autoH, getScenes, docStats, noteDocStats)
+      routes/             # Per-route modules: Onboarding/, Login/, Editor/ (+ Editor/PlayHeader.tsx)
     main.tsx              # Redux + window shims (html2canvas, jspdf, docx, mammoth)
 ```
 
@@ -120,7 +125,9 @@ oldwhale-frontend/
 | `npm run build` | `tsc -b` + `vite build`. |
 | `npm run build:gh-pages` | Same as `build` (CI entry point). |
 | `npm run preview` | Preview production build. |
-| `npm run prepare-legacy` | Regenerate `legacyUiBundle.tsx` from the HTML source. |
+| `npm run test:e2e` | Run Playwright visual + behavioral suites. |
+| `npm run test:e2e:update` | Update Playwright snapshots from the current React render. |
+| `npm run test:e2e:capture-reference` | Regenerate visual baselines directly from `reference.html`. |
 
 ## Known deviations from the legacy HTML
 
@@ -129,6 +136,7 @@ oldwhale-frontend/
 3. **Admin link** is a small fixed “АДМИН” control for `role === "admin"` (no legacy equivalent).
 4. **Routing** uses URLs (`/`, `/login`, `/editor`, `/admin`) instead of in-memory `screen` state; flows match the old onboarding → login → editor sequence.
 5. **CDN libraries** are npm packages and are assigned to `window` in `main.tsx` so existing `window.docx` / `window.mammoth` / `window.jspdf` / `html2canvas` code paths keep working.
+6. **Per-route modules** in `src/legacy/routes/` (Onboarding / Login / Editor) replace the previously generated single-file UI bundle. Shared design tokens, domain data, hooks, and helpers live alongside under `src/legacy/{ui,domain,hooks,util}`.
 
 ## Git
 

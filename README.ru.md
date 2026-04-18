@@ -1,6 +1,6 @@
 # OldWhale frontend
 
-Одностраничное приложение **OldWhale**: редактор сценария / блокнота / медиа, перенесённый как **точная миграция** легаси-приложения на одном файле React — [`../ИИ начало_w590.html`](../ИИ%20начало_w590.html) (эталон по внешнему виду и поведению). UI-сборка генерируется в `src/legacy/legacyUiBundle.tsx` командой `npm run prepare-legacy` при изменении исходного HTML.
+Одностраничное приложение **OldWhale**: редактор сценария / блокнота / медиа, перенесённый как **точная миграция** легаси-приложения на одном файле React — [`reference.html`](./reference.html) (эталон по внешнему виду и поведению). Каждый маршрут живёт в отдельном модуле под `src/legacy/routes/`; эталонные PNG-скриншоты для Playwright снимаются напрямую из `reference.html` командой `npm run test:e2e:capture-reference`.
 
 **English:** [README.md](./README.md)
 
@@ -100,17 +100,22 @@ oldwhale-frontend/
   vite.config.ts
   tailwind.config.js
   postcss.config.js
-  scripts/
-    prepare-legacy.mjs    # Генерация src/legacy/legacyUiBundle.tsx из ../ИИ начало_w590.html
+  reference.html          # Эталон по пикселям и поведению (standalone HTML)
+  public/
+    reference.html        # Копия, которую раздаёт Vite preview для capture-спеки
   src/
     app/App.tsx           # Роутер + инициализация сессии
-    pages/                # Onboarding, Login, оболочка редактора, Admin
+    pages/                # Тонкие обёртки React Router (Onboarding, Login, Editor, Admin)
     features/auth/        # authSlice + thunk-и
     features/admin/       # RTK Query adminApi
     api/                  # env-хелпер + типы по OpenAPI
     legacy/
       global.css          # Глобальные правила из легаси HTML
-      legacyUiBundle.tsx  # Сгенерированный редактор + onboarding + login UI
+      ui/                 # tokens.ts (дизайн-токены) + Whale.tsx (логотип)
+      domain/             # blocks.tsx (BLOCK_DEFS, MODES, INIT, AIM/AIR, uid, makeScene)
+      hooks/              # useWindowWidth
+      util/               # doc.ts (autoH, getScenes, docStats, noteDocStats)
+      routes/             # Модули по маршрутам: Onboarding/, Login/, Editor/ (+ Editor/PlayHeader.tsx)
     main.tsx              # Redux + шимы window (html2canvas, jspdf, docx, mammoth)
 ```
 
@@ -122,8 +127,9 @@ oldwhale-frontend/
 | `npm run build` | `tsc -b` + `vite build`. |
 | `npm run build:gh-pages` | То же, что `build` (точка входа CI). |
 | `npm run preview` | Просмотр production-сборки. |
-| `npm run prepare-legacy` | Перегенерация `legacyUiBundle.tsx` из HTML-источника. |
 | `npm run test:e2e` | Playwright (см. [e2e/README.ru.md](./e2e/README.ru.md)). |
+| `npm run test:e2e:update` | Обновить snapshot-ы Playwright из текущего React-рендера. |
+| `npm run test:e2e:capture-reference` | Пересобрать визуальные эталоны напрямую из `reference.html`. |
 
 ## Известные отличия от легаси HTML
 

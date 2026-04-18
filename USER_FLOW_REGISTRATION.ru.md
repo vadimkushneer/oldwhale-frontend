@@ -10,14 +10,14 @@
 
 **Включено**
 
-- Самостоятельная регистрация на **`LoginPage`** (`/login`) через вкладку **`РЕГИСТРАЦИЯ`** общего UI **`Login`** (`src/legacy/legacyUiBundle.tsx`).
+- Самостоятельная регистрация на **`LoginPage`** (`/login`) через вкладку **`РЕГИСТРАЦИЯ`** общего UI **`Login`** (`src/legacy/routes/Login/index.tsx`).
 - Поведение на клиенте: поля формы, переключение вкладок, локальный `loading`/блокировка submit, «тихие» проверки пустых полей, отображение ошибок из Redux `auth.lastError`, успешная навигация через колбэк `onLogin` в `LoginPage`.
 - Redux **`registerThunk`** (`src/features/auth/authSlice.ts`): `POST /api/auth/register`, сохранение токена, состояния fulfilled/rejected.
 
 **Исключено**
 
 - **Пользователи, созданные админом** (`POST /api/admin/users` на `AdminPage` через RTK Query `adminApi`) — другой актор, эндпоинт и UI; не самостоятельная регистрация конечного пользователя.
-- **Гостевой профиль «Блокнот»** (**`mode: "note"`**; в списке режимов онбординга подпись в коде — **«Блокн0т»**, см. `legacyUiBundle.tsx`): открывает **`/editor`** без аутентификации; самостоятельной регистрации на этом пути нет, пока пользователь не перейдёт на **`/login`** через **«ВОЙТИ →»** (см. §4 и **`USER_FLOW_LOGIN.ru.md`**).
+- **Гостевой профиль «Блокнот»** (**`mode: "note"`**; см. `WHEEL_ITEMS[0]` в `src/legacy/routes/Onboarding/index.tsx`): открывает **`/editor`** без аутентификации; самостоятельной регистрации на этом пути нет, пока пользователь не перейдёт на **`/login`** через **«ВОЙТИ →»** (см. §4 и **`USER_FLOW_LOGIN.ru.md`**).
 - **Сброс пароля**, **подтверждение email**, **OAuth / соцрегистрация**, **редактирование профиля** — в этом фронтенде не реализовано (см. `README.md`).
 
 ## 3. Акторы
@@ -54,7 +54,7 @@
 1. **Пользователь** попадает на **`LoginPage`** (`Route path="/login"` в `src/app/App.tsx`) любым способом из §4 и выбирает вкладку **`РЕГИСТРАЦИЯ`** (локальное состояние `Login`: `tab === "reg"`).
 2. Вводит **логин** (placeholder `логин`), **email** (placeholder `email`, `type="email"`), **пароль** (placeholder `пароль`).
 3. Нажимает **`СОЗДАТЬ АККАУНТ`** или **Enter** в полях логина/пароля (`onKeyDown` вызывает `submit()`).
-4. **`Login.submit`** (`legacyUiBundle.tsx`): при truthy `login` и `pass` и (`tab !== "reg"` или truthy `email`) включается локальный **`loading`**, блокируется кнопка, ожидается **`submitRegister(login, email, pass)`** из props.
+4. **`Login.submit`** (`src/legacy/routes/Login/index.tsx`): при truthy `login` и `pass` и (`tab !== "reg"` или truthy `email`) включается локальный **`loading`**, блокируется кнопка, ожидается **`submitRegister(login, email, pass)`** из props.
 5. **`LoginPage`**: `submitRegister` диспатчит **`registerThunk({ login, email, password })`** и **`.unwrap()`** при успехе.
 6. **`registerThunk`**: `POST {VITE_API_URL}/api/auth/register` с JSON **`{ login, email, password }`**, заголовок `Content-Type: application/json`. При HTTP OK требуется JSON с **`token`** и **`user`**; иначе reject.
 7. **Redux** (`registerThunk.fulfilled`): **`auth.token`**, **`auth.user`**, **`registerLoading: false`**, токен в **`localStorage`** под ключом **`ow_token`**.
@@ -76,7 +76,7 @@
 - **Видео** → **`short`**
 - **Медиа** → **`media`**
 
-(Соответствие и навигация на **`/login`** описаны в **`USER_FLOW_LOGIN.ru.md`** §4.1; разметка списка режимов — `legacyUiBundle.tsx`.)
+(Соответствие и навигация на **`/login`** описаны в **`USER_FLOW_LOGIN.ru.md`** §4.1; разметка списка режимов — `src/legacy/routes/Onboarding/index.tsx`.)
 
 1. Пользователь на **`/`** в селекторе **`Onboarding`** выбирает **ровно один** из четырёх вариантов выше и нажимает **`НАЧАТЬ →`**: в **`localStorage`** под **`ow_profile`** сохраняется JSON с выбранным **`mode`**, выполняется переход на **`/login`** с **`state.from`**, указывающим на **`/editor`**.
 2. На **`LoginPage`** пользователь переключается на вкладку **`РЕГИСТРАЦИЯ`** (отдельного URL **`/register`** нет).
@@ -211,7 +211,7 @@ flowchart TD
 | `src/pages/EditorPage.tsx` | Гард **`Navigate` на `/login`**, **`onLogin`**. |
 | `src/pages/AdminPage.tsx` | **`Navigate` на `/login`** без сессии с admin **`from`**. |
 | `src/features/auth/authSlice.ts` | **`registerThunk`**, **`registerLoading`**, **`lastError`**, **`ow_token`**. |
-| `src/legacy/legacyUiBundle.tsx` | **`Login`**: вкладки, поля, submit, **`onLogin`**. |
+| `src/legacy/routes/Login/index.tsx` | **`Login`**: вкладки, поля, submit, **`onLogin`**. |
 | `src/api/env.ts` | **`apiBaseUrl()`**, **`VITE_API_URL`**. |
 | `src/api/types.ts` | Тип **`User`**. |
 | `README.md` | Обзор эндпоинтов и исключённых потоков. |

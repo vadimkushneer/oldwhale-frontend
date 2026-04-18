@@ -8,14 +8,14 @@ Create a new application account by submitting **login**, **email**, and **passw
 
 **Included**
 
-- Self-service registration available on **`LoginPage`** (`/login`) via the **`РЕГИСТРАЦИЯ`** tab of the shared **`Login`** UI (`src/legacy/legacyUiBundle.tsx`).
+- Self-service registration available on **`LoginPage`** (`/login`) via the **`РЕГИСТРАЦИЯ`** tab of the shared **`Login`** UI (`src/legacy/routes/Login/index.tsx`).
 - Client-side behavior: form fields, tab switching, local loading/disabled submit, silent guards for empty fields, error display from Redux `auth.lastError`, success navigation via `LoginPage` `onLogin` callback.
 - Redux **`registerThunk`** (`src/features/auth/authSlice.ts`): `POST /api/auth/register`, token storage, fulfilled/rejected state updates.
 
 **Excluded**
 
 - **Admin-provisioned users** (`POST /api/admin/users` on `AdminPage` via `adminApi` RTK Query) — separate actor, endpoint, and UI; not end-user self-registration.
-- **Guest notebook profile** (**`mode: "note"`**; onboarding list label in code is **«Блокн0т»**, see `legacyUiBundle.tsx`): opens **`/editor`** without authentication; no self-service registration on that path until the user navigates to **`/login`** via **«ВОЙТИ →»** (see §4 and **`USER_FLOW_LOGIN.md`**).
+- **Guest notebook profile** (**`mode: "note"`**; see `WHEEL_ITEMS[0]` in `src/legacy/routes/Onboarding/index.tsx`): opens **`/editor`** without authentication; no self-service registration on that path until the user navigates to **`/login`** via **«ВОЙТИ →»** (see §4 and **`USER_FLOW_LOGIN.md`**).
 - **Password reset**, **email verification**, **OAuth/social signup**, **profile editing** — not implemented in this frontend (confirmed in `README.md`).
 
 ## 3. Actors
@@ -52,7 +52,7 @@ Router: `BrowserRouter` with `basename={import.meta.env.BASE_URL}` (from Vite `b
 1. **User** arrives at **`LoginPage`** (`Route path="/login"` in `src/app/App.tsx`) via any entry in §4 and selects the **`РЕГИСТРАЦИЯ`** tab (`Login` local state `tab === "reg"`).
 2. **User** enters **логин** (login input, placeholder `логин`), **email** (placeholder `email`, `type="email"`), **пароль** (password input, placeholder `пароль`).
 3. **User** activates **`СОЗДАТЬ АККАУНТ`** (submit button) or presses **Enter** in login/password fields (`onKeyDown` calls `submit()`).
-4. **`Login.submit`** (`legacyUiBundle.tsx`): if `login` and `pass` are truthy and (`tab !== "reg"` or `email` is truthy), sets local **`loading`** true, disables the button, awaits **`submitRegister(login, email, pass)`** from props.
+4. **`Login.submit`** (`src/legacy/routes/Login/index.tsx`): if `login` and `pass` are truthy and (`tab !== "reg"` or `email` is truthy), sets local **`loading`** true, disables the button, awaits **`submitRegister(login, email, pass)`** from props.
 5. **`LoginPage`** `submitRegister` dispatches **`registerThunk({ login, email, password })`** and **`.unwrap()`** on success.
 6. **`registerThunk`**: `POST {VITE_API_URL}/api/auth/register` with JSON body **`{ login, email, password }`**, `Content-Type: application/json`. On HTTP OK, requires JSON with **`token`** and **`user`**; otherwise rejects.
 7. **Redux** (`registerThunk.fulfilled`): sets **`auth.token`**, **`auth.user`**, **`registerLoading: false`**, persists token to **`localStorage`** key **`ow_token`**.
@@ -74,7 +74,7 @@ This covers choosing a **structured** mode on **`/`** (not the guest **Notebook*
 - **Видео** → **`short`**
 - **Медиа** → **`media`**
 
-(Onboarding navigation to **`/login`** is spelled out in **`USER_FLOW_LOGIN.md`** §4.1; mode list markup lives in `legacyUiBundle.tsx`.)
+(Onboarding navigation to **`/login`** is spelled out in **`USER_FLOW_LOGIN.md`** §4.1; mode list markup lives in `src/legacy/routes/Onboarding/index.tsx`.)
 
 1. On **`/`**, in the **`Onboarding`** selector, the user picks **exactly one** of the four options above and clicks **`НАЧАТЬ →`**: **`ow_profile`** in **`localStorage`** stores JSON with that **`mode`**, then the app navigates to **`/login`** with **`state.from`** pointing at **`/editor`**.
 2. On **`LoginPage`**, the user switches to the **`РЕГИСТРАЦИЯ`** tab (there is **no** dedicated **`/register`** route).
@@ -209,7 +209,7 @@ flowchart TD
 | `src/pages/EditorPage.tsx` | Auth guard **`Navigate` to `/login`**, **`onLogin`** → **`/login`**. |
 | `src/pages/AdminPage.tsx` | Unauthenticated **`Navigate` to `/login`** with admin **`from`**. |
 | `src/features/auth/authSlice.ts` | **`registerThunk`**, **`registerLoading`**, **`lastError`**, token persistence **`ow_token`**. |
-| `src/legacy/legacyUiBundle.tsx` | **`Login`** component: tabs **ВОЙТИ** / **РЕГИСТРАЦИЯ**, fields, submit logic, **`onLogin`** after success. |
+| `src/legacy/routes/Login/index.tsx` | **`Login`** component: tabs **ВОЙТИ** / **РЕГИСТРАЦИЯ**, fields, submit logic, **`onLogin`** after success. |
 | `src/api/env.ts` | **`apiBaseUrl()`** / **`VITE_API_URL`**. |
 | `src/api/types.ts` | **`User`** type for **`user`** in responses. |
 | `README.md` | High-level auth endpoints and excluded flows. |

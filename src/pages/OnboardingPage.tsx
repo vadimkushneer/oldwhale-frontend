@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { Onboarding } from "../legacy/legacyUiBundle";
+import { Onboarding } from "../legacy/routes/Onboarding";
 
 export function OnboardingPage() {
   const navigate = useNavigate();

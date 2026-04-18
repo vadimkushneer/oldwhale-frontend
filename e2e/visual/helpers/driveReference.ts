@@ -27,12 +27,15 @@ const ONBOARD_PROBE = "text=КРУТИ ДЛЯ ВЫБОРА";
 const LOGIN_PROBE_RU = "text=ВОЙТИ";
 
 /**
- * Editor screen probe. "МОИ ПРОЕКТЫ" is the sidebar button that appears on
- * every editor mode (film / play / note / media) and does NOT appear on
- * the onboarding or login screens, so it cleanly disambiguates the editor
- * from its loading-state ancestors.
+ * Editor screen probe. "ПОПОЛНИТЬ" is the credits top-up button rendered
+ * in the left-sidebar credits block of the editor for every mode (film /
+ * play / note / media) and does NOT appear on the onboarding or login
+ * screens, so it cleanly disambiguates the editor from its loading-state
+ * ancestors. The final reference replaced the previous "МОИ ПРОЕКТЫ" text
+ * button (which used to be the probe) with an icon-only tooltip-anchored
+ * button, which is why the probe moved.
  */
-const EDITOR_PROBE = "text=МОИ ПРОЕКТЫ";
+const EDITOR_PROBE = "text=ПОПОЛНИТЬ";
 
 /** Supported modes. "short" exists in the bundle but is not part of the baseline matrix. */
 export type ReferenceEditorMode = "note" | "film" | "play" | "media";

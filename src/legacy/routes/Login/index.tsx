@@ -131,7 +131,7 @@ export function Login({
           {/* Fields */}
           <div style={{display:"flex", flexDirection:"column"}}>
             <div style={{position:"relative", marginBottom:"8px"}}>
-              <span style={{position:"absolute",left:"16px",top:"14px",color:T3,fontSize:"13px",pointerEvents:"none"}}>◉</span>
+              <span style={{position:"absolute",left:"18px",top:"50%",transform:"translateY(-50%)",width:"16px",display:"flex",alignItems:"center",justifyContent:"center",color:T3,fontSize:"13px",lineHeight:1,pointerEvents:"none"}}>◉</span>
               <input value={login} onChange={e=>setLogin(e.target.value)}
                 onKeyDown={e=>e.key==="Enter"&&submit()}
                 style={nmInput} placeholder="логин"/>
@@ -139,14 +139,14 @@ export function Login({
 
             {tab==="reg" && (
               <div style={{position:"relative", marginBottom:"8px"}}>
-                <span style={{position:"absolute",left:"16px",top:"14px",color:T3,fontSize:"13px",pointerEvents:"none"}}>✉</span>
+                <span style={{position:"absolute",left:"18px",top:"50%",transform:"translateY(-50%)",width:"16px",display:"flex",alignItems:"center",justifyContent:"center",color:T3,fontSize:"13px",lineHeight:1,pointerEvents:"none"}}>✉</span>
                 <input value={email} onChange={e=>setEmail(e.target.value)}
                   style={nmInput} placeholder="email" type="email"/>
               </div>
             )}
 
             <div style={{position:"relative", marginBottom:"8px"}}>
-              <span style={{position:"absolute",left:"16px",top:"14px",color:T3,fontSize:"13px",pointerEvents:"none"}}>◈</span>
+              <span style={{position:"absolute",left:"18px",top:"50%",transform:"translateY(-50%)",width:"16px",display:"flex",alignItems:"center",justifyContent:"center",color:T3,fontSize:"13px",lineHeight:1,pointerEvents:"none"}}>◈</span>
               <input value={pass} onChange={e=>setPass(e.target.value)}
                 onKeyDown={e=>e.key==="Enter"&&submit()}
                 style={nmInput} placeholder="пароль" type="password"/>

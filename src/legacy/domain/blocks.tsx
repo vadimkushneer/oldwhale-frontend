@@ -2,10 +2,10 @@
 /**
  * Editor domain model.
  *
- * Extracted verbatim from legacyUiBundle.tsx (BLOCK_DEFS, AIM, AIR, MODES,
- * NOTEBOOK_INIT, INIT, uid, makeScene). Everything here is module-scope
- * state + data that both the generated bundle and the split Editor route
- * consume.
+ * Extracted verbatim from reference.html MODULE: block-defs + MODULE:
+ * modes-data + MODULE: helpers. `AIM`/`AIR` now live in domain/ai.ts; this
+ * file re-exports them so existing importers keep working until every
+ * consumer imports from ai.ts directly.
  *
  * The MODES array contains inline SVG JSX, so this file is TSX-flavored
  * even though its extension is `.ts`. The legacy codebase runs under
@@ -14,6 +14,9 @@
  * already imports React). If we tighten types later, rename to `.tsx`.
  */
 import React from "react";
+import { T2 } from "../ui/tokens";
+
+export { AIM, AIR } from "./ai";
 
 export const BLOCK_DEFS = {
   film: [
@@ -41,7 +44,7 @@ export const BLOCK_DEFS = {
     { type:"spacer",   label:"Отступ",           hotkey:"6", spell:false, ph:"",
       next:"spacer",
       st:{ paddingTop:"0", paddingBottom:"0" } },
-    { type:"note",     label:"Примечание",        hotkey:"6", spell:true,  ph:"Заметка автора...",
+    { type:"note",     label:"Комментарий",       hotkey:"6", spell:true,  ph:"Заметка автора...",
       next:"action",
       st:{ color:"#4a4a6a", fontStyle:"italic",
            borderLeft:"2px solid #2a2a4a", paddingLeft:"14px",
@@ -73,23 +76,23 @@ export const BLOCK_DEFS = {
     { type:"spacer",   label:"Отступ",           hotkey:"6", spell:false, ph:"",
       next:"spacer",
       st:{ paddingTop:"0", paddingBottom:"0" } },
-    { type:"note",     label:"Примечание",       hotkey:"5", spell:true,  ph:"Авторское примечание...",
+    { type:"note",     label:"Комментарий",      hotkey:"5", spell:true,  ph:"Авторское примечание...",
       next:"stage",
       st:{ color:"#4a4a6a", fontStyle:"italic", paddingTop:"14px" } },
   ],
   short: [
-    { type:"scene",    label:"Блок",              hotkey:"0", spell:false, ph:"📍 ЛОКАЦИЯ. ВРЕМЯ.",
+    { type:"scene",    label:"Блок",              hotkey:"0", spell:false, ph:"ЛОКАЦИЯ. ВРЕМЯ.",
       next:"cast",
-      st:{ fontWeight:"bold", color:"#f0ece0", paddingTop:"28px", paddingBottom:"0", lineHeight:"1.5" } },
-    { type:"cast",     label:"Участники",         hotkey:"1", spell:false, ph:"👤 ПЕРСОНАЖ: ...",
+      st:{ fontWeight:"bold", color:"#f0ece0", paddingTop:"28px", paddingBottom:"0", lineHeight:"1.5", borderLeft:"3px solid #f87171", paddingLeft:"14px" } },
+    { type:"cast",     label:"Участники",         hotkey:"1", spell:false, ph:"ПЕРСОНАЖ: ...",
       next:"action",
-      st:{ color:"#777", paddingTop:"0", paddingBottom:"0", lineHeight:"1.5", fontSize:"12px" } },
+      st:{ color:"#777", paddingTop:"0", paddingBottom:"0", lineHeight:"1.5", fontSize:"12px", borderLeft:"3px solid #93c5fd", paddingLeft:"14px" } },
     { type:"action",   label:"Описание",          hotkey:"2", spell:true,  ph:"Описание...",
       next:"action",
-      st:{ paddingTop:"16px" } },
-    { type:"video",    label:"Видео",             hotkey:"4", spell:false, ph:"Видео 1...", bold:true,
+      st:{ paddingTop:"16px", paddingLeft:"17px" } },
+    { type:"video",    label:"Видео",             hotkey:"4", spell:false, ph:"ВИДЕО 1...", bold:true,
       next:"hook",
-      st:{ color:"#a78bfa", fontSize:"13px", fontWeight:"bold", letterSpacing:"1px", paddingTop:"16px" } },
+      st:{ color:"#a78bfa", fontSize:"13px", fontWeight:"bold", letterSpacing:"1px", paddingTop:"16px", paddingLeft:"17px", textTransform:"uppercase" } },
     { type:"hook",     label:"Хук",               hotkey:"5", spell:true,  ph:"[0:00–0:03] Хук...",
       next:"body",
       st:{ borderLeft:"3px solid #f472b6", paddingLeft:"14px", color:"#f4d0e0", paddingTop:"14px" } },
@@ -108,7 +111,7 @@ export const BLOCK_DEFS = {
            borderBottom:"1px solid #ffffff22", letterSpacing:"2px" } },
     { type:"anchor",   label:"Подводка",          hotkey:"2", spell:true,  ph:"Текст ведущего...",
       next:"anchor",
-      st:{ color:"#e0dcd0", paddingTop:"12px", paddingBottom:"0", lineHeight:"1.8" } },
+      st:{ color:"#e0dcd0", paddingTop:"12px", paddingBottom:"0", lineHeight:"1.8", paddingLeft:"17px" } },
     { type:"sync",     label:"Синхрон",           hotkey:"3", spell:true,  ph:"Реплика гостя...",
       next:"anchor",
       st:{ borderLeft:"3px solid #60a5fa", paddingLeft:"14px",
@@ -123,34 +126,22 @@ export const BLOCK_DEFS = {
            color:"#f4ecc8", paddingTop:"12px" } },
     { type:"lower3",   label:"Плашка",            hotkey:"6", spell:false, ph:"[ПЛАШКА] Имя / Должность",
       next:"anchor",
-      st:{ background:"#ffffff08", borderRadius:"4px", padding:"6px 12px",
+      st:{ background:"#ffffff08", borderRadius:"4px", padding:"6px 12px 6px 17px",
            color:"#aaa", fontSize:"12px", marginTop:"8px", letterSpacing:"1px" } },
     { type:"question", label:"Вопрос",             hotkey:"8", spell:true,  ph:"Вопрос ведущего...",
       next:"note",
-      st:{ fontWeight:"bold", color:"#e8e4d8", paddingTop:"16px", paddingBottom:"0",
-           lineHeight:"1.7" } },
-    { type:"note",     label:"Пояснение",           hotkey:"9", spell:true,  ph:"Контекст, подсказка, уточнение...",
+      st:{ fontWeight:"bold", color:T2, paddingTop:"16px", paddingBottom:"0",
+           lineHeight:"1.7", paddingLeft:"17px" } },
+    { type:"note",     label:"Комментарий",         hotkey:"9", spell:true,  ph:"Контекст, подсказка, уточнение...",
       next:"question",
       st:{ color:"#6a6a8a", fontStyle:"italic", fontSize:"12px",
-           paddingTop:"4px", paddingBottom:"0", paddingLeft:"16px",
+           paddingTop:"4px", paddingBottom:"0", paddingLeft:"15px",
            borderLeft:"2px solid #3a3a5a", lineHeight:"1.6" } },
     { type:"spacer",   label:"Отступ",            hotkey:"0", spell:false, ph:"",
       next:"spacer",
       st:{ paddingTop:"0", paddingBottom:"0" } },
   ],
   note: [],
-};
-
-export const AIM = [
-  { id:"deepseek", label:"DeepSeek", role:"Черновик",  color:"#4ade80", free:true  },
-  { id:"claude",   label:"Claude",   role:"Редактура", color:"#7c6af7", free:false },
-  { id:"gpt",      label:"GPT-4",    role:"Идеи",      color:"#f472b6", free:false },
-];
-
-export const AIR = {
-  deepseek:["Сцена хорошо открывается. Добавь деталь через действие — не через описание.","Диалог работает, но вторая реплика объясняет то что зритель уже понял. Срежь.","Начни с середины — брось зрителя в действие без предисловий."],
-  claude:  ["Персонажу не хватает чёткого желания в этой сцене. Что она хочет?","Второй акт провисает. Нужен поворот — момент когда план рушится.","Диалог звучит написанным. Прочитай вслух — услышишь где спотыкается ритм."],
-  gpt:     ["Что если сцена не в кофейне, а в месте которое само по себе метафора?","Что если Марина пишет письмо? Адресат неизвестен. Это меняет всё.","Что если дождь за окном — персонаж? Он что-то говорит ей. Что именно?"],
 };
 
 export const MODES = [
@@ -233,7 +224,7 @@ export const INIT = {
 
   ],
   short: [
-    { id:uid(), type:"video", text:"Видео 1" },
+    { id:uid(), type:"video", text:"ВИДЕО 1" },
     { id:uid(), type:"hook",  text:"Ты тратишь 3 часа на сценарий который можно написать за 20 минут." },
     { id:uid(), type:"body",  text:"Показываем редактор. Три шага.\nИдея → Структура → Готово." },
     { id:uid(), type:"cta",   text:"Ссылка в описании. Первый сценарий бесплатно." },

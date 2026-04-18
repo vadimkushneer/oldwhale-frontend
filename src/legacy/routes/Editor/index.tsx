@@ -1,37 +1,94 @@
 // @ts-nocheck
 /**
- * EditorScreen - extracted verbatim from legacyUiBundle.tsx:569-6986.
+ * EditorScreen - extracted verbatim from reference.html MODULE: EditorScreen.
  *
  * All module-scope dependencies that used to live alongside EditorScreen in
- * the generated bundle now come from:
- *   - src/legacy/ui/tokens      BG, SURF, SH_OUT, SH_IN, SH_SM, ACCENT, T1, T2, T3
- *   - src/legacy/ui/Whale       Whale logo component
- *   - src/legacy/domain/blocks  BLOCK_DEFS, AIM, AIR, MODES, NOTEBOOK_INIT, INIT, uid, makeScene
+ * the reference HTML now come from:
+ *   - src/legacy/ui/tokens           BG, SURF, SH_OUT, SH_IN, SH_SM, ACCENT, T1, T2, T3
+ *   - src/legacy/ui/Whale            Whale logo component
+ *   - src/legacy/ui/Tooltip          TooltipBubble + useTooltipController + UI_TOOLTIP_STORE_KEY
+ *   - src/legacy/ui/ActTempoSparkline ActTempoSparkline
+ *   - src/legacy/domain/blocks       BLOCK_DEFS, MODES, NOTEBOOK_INIT, INIT, uid, makeScene
+ *   - src/legacy/domain/ai           AIM, AIR, AI_MODEL_VARIANTS, and the AI chat-store helpers
+ *   - src/legacy/domain/sceneCard    SCENE_CARD_* option catalogs + normalize/clamp helpers
  *   - src/legacy/hooks/useWindowWidth
- *   - src/legacy/util/doc       autoH, getScenes, docStats, noteDocStats
- *   - ./PlayHeader              PlayHeaderEditor (was a neighbor function in the bundle)
+ *   - src/legacy/util/doc            autoH, getScenes, docStats, noteDocStats, play-act ordinals
+ *   - ./PlayHeader                   PlayHeaderEditor (was a neighbor function in the bundle)
  *
- * The body below is intentionally untouched from the bundle version so the
+ * The body below is intentionally untouched from the reference version so the
  * visual diff against the reference baselines stays within tolerance. Any
  * further sub-splitting (Toolbar / SceneList / Canvas / modes / exports)
  * happens in follow-up passes, each gated on the editor-note/film/play/media
  * snapshots remaining green.
  */
-import React, { useState, useRef, useEffect, useLayoutEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo } from "react";
 import { BG, SURF, SH_OUT, SH_IN, SH_SM, ACCENT, T1, T2, T3 } from "../../ui/tokens";
 import { Whale } from "../../ui/Whale";
 import {
   BLOCK_DEFS,
-  AIM,
-  AIR,
   MODES,
   NOTEBOOK_INIT,
   INIT,
   uid,
   makeScene,
 } from "../../domain/blocks";
+import {
+  AIM,
+  AIR,
+  AI_MODEL_VARIANTS,
+  AI_STORE_KEY,
+  AI_HISTORY_LIMIT,
+  AI_DEFAULT_MODEL,
+  AI_DEFAULT_MODEL_VARIANTS,
+  AI_FILE_EXTS,
+  AI_FILE_ACCEPT,
+  AI_CAN_USE_EMOJI,
+  getAiProvider,
+  getAiVariants,
+  getDefaultAiVariant,
+  isAiVariantForProvider,
+  normalizeAiModelVariant,
+  getAiVariant,
+  getAiVariantMenuLabel,
+  getAiModelDisplayLabel,
+  makeAiGreeting,
+  makeAiChatId,
+  cloneAiMessages,
+  normalizeAiChat,
+  makeDefaultAiStore,
+  hasAiChatContent,
+  readAiStore,
+  writeAiStore,
+  getAiChatTitle,
+  formatAiChatStamp,
+  getAiSpeakerLabel,
+  buildAiPreviewText,
+} from "../../domain/ai";
+import {
+  SCENE_CARD_COLOR_OPTIONS,
+  SCENE_CARD_STATUS_OPTIONS,
+  SCENE_CARD_FUNCTION_OPTIONS,
+  cloneSceneCardMetaMap,
+  normalizeSceneCardTagValue,
+  clampSceneCardTempo,
+  clampSceneCardEmotion,
+  buildMetricPath,
+} from "../../domain/sceneCard";
+import {
+  TooltipBubble,
+  useTooltipController,
+  UI_TOOLTIP_STORE_KEY,
+} from "../../ui/Tooltip";
+import { ActTempoSparkline } from "../../ui/ActTempoSparkline";
 import { useWindowWidth } from "../../hooks/useWindowWidth";
-import { autoH, getScenes, docStats, noteDocStats } from "../../util/doc";
+import {
+  autoH,
+  getScenes,
+  docStats,
+  noteDocStats,
+  getPlayActTitle,
+  getPlayActDisplayText,
+} from "../../util/doc";
 import { PlayHeaderEditor } from "./PlayHeader";
 
 function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
@@ -46,12 +103,24 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
   const saveNowRef = useRef(()=>{});
   const [focId, setFocId]             = useState(null);
   const [activeSceneId, setActiveSceneId] = useState(null);
-  const [aiMod, setAiMod]             = useState("deepseek");
+  const sceneJumpLockRef = useRef(null);
+  const sceneJumpLockTimer = useRef(null);
+  const aiStoreSeedRef = useRef(null);
+  if (!aiStoreSeedRef.current) aiStoreSeedRef.current = readAiStore();
+  const [aiChatId, setAiChatId]       = useState(()=>aiStoreSeedRef.current.current.id);
+  const [aiChatCreatedAt, setAiChatCreatedAt] = useState(()=>aiStoreSeedRef.current.current.createdAt);
+  const [aiMod, setAiMod]             = useState(()=>aiStoreSeedRef.current.current.model || AI_DEFAULT_MODEL);
+  const [aiModelVariant, setAiModelVariant] = useState(()=>normalizeAiModelVariant(aiStoreSeedRef.current.current.model || AI_DEFAULT_MODEL, aiStoreSeedRef.current.current.modelVariant));
+  const [aiModelMenuOpen, setAiModelMenuOpen] = useState(false);
   const [credits, setCredits]         = useState(340);
   const [aiIn, setAiIn]               = useState("");
-  const [msgs, setMsgs]               = useState([{role:"sys",text:"Привет. Готов помочь с твоим сценарием. Что хочешь улучшить?"}]);
+  const [msgs, setMsgs]               = useState(()=>cloneAiMessages(aiStoreSeedRef.current.current.messages));
+  const [aiHistory, setAiHistory]     = useState(()=>aiStoreSeedRef.current.history || []);
+  const [aiHistoryOpen, setAiHistoryOpen] = useState(false);
+  const [aiPreviewChat, setAiPreviewChat] = useState(null);
   const [aiLoad, setAiLoad]           = useState(false);
-  const [aiOpen, setAiOpen]           = useState(true);
+  const _lay = (() => { try { return JSON.parse(localStorage.getItem('ow_layout')||'{}'); } catch(e) { return {}; } })();
+  const [aiOpen, setAiOpen]           = useState(_lay.aiOpen !== undefined ? _lay.aiOpen : true);
   const [saved, setSaved]             = useState(true);
   const [mobileTab, setMobileTab]     = useState("editor");
   const [projectName, setProjectName] = useState("Без названия");
@@ -60,6 +129,21 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
   const [menuOpen,    setMenuOpen]    = useState(false);
   const [projectId,   setProjectId]   = useState(()=>"proj_"+Date.now());
   const [projectsOpen,setProjectsOpen]= useState(false);
+  const [sceneCardsOpen,setSceneCardsOpen]= useState(_lay.sceneCardsOpen || false);
+  const [sceneCardsDragId,setSceneCardsDragId]= useState(null);
+  const [sceneCardsDropId,setSceneCardsDropId]= useState(null);
+  const [sceneCardsDropSide,setSceneCardsDropSide]= useState(null);
+  const [sceneCardsMiniMode,setSceneCardsMiniMode]= useState(_lay.sceneCardsMiniMode || false);
+  const [sceneCardsRect,setSceneCardsRect]= useState(()=>(_lay.sceneCardsRect || {
+    x: 231,
+    y: 88,
+    w: 1080,
+    h: Math.round((typeof window !== "undefined" ? window.innerHeight : 900) * 0.7),
+  }));
+  const [sceneCardMeta, setSceneCardMetaState] = useState({});
+  const [sceneCardMenu, setSceneCardMenu] = useState(null);
+  const [sceneCardNoteEditor, setSceneCardNoteEditor] = useState(null);
+  const [sceneCardNoteDraft, setSceneCardNoteDraft] = useState("");
   const [saveAsOpen,  setSaveAsOpen]  = useState(false);
   const [exportUrl,   setExportUrl]   = useState(null);
   const [titlePageOpen, setTitlePageOpen] = useState(false);
@@ -96,13 +180,51 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
   const [previewOpen,  setPreviewOpen]  = useState(false);
   const [previewW,     setPreviewW]     = useState(null); // null = треть экрана
   const [spellOn,      setSpellOn]      = useState(false);
+  const [sheetOn,      setSheetOn]      = useState(true);
   const [zoom,         setZoom]         = useState(100);
   const [keyboardH,    setKeyboardH]    = useState(0);
   const [viewportH,    setViewportH]    = useState(window.innerHeight);
-  const [leftW,        setLeftW]        = useState(215);
-  const [rightW,       setRightW]       = useState(158);
-  const [aiW,          setAiW]          = useState(255);
+  const [leftW,        setLeftW]        = useState(_lay.leftW || 215);
+  const [rightW,       setRightW]       = useState(_lay.rightW || 158);
+  const [aiW,          setAiW]          = useState(_lay.aiW || 255);
+  const [leftPanelOpen, setLeftPanelOpen] = useState(_lay.leftPanelOpen !== undefined ? _lay.leftPanelOpen : true);
+  const [rightPanelOpen, setRightPanelOpen] = useState(_lay.rightPanelOpen !== undefined ? _lay.rightPanelOpen : true);
   const [aiComposerH,  setAiComposerH]  = useState(56);
+  const DESKTOP_PANEL_PEEK_W = 44;
+  useEffect(() => {
+    try {
+      localStorage.setItem('ow_layout', JSON.stringify({
+        leftW, rightW, aiW,
+        leftPanelOpen, rightPanelOpen, aiOpen,
+        sceneCardsOpen, sceneCardsMiniMode, sceneCardsRect,
+      }));
+    } catch(e) {}
+  }, [leftW, rightW, aiW, leftPanelOpen, rightPanelOpen, aiOpen, sceneCardsOpen, sceneCardsMiniMode, sceneCardsRect]);
+  const leftSidebarW = leftPanelOpen ? leftW : DESKTOP_PANEL_PEEK_W;
+  const rightSidebarW = rightPanelOpen ? rightW : DESKTOP_PANEL_PEEK_W;
+  const aiSidebarW = aiOpen ? aiW : DESKTOP_PANEL_PEEK_W;
+  const [aiPendingFiles, setAiPendingFiles] = useState([]);
+  const [aiDropActive, setAiDropActive] = useState(false);
+  const [uiTooltipsOn, setUiTooltipsOn] = useState(() => {
+    try {
+      const raw = localStorage.getItem(UI_TOOLTIP_STORE_KEY);
+      return raw == null ? true : raw !== "0";
+    } catch(err) {
+      return true;
+    }
+  });
+  const { tooltip:uiTooltip, hideTooltip, getTooltipAnchorProps } = useTooltipController(uiTooltipsOn);
+  const aiDragDepthRef = useRef(0);
+  const aiHistoryLayerRef = useRef(null);
+  const aiModelMenuRootRef = useRef(null);
+  const aiModelMenuTimerRef = useRef(null);
+  const aiReplyTimerRef = useRef(null);
+  const aiChatIdRef = useRef(aiChatId);
+  useEffect(()=>{ aiChatIdRef.current = aiChatId; }, [aiChatId]);
+  useEffect(()=>{
+    try { localStorage.setItem(UI_TOOLTIP_STORE_KEY, uiTooltipsOn ? "1" : "0"); } catch(err) {}
+    if (!uiTooltipsOn) hideTooltip();
+  }, [uiTooltipsOn, hideTooltip]);
   const [previewHtml,  setPreviewHtml]  = useState("");
   const [noteText, setNoteText] = useState(()=>{
     try { const d=localStorage.getItem("ow_note_draft"); if(d){localStorage.removeItem("ow_note_draft"); return d;} } catch(e){}
@@ -115,6 +237,20 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
   const [titlePage, setTitlePage] = useState({
     title: "", genre: "", author: "", phone: "", email: "", year: new Date().getFullYear()+"",
   });
+  const [editorSearchOpen, setEditorSearchOpen] = useState(false);
+  const [editorSearchQuery, setEditorSearchQuery] = useState("");
+  const [editorSearchMatches, setEditorSearchMatches] = useState([]);
+  const [editorSearchIndex, setEditorSearchIndex] = useState(-1);
+  const searchInputRef = useRef(null);
+  const editorSearchMatchesRef = useRef([]);
+  const editorSearchQueryRef = useRef("");
+  useEffect(()=>{ editorSearchMatchesRef.current = editorSearchMatches; }, [editorSearchMatches]);
+  useEffect(()=>{ editorSearchQueryRef.current = editorSearchQuery; }, [editorSearchQuery]);
+
+  // — Marker state —
+  const [markerModeOn, setMarkerModeOn] = useState(false);
+  const [markerHighlights, setMarkerHighlights] = useState({}); // { blockId: [{id,start,end,color}] }
+  const [markerCtxMenu, setMarkerCtxMenu] = useState(null);     // {x,y,blockId,sliceStart,start,end}
 
   // Синхронизируем название проекта только с film-титульным листом.
   // Для play титульный лист отдельный и не должен подтягивать название из film.
@@ -124,9 +260,37 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
       : tp
     );
   }, [projectName]);
+
+  // Шаг 1: «Мои проекты» берут имя из projectName,
+  // поэтому аккуратно подтягиваем projectName из титульного листа
+  // активного редактора, не смешивая редакторы между собой.
+  useEffect(()=>{
+    if ((modeRef.current || mode) !== "film") return;
+    const nextName = (titlePage.title || "").trim() || "Без названия";
+    setProjectName(prev => prev === nextName ? prev : nextName);
+  }, [mode, titlePage.title]);
+
+  useEffect(()=>{
+    if ((modeRef.current || mode) !== "play") return;
+    const nextName = (playHeader.find(h=>h.key === "title")?.text || "").trim() || "Без названия";
+    setProjectName(prev => prev === nextName ? prev : nextName);
+  }, [mode, playHeader]);
+
+  useEffect(()=>{
+    if ((modeRef.current || mode) !== "short") return;
+    const nextName = (contentHeader.find(h=>h.key === "title")?.text || "").trim() || "Без названия";
+    setProjectName(prev => prev === nextName ? prev : nextName);
+  }, [mode, contentHeader]);
+
+  useEffect(()=>{
+    if ((modeRef.current || mode) !== "media") return;
+    const nextName = (mediaHeader.find(h=>h.key === "show")?.text || "").trim() || "Без названия";
+    setProjectName(prev => prev === nextName ? prev : nextName);
+  }, [mode, mediaHeader]);
   const [exportName,  setExportName]  = useState("");
   const [saveAsName,  setSaveAsName]  = useState("");
   const [projectsList,setProjectsList]= useState([]);
+  const [projectsView,setProjectsView]= useState("list");
   const [dragSceneId, setDragSceneId] = useState(null);
   const [dragOverId,  setDragOverId2]  = useState(null);
   const _dragSceneId = useRef(null);
@@ -152,6 +316,180 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
     });
   };
 
+  const updateSceneCardMeta = (updater, { autosave=true } = {}) => {
+    const prev = sceneCardMetaRef.current || {};
+    const nextRaw = typeof updater === "function" ? updater(prev) : updater;
+    const next = cloneSceneCardMetaMap(nextRaw || {});
+    sceneCardMetaRef.current = next;
+    setSceneCardMetaState(next);
+    if (autosave) {
+      setSaved(false);
+      clearTimeout(saveTimer.current);
+      saveTimer.current = setTimeout(()=>{
+        setSaved(true);
+        saveProject(projectId, projectName, blocksRef.current, modeRef.current || mode);
+      }, 1500);
+    }
+  };
+
+  const getSceneCardMetaById = (id) => sceneCardMetaRef.current?.[id] || {};
+  const getSceneCardTempo = (id) => clampSceneCardTempo(getSceneCardMetaById(id).tempo);
+  const getSceneCardEmotion = (id) => clampSceneCardEmotion(getSceneCardMetaById(id).emotion);
+  const getSceneCardTempoSeries = (actNum) => scenes.filter(s=>s.kind==="scene"&&s.actNum===actNum).map(s => ({
+    id: s.id,
+    label: `Сцена ${s.subNum || s.num || ""}`.trim(),
+    tempo: getSceneCardTempo(s.id),
+    emotion: getSceneCardEmotion(s.id),
+  }));
+  const getSceneCardDisplayTag = (id) => {
+    const tag = normalizeSceneCardTagValue(getSceneCardMetaById(id).tag);
+    return tag ? `#${tag}` : "";
+  };
+  const setSceneCardColor = (id, color) => updateSceneCardMeta(prev => {
+    const card = { ...(prev[id] || {}) };
+    if (color) card.color = color;
+    else delete card.color;
+    const next = { ...prev };
+    if (Object.keys(card).length) next[id] = card;
+    else delete next[id];
+    return next;
+  });
+  const setSceneCardTag = (id, tag) => {
+    const nextTag = normalizeSceneCardTagValue(tag);
+    updateSceneCardMeta(prev => {
+      const card = { ...(prev[id] || {}) };
+      if (nextTag) card.tag = nextTag;
+      else delete card.tag;
+      const next = { ...prev };
+      if (Object.keys(card).length) next[id] = card;
+      else delete next[id];
+      return next;
+    });
+  };
+  const setSceneCardStatus = (id, status) => updateSceneCardMeta(prev => {
+    const card = { ...(prev[id] || {}) };
+    if (status) card.status = status;
+    else delete card.status;
+    const next = { ...prev };
+    if (Object.keys(card).length) next[id] = card;
+    else delete next[id];
+    return next;
+  });
+  const setSceneCardNote = (id, note) => updateSceneCardMeta(prev => {
+    const card = { ...(prev[id] || {}) };
+    const raw = String(note ?? "");
+    if (raw.trim()) card.note = raw;
+    else delete card.note;
+    const next = { ...prev };
+    if (Object.keys(card).length) next[id] = card;
+    else delete next[id];
+    return next;
+  });
+  const setSceneCardComment = (id, comment) => updateSceneCardMeta(prev => {
+    const card = { ...(prev[id] || {}) };
+    const raw = String(comment ?? "");
+    if (raw.trim()) card.comment = raw;
+    else delete card.comment;
+    const next = { ...prev };
+    if (Object.keys(card).length) next[id] = card;
+    else delete next[id];
+    return next;
+  });
+  const setSceneCardTempoValue = (id, tempo) => updateSceneCardMeta(prev => {
+    const card = { ...(prev[id] || {}) };
+    const nextTempo = clampSceneCardTempo(tempo);
+    if (nextTempo != null) card.tempo = nextTempo;
+    else delete card.tempo;
+    const next = { ...prev };
+    if (Object.keys(card).length) next[id] = card;
+    else delete next[id];
+    return next;
+  });
+  const setSceneCardEmotionValue = (id, emotion) => updateSceneCardMeta(prev => {
+    const card = { ...(prev[id] || {}) };
+    const nextEmotion = clampSceneCardEmotion(emotion);
+    if (nextEmotion != null) card.emotion = nextEmotion;
+    else delete card.emotion;
+    const next = { ...prev };
+    if (Object.keys(card).length) next[id] = card;
+    else delete next[id];
+    return next;
+  });
+  const setSceneCardFunction = (id, sceneFunction) => updateSceneCardMeta(prev => {
+    const card = { ...(prev[id] || {}) };
+    if (sceneFunction) card.sceneFunction = sceneFunction;
+    else delete card.sceneFunction;
+    const next = { ...prev };
+    if (Object.keys(card).length) next[id] = card;
+    else delete next[id];
+    return next;
+  });
+  const resetSceneCardMeta = (id) => updateSceneCardMeta(prev => {
+    const next = { ...prev };
+    delete next[id];
+    return next;
+  });
+  const promptSceneCardTag = (id) => {
+    const current = normalizeSceneCardTagValue(getSceneCardMetaById(id).tag);
+    const next = window.prompt("Хэштег карточки", current);
+    if (next === null) return;
+    setSceneCardTag(id, next);
+    setSceneCardMenu(null);
+  };
+  const openSceneCardNoteEditor = ({ id, label, text }) => {
+    setSceneCardMenu(null);
+    setSceneCardNoteEditor({ id, label });
+    setSceneCardNoteDraft(String(text || ""));
+  };
+  const closeSceneCardNoteEditor = () => {
+    setSceneCardNoteEditor(null);
+    setSceneCardNoteDraft("");
+  };
+  const saveSceneCardNoteEditor = () => {
+    if (!sceneCardNoteEditor?.id) return;
+    setSceneCardNote(sceneCardNoteEditor.id, sceneCardNoteDraft);
+    closeSceneCardNoteEditor();
+  };
+  const promptSceneCardNote = (id, label="") => {
+    const current = String(getSceneCardMetaById(id).note || "");
+    openSceneCardNoteEditor({ id, label, text: current });
+  };
+
+  useEffect(()=>{ sceneCardMetaRef.current = sceneCardMeta; }, [sceneCardMeta]);
+  useEffect(()=>{
+    if (!sceneCardMenu) return;
+    const onPointerDown = (e) => {
+      if (sceneCardMenuRef.current && !sceneCardMenuRef.current.contains(e.target)) setSceneCardMenu(null);
+    };
+    document.addEventListener("mousedown", onPointerDown);
+    return () => document.removeEventListener("mousedown", onPointerDown);
+  }, [sceneCardMenu]);
+  useEffect(()=>{
+    if (!sceneCardNoteEditor) return;
+    const onKeyDown = (e) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        closeSceneCardNoteEditor();
+        return;
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+        e.preventDefault();
+        saveSceneCardNoteEditor();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [sceneCardNoteEditor, sceneCardNoteDraft]);
+  useEffect(()=>{
+    if (!sceneCardNoteEditor) return;
+    const timer = setTimeout(() => {
+      if (sceneCardNoteInputRef.current) sceneCardNoteInputRef.current.focus();
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [sceneCardNoteEditor]);
+
   const [copyToast, setCopyToast] = useState(false);
 
   const copySelectedScenes = () => {
@@ -160,8 +498,8 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
     let sceneNum = 0; let actNum = 0; let sceneInAct = 0;
     const sceneNumMap = {};
     for (const b of cur) {
-      if (b.type==="act"||b.type==="segment"||b.type==="video") { actNum++; sceneInAct=0; }
-      if (["scene","anchor","sync","vtr","offscreen","lower3","question","hook","body","cta","action"].includes(b.type)) { sceneNum++; sceneInAct++; sceneNumMap[b.id]={num:sceneNum, actNum, subNum:sceneInAct}; }
+      if (b.type==="segment"||b.type==="video"||(b.type==="act" && mode!=="film")) { actNum++; sceneInAct=0; }
+      if (["scene","anchor","sync","vtr","offscreen","lower3","question","hook","body","cta","action"].includes(b.type)) { sceneNum++; sceneInAct++; sceneNumMap[b.id]={num:sceneNum, actNum: mode==="film" ? 0 : actNum, subNum:sceneInAct}; }
       // action — контент сцены в film/play, не заголовок
     }
     let text = "";
@@ -169,9 +507,10 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
     let curActNum = 0;
     for (const b of cur) {
       if (b.type==="act"||b.type==="segment"||b.type==="video") {
+        if (b.type==="act" && mode==="film") continue;
         curActNum++;
         const hasSelected = [...selectedIds].some(id=>sceneNumMap[id]&&sceneNumMap[id].actNum===curActNum);
-        if (hasSelected) text += "\n\n" + (b.text||(b.type==="segment"?"БЛОК":b.type==="video"?"ВИДЕО":"АКТ")).toUpperCase();
+        if (hasSelected) text += "\n\n" + (mode==="play" && b.type==="act" ? getPlayActDisplayText(b.text, curActNum) : (b.text||(b.type==="segment"?"БЛОК":b.type==="video"?"ВИДЕО":"АКТ"))).toUpperCase();
         continue;
       }
       // scene — всегда заголовок; action — заголовок только в short/media
@@ -183,7 +522,7 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
         if (currentSelected) {
           const MEDIA_LABELS = {anchor:"Подводка",sync:"Синхрон",vtr:"ВТР",offscreen:"Закадр",lower3:"Плашка",question:"Вопрос"};
           const n = sceneNumMap[b.id];
-          const num = n ? (n.actNum ? `${n.actNum}.${n.subNum}` : String(n.num)) : "";
+          const num = n ? (((mode==="play"||mode==="short"||mode==="media") && n.actNum) ? `${n.actNum}.${n.subNum}` : String(n.num)) : "";
           const typeLabel = MEDIA_LABELS[b.type] || "";
           const title = b.text || "";
           if (typeLabel) text += "\n\n[" + typeLabel + "]" + (title ? " " + title : "");
@@ -227,13 +566,18 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
   const [toolbarBlockId, setToolbarBlockId] = useState(null); // отдельный state для тулбара
   const [typeMenu, setTypeMenu] = useState(null);
 
-  const history     = useRef([]);
-  const histIdx     = useRef(-1);
+  const historyByMode = useRef({});
+  const histIdxByMode = useRef({});
   const histTimer   = useRef(null);
+  const BLOCK_HISTORY_LIMIT = 100;
   const blockRefs  = useRef({});
   const sceneRefs  = useRef({});
   const scrollRef  = useRef(null);
   const saveTimer  = useRef(null);
+  const modeSceneCardMetaCache = useRef({});
+  const sceneCardMetaRef = useRef(sceneCardMeta);
+  const sceneCardMenuRef = useRef(null);
+  const sceneCardNoteInputRef = useRef(null);
   const msgEnd     = useRef(null);
   const lastFocId  = useRef(null);
   const filmEditStateRef = useRef(null);
@@ -245,6 +589,440 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
   const noteHistoryTimerRef = useRef(null);
   const NOTE_HISTORY_LIMIT = 30;
   const NOTE_HISTORY_DELAY = 600;
+
+  const normalizeSearchNeedle = (value) => String(value || "").replace(/\s+/g, " ").trim().toLocaleLowerCase();
+  const getSearchNeedleVariants = (value) => {
+    const base = normalizeSearchNeedle(value);
+    if (!base) return [];
+    const next = [base];
+    if (base.startsWith("#") && base.length > 1) next.push(base.slice(1));
+    return [...new Set(next.filter(Boolean))];
+  };
+  const collectSearchOccurrences = (text, query) => {
+    const raw = String(text || "");
+    const lower = raw.toLocaleLowerCase();
+    const variants = getSearchNeedleVariants(query);
+    if (!lower || !variants.length) return [];
+    const found = [];
+    variants.forEach((variant) => {
+      let from = 0;
+      while (from <= lower.length) {
+        const idx = lower.indexOf(variant, from);
+        if (idx === -1) break;
+        found.push({ start: idx, end: idx + variant.length });
+        from = idx + Math.max(1, variant.length);
+      }
+    });
+    return found
+      .sort((a,b)=>a.start-b.start || (b.end - b.start) - (a.end - a.start) || a.end-b.end)
+      .reduce((acc, item) => {
+        const prev = acc[acc.length - 1];
+        if (!prev || item.start >= prev.end) acc.push(item);
+        return acc;
+      }, []);
+  };
+  const noteHtmlToPlainText = (html) => {
+    if (!html) return "";
+    const tmp = document.createElement("div");
+    tmp.innerHTML = String(html);
+    return (tmp.textContent || tmp.innerText || "").replace(/ /g, " ");
+  };
+  const getActiveSearchHeaderItems = () => {
+    const currentMode = modeRef.current || mode;
+    if (currentMode === "play") return { scope:"play", items: playHeader || [] };
+    if (currentMode === "media") return { scope:"media", items: mediaHeader || [] };
+    if (currentMode === "short") return { scope:"short", items: contentHeader || [] };
+    return { scope:null, items: [] };
+  };
+  const buildEditorSearchMatches = (query) => {
+    const currentMode = modeRef.current || mode;
+    const clean = normalizeSearchNeedle(query);
+    if (!clean) return [];
+
+    if (currentMode === "note") {
+      const plain = noteHtmlToPlainText(noteTextRef.current);
+      return collectSearchOccurrences(plain, clean).map((pos, idx)=>(
+        { key:`note_${idx}_${pos.start}`, scope:"note", start:pos.start, end:pos.end }
+      ));
+    }
+
+    const matches = [];
+    const currentBlocks = Array.isArray(blocksRef.current) ? blocksRef.current : [];
+    currentBlocks.forEach((block) => {
+      collectSearchOccurrences(block?.text, clean).forEach((pos, idx) => {
+        matches.push({
+          key:`block_${block.id}_${pos.start}_${idx}`,
+          scope:"block",
+          blockId:block.id,
+          start:pos.start,
+          end:pos.end,
+        });
+      });
+    });
+
+    const headerData = getActiveSearchHeaderItems();
+    headerData.items.forEach((item, idx) => {
+      collectSearchOccurrences(item?.text, clean).forEach((pos, occIdx) => {
+        matches.push({
+          key:`header_${headerData.scope}_${item.key}_${pos.start}_${occIdx}`,
+          scope:"header",
+          headerScope:headerData.scope,
+          headerKey:item.key,
+          headerIndex:idx,
+          start:pos.start,
+          end:pos.end,
+        });
+      });
+    });
+
+    return matches;
+  };
+  const escapeAttrSelector = (value) => {
+    const raw = String(value ?? "");
+    if (typeof CSS !== "undefined" && typeof CSS.escape === "function") return CSS.escape(raw);
+    return raw.replace(/(["\\])/g, "\\$1");
+  };
+  const escapeSearchOverlayHtml = (value) => String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+  const activeEditorSearchKey = editorSearchIndex >= 0 && editorSearchIndex < editorSearchMatches.length
+    ? editorSearchMatches[editorSearchIndex]?.key
+    : null;
+  const getSearchOverlayRanges = useCallback((config) => {
+    const raw = String(config?.text ?? "");
+    if (!editorSearchOpen || !normalizeSearchNeedle(editorSearchQuery) || !raw) return [];
+    const sliceStart = Number.isFinite(Number(config?.sliceStart)) ? Number(config.sliceStart) : 0;
+    return (Array.isArray(editorSearchMatches) ? editorSearchMatches : [])
+      .filter((match) => {
+        if (config?.scope === "block") return match.scope === "block" && match.blockId === config.blockId;
+        if (config?.scope === "header") return match.scope === "header" && match.headerScope === config.headerScope && match.headerKey === config.headerKey;
+        return false;
+      })
+      .map((match) => {
+        const localStart = Math.max(0, match.start - sliceStart);
+        const localEnd = Math.min(raw.length, Math.max(localStart, match.end - sliceStart));
+        if (localEnd <= localStart) return null;
+        return { start: localStart, end: localEnd, active: match.key === activeEditorSearchKey };
+      })
+      .filter(Boolean)
+      .sort((a,b)=>a.start-b.start || a.end-b.end);
+  }, [activeEditorSearchKey, editorSearchMatches, editorSearchOpen, editorSearchQuery]);
+  const buildSearchOverlayHtml = useCallback((text, ranges) => {
+    const raw = String(text ?? "");
+    if (!raw || !Array.isArray(ranges) || !ranges.length) return "";
+    let html = "";
+    let cursor = 0;
+    ranges.forEach((range) => {
+      const start = Math.max(cursor, Math.min(raw.length, range.start));
+      const end = Math.max(start, Math.min(raw.length, range.end));
+      if (start > cursor) html += escapeSearchOverlayHtml(raw.slice(cursor, start));
+      if (end > start) {
+        const bg = range.active ? "rgba(250, 204, 21, 0.44)" : "rgba(250, 204, 21, 0.24)";
+        const stroke = range.active ? "rgba(255, 241, 173, 0.34)" : "rgba(255, 241, 173, 0.18)";
+        html += `<mark style="background:${bg};color:transparent;padding:0;border-radius:2px;box-shadow:inset 0 0 0 1px ${stroke};">${escapeSearchOverlayHtml(raw.slice(start, end))}</mark>`;
+      }
+      cursor = end;
+    });
+    if (cursor < raw.length) html += escapeSearchOverlayHtml(raw.slice(cursor));
+    return html;
+  }, []);
+  const renderSearchOverlay = useCallback((config) => {
+    const raw = String(config?.text ?? "");
+    const ranges = getSearchOverlayRanges(config);
+    if (!raw || !ranges.length) return null;
+    const overlayHtml = buildSearchOverlayHtml(raw, ranges);
+    if (!overlayHtml) return null;
+    return (
+      <div
+        aria-hidden="true"
+        style={{
+          position:"absolute",
+          inset:0,
+          zIndex:0,
+          pointerEvents:"none",
+          overflow:"hidden",
+          whiteSpace:"pre-wrap",
+          overflowWrap:"break-word",
+          wordBreak:"break-word",
+          color:"transparent",
+          background:"transparent",
+          border:"none",
+          borderBottom:"none",
+          backgroundImage:"none",
+          boxShadow:"none",
+          userSelect:"none",
+          WebkitUserSelect:"none",
+          ...config?.overlayStyle,
+        }}
+        dangerouslySetInnerHTML={{ __html: overlayHtml }}
+      />
+    );
+  }, [buildSearchOverlayHtml, getSearchOverlayRanges]);
+
+  // — Marker overlay (по принципу поиска) —
+  const MARKER_COLORS = [
+    null,          // стереть
+    "#c8a96e",     // золото
+    "#f0a030",     // оранжевый
+    "#f06ba0",     // розовый
+    "#e84040",     // красный
+    "#9b6fd4",     // фиолетовый
+    "#6ba3e8",     // синий
+    "#2ec4d4",     // циан
+    "#2ed47a",     // зелёный
+  ];
+  const getMarkerOverlayRanges = useCallback((config) => {
+    const blockId = config?.blockId;
+    if (!blockId) return [];
+    const hits = markerHighlights[blockId];
+    if (!hits?.length) return [];
+    const sliceStart = Number.isFinite(Number(config?.sliceStart)) ? Number(config.sliceStart) : 0;
+    const raw = String(config?.text ?? "");
+    return hits
+      .map(h => {
+        const localStart = Math.max(0, h.start - sliceStart);
+        const localEnd = Math.min(raw.length, Math.max(localStart, h.end - sliceStart));
+        if (localEnd <= localStart) return null;
+        return { start: localStart, end: localEnd, color: h.color, id: h.id };
+      })
+      .filter(Boolean)
+      .sort((a,b) => a.start - b.start);
+  }, [markerHighlights]);
+  const buildMarkerOverlayHtml = useCallback((text, ranges) => {
+    const raw = String(text ?? "");
+    if (!raw || !ranges?.length) return "";
+    let html = "";
+    let cursor = 0;
+    ranges.forEach(range => {
+      const start = Math.max(cursor, Math.min(raw.length, range.start));
+      const end = Math.max(start, Math.min(raw.length, range.end));
+      if (start > cursor) html += escapeSearchOverlayHtml(raw.slice(cursor, start));
+      if (end > start) {
+        html += `<mark style="background:${range.color}66;color:transparent;padding:0;border-radius:2px;">${escapeSearchOverlayHtml(raw.slice(start, end))}</mark>`;
+      }
+      cursor = end;
+    });
+    if (cursor < raw.length) html += escapeSearchOverlayHtml(raw.slice(cursor));
+    return html;
+  }, []);
+  const renderMarkerOverlay = useCallback((config) => {
+    const raw = String(config?.text ?? "");
+    const ranges = getMarkerOverlayRanges(config);
+    if (!raw || !ranges.length) return null;
+    const html = buildMarkerOverlayHtml(raw, ranges);
+    if (!html) return null;
+    return (
+      <div
+        aria-hidden="true"
+        style={{
+          position:"absolute", inset:0, zIndex:0,
+          pointerEvents:"none", overflow:"hidden",
+          whiteSpace:"pre-wrap", overflowWrap:"break-word", wordBreak:"break-word",
+          color:"transparent", background:"transparent",
+          border:"none", borderBottom:"none", backgroundImage:"none",
+          boxShadow:"none", userSelect:"none", WebkitUserSelect:"none",
+          ...config?.overlayStyle,
+        }}
+        dangerouslySetInnerHTML={{ __html: html }}
+      />
+    );
+  }, [buildMarkerOverlayHtml, getMarkerOverlayRanges]);
+  const handleMarkerContextMenu = useCallback((e, blockId, sliceStartAbs) => {
+    if (!markerModeOn) return;
+    const ta = e.target;
+    const selStart = ta.selectionStart ?? 0;
+    const selEnd = ta.selectionEnd ?? selStart;
+    if (selStart === selEnd) return;
+    e.preventDefault();
+    const ss = sliceStartAbs ?? 0;
+    setMarkerCtxMenu({
+      x: e.clientX, y: e.clientY,
+      blockId, sliceStart: ss,
+      start: ss + selStart, end: ss + selEnd,
+    });
+  }, [markerModeOn]);
+  const applyMarkerColor = useCallback((color) => {
+    if (!markerCtxMenu) return;
+    const { blockId, start, end } = markerCtxMenu;
+    setMarkerHighlights(prev => {
+      const existing = (prev[blockId] || []).filter(h => h.end <= start || h.start >= end);
+      if (color === null) return { ...prev, [blockId]: existing };
+      const newH = { id: `mh_${Date.now()}_${Math.random()}`, start, end, color };
+      return { ...prev, [blockId]: [...existing, newH] };
+    });
+    setMarkerCtxMenu(null);
+  }, [markerCtxMenu]);
+
+  const resolveContentEditableRange = (root, start, end) => {
+    if (!root || typeof document === "undefined") return null;
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null);
+    let node = null;
+    let pos = 0;
+    let startNode = null;
+    let startOffset = 0;
+    let endNode = null;
+    let endOffset = 0;
+    let lastTextNode = null;
+
+    while ((node = walker.nextNode())) {
+      lastTextNode = node;
+      const textValue = node.textContent || "";
+      const nextPos = pos + textValue.length;
+      if (!startNode && start <= nextPos) {
+        startNode = node;
+        startOffset = Math.max(0, start - pos);
+      }
+      if (!endNode && end <= nextPos) {
+        endNode = node;
+        endOffset = Math.max(0, end - pos);
+        break;
+      }
+      pos = nextPos;
+    }
+
+    if (!startNode && lastTextNode) {
+      startNode = lastTextNode;
+      startOffset = (lastTextNode.textContent || "").length;
+    }
+    if (!endNode) {
+      endNode = startNode || lastTextNode;
+      endOffset = endNode ? Math.min((endNode.textContent || "").length, Math.max(startOffset, end - pos)) : 0;
+    }
+    if (!startNode || !endNode) return null;
+
+    const range = document.createRange();
+    range.setStart(startNode, Math.min(startOffset, (startNode.textContent || "").length));
+    range.setEnd(endNode, Math.min(endOffset, (endNode.textContent || "").length));
+    return range;
+  };
+  const selectContentEditableRange = (root, start, end) => {
+    if (!root || typeof document === "undefined") return false;
+    const selection = window.getSelection && window.getSelection();
+    if (!selection) return false;
+    const range = resolveContentEditableRange(root, start, end);
+    if (!range) return false;
+    selection.removeAllRanges();
+    selection.addRange(range);
+    return true;
+  };
+  const focusSearchMatch = useCallback((match, queryOverride) => {
+    if (!match) return false;
+    const query = queryOverride ?? editorSearchQueryRef.current;
+
+    if (match.scope === "note") {
+      const editor = noteEditorRef.current;
+      if (!editor) return false;
+      editor.scrollIntoView({ behavior:"smooth", block:"center" });
+      try { editor.focus({ preventScroll:true }); } catch(err) { editor.focus(); }
+      return selectContentEditableRange(editor, match.start, match.end);
+    }
+
+    if (match.scope === "header") {
+      const selector = `textarea[data-header-scope="${escapeAttrSelector(match.headerScope)}"][data-header-key="${escapeAttrSelector(match.headerKey)}"]`;
+      const el = document.querySelector(selector);
+      if (!el) return false;
+      el.scrollIntoView({ behavior:"smooth", block:"center" });
+      try { el.focus({ preventScroll:true }); } catch(err) { el.focus(); }
+      if (typeof el.setSelectionRange === "function") el.setSelectionRange(match.start, match.end);
+      return true;
+    }
+
+    const selector = `textarea[data-block-id="${escapeAttrSelector(match.blockId)}"]`;
+    const nodes = Array.from(document.querySelectorAll(selector));
+    const searchNodes = nodes.length ? nodes : [blockRefs.current[match.blockId]].filter(Boolean);
+    for (const node of searchNodes) {
+      const sliceStart = Number.isFinite(Number(node?.dataset?.sliceStart)) ? Number(node.dataset.sliceStart) : 0;
+      const value = String(node?.value || "");
+      const localStart = Math.max(0, match.start - sliceStart);
+      const localEnd = Math.max(localStart, match.end - sliceStart);
+      if (localStart <= value.length && localEnd <= value.length) {
+        node.scrollIntoView({ behavior:"smooth", block:"center" });
+        try { node.focus({ preventScroll:true }); } catch(err) { node.focus(); }
+        if (typeof node.setSelectionRange === "function") node.setSelectionRange(localStart, localEnd);
+        return true;
+      }
+    }
+
+    const variants = getSearchNeedleVariants(query);
+    const fallback = searchNodes.find((node) => {
+      const lower = String(node?.value || "").toLocaleLowerCase();
+      return variants.some(v => lower.includes(v));
+    });
+    if (!fallback) return false;
+    const lower = String(fallback.value || "").toLocaleLowerCase();
+    let chosen = null;
+    variants.forEach((variant) => {
+      const idx = lower.indexOf(variant);
+      if (idx !== -1 && (!chosen || idx < chosen.start)) chosen = { start: idx, end: idx + variant.length };
+    });
+    fallback.scrollIntoView({ behavior:"smooth", block:"center" });
+    try { fallback.focus({ preventScroll:true }); } catch(err) { fallback.focus(); }
+    if (chosen && typeof fallback.setSelectionRange === "function") fallback.setSelectionRange(chosen.start, chosen.end);
+    return true;
+  }, [contentHeader, mediaHeader, mode, playHeader]);
+  const closeEditorSearch = useCallback(() => {
+    setEditorSearchOpen(false);
+    setEditorSearchQuery("");
+    setEditorSearchMatches([]);
+    setEditorSearchIndex(-1);
+  }, []);
+  const openEditorSearch = useCallback(() => {
+    setEditorSearchOpen(true);
+    requestAnimationFrame(() => { if (searchInputRef.current) searchInputRef.current.focus(); });
+  }, []);
+  const moveEditorSearch = useCallback((dir = 1) => {
+    const matches = editorSearchMatchesRef.current || [];
+    if (!matches.length) return;
+    const from = editorSearchIndex >= 0 ? editorSearchIndex : (dir >= 0 ? -1 : 0);
+    const nextIndex = (from + dir + matches.length) % matches.length;
+    setEditorSearchIndex(nextIndex);
+    requestAnimationFrame(() => focusSearchMatch(matches[nextIndex], editorSearchQueryRef.current));
+  }, [editorSearchIndex, focusSearchMatch]);
+  useEffect(() => {
+    if (!editorSearchOpen) return;
+    const timer = setTimeout(() => { if (searchInputRef.current) searchInputRef.current.focus(); }, 0);
+    return () => clearTimeout(timer);
+  }, [editorSearchOpen]);
+  useEffect(() => {
+    if (!editorSearchOpen) return;
+    const query = editorSearchQueryRef.current;
+    if (!normalizeSearchNeedle(query)) {
+      setEditorSearchMatches([]);
+      setEditorSearchIndex(-1);
+      return;
+    }
+    const nextMatches = buildEditorSearchMatches(query);
+    setEditorSearchMatches(nextMatches);
+    if (!nextMatches.length) {
+      setEditorSearchIndex(-1);
+      return;
+    }
+    const nextIndex = editorSearchIndex >= 0 && editorSearchIndex < nextMatches.length ? editorSearchIndex : 0;
+    setEditorSearchIndex(nextIndex);
+  }, [editorSearchOpen, editorSearchQuery, editorSearchIndex, blocks, noteText, mode, playHeader, mediaHeader, contentHeader]);
+  useEffect(() => {
+    if (typeof CSS === "undefined" || !CSS.highlights || typeof window === "undefined" || !window.Highlight) return;
+    CSS.highlights.delete("ow-note-search");
+    if (!editorSearchOpen || (modeRef.current || mode) !== "note") return;
+    const editor = noteEditorRef.current;
+    if (!editor) return;
+    const noteMatches = (Array.isArray(editorSearchMatches) ? editorSearchMatches : []).filter(match => match.scope === "note");
+    if (!noteMatches.length) return;
+    const highlight = new window.Highlight();
+    let rangeCount = 0;
+    noteMatches.forEach((match) => {
+      const range = resolveContentEditableRange(editor, match.start, match.end);
+      if (range) {
+        highlight.add(range);
+        rangeCount += 1;
+      }
+    });
+    if (rangeCount) CSS.highlights.set("ow-note-search", highlight);
+    return () => {
+      if (typeof CSS !== "undefined" && CSS.highlights) CSS.highlights.delete("ow-note-search");
+    };
+  }, [editorSearchMatches, editorSearchOpen, mode, noteText]);
 
   const normalizeNoteHtml = (html) => html == null ? "" : String(html);
   const clearNoteHistoryTimer = () => {
@@ -363,7 +1141,7 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
         e.preventDefault();
         redo();
       }
-      if (e.key==="Escape") { setProjectsOpen(false); setMenuOpen(false); }
+      if (e.key==="Escape") { setProjectsOpen(false); setMenuOpen(false); setAiHistoryOpen(false); setAiPreviewChat(null); setAiModelMenuOpen(false); }
       // Cmd+S — сохранить
       if (mod && e.key==="s") { e.preventDefault(); saveNowRef.current(); }
       // Cmd+D — дублировать текущий блок
@@ -417,6 +1195,84 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
   const st     = mode === "note" ? noteDocStats(noteText) : docStats(blocks);
   const mc     = AIM.find(x=>x.id===aiMod)?.color || ACCENT;
 
+  const sideToggleBase = {
+    position:"absolute",
+    top:"50%",
+    transform:"translateY(-50%)",
+    width:"36px",
+    height:"64px",
+    padding:0,
+    border:`1px solid ${mc}22`,
+    background:`linear-gradient(180deg, ${SURF}FC, ${BG}F5)`,
+    boxShadow:"0 8px 18px rgba(0,0,0,0.24)",
+    color:T2,
+    cursor:"pointer",
+    display:"flex",
+    alignItems:"center",
+    justifyContent:"center",
+    textAlign:"center",
+    lineHeight:1,
+    fontSize:"10px",
+    zIndex:40,
+    overflow:"hidden",
+    WebkitAppearance:"none",
+  };
+  const SIDE_TAB_CLIP_RIGHT = "polygon(0 6%, 100% 0, 100% 100%, 0 94%)";
+  const SIDE_TAB_CLIP_LEFT  = "polygon(0 0, 100% 6%, 100% 94%, 0 100%)";
+  const SideChevron = ({dir}) => (
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      {dir === "left"
+        ? <path d="M7.5 2.5 4 6l3.5 3.5"/>
+        : <path d="M4.5 2.5 8 6 4.5 9.5"/>}
+    </svg>
+  );
+  const sideRailLabelStyle = {
+    position:"absolute",
+    inset:0,
+    writingMode:"vertical-rl",
+    transform:"rotate(180deg)",
+    color:T3,
+    fontSize:"9px",
+    letterSpacing:"3px",
+    lineHeight:1,
+    textAlign:"center",
+    display:"none",
+    alignItems:"center",
+    justifyContent:"center",
+    width:"100%",
+    height:"100%",
+    userSelect:"none",
+    pointerEvents:"none",
+  };
+
+  const SCENE_LIST_HEADER_TYPES = new Set(["scene","act","video","segment","anchor","sync","vtr","offscreen","lower3","question","hook","body","cta"]);
+  const normalizeSceneCardText = (text) => String(text || "").replace(/\s+/g, " ").trim();
+  const getDesktopSceneCardMeta = (scene) => {
+    const cardMeta = scene ? getSceneCardMetaById(scene.id) : {};
+    if (!scene || scene.kind === "act") return { castText:"", previewText:"", previewLines:0, cardMeta };
+    let idx = (typeof scene.index === "number" ? scene.index : -1) + 1;
+    if (idx <= 0) return { castText:"", previewText:"", previewLines:0, cardMeta };
+
+    let castText = "";
+    if (blocks[idx]?.type === "cast") {
+      castText = normalizeSceneCardText(blocks[idx].text);
+      idx++;
+    }
+
+    while (idx < blocks.length) {
+      const next = blocks[idx];
+      if (!next) break;
+      if (SCENE_LIST_HEADER_TYPES.has(next.type)) break;
+      const previewText = normalizeSceneCardText(next.text);
+      if (previewText) {
+        return { castText, previewText, previewLines: castText ? 1 : 2, cardMeta };
+      }
+      idx++;
+    }
+
+    return { castText, previewText:"", previewLines:0, cardMeta };
+  };
+
   // ── Helpers ──────────────────────────────────
   const setFoc = (id) => {
     setFocId(id);
@@ -440,39 +1296,81 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
     note:  { bold:false, italic:false, underline:false },
   }[m] || { bold:false, italic:false, underline:false });
 
+  const ensureModeHistory = (m, blks) => {
+    const snapshots = historyByMode.current;
+    const indices = histIdxByMode.current;
+    const snapshot = JSON.stringify(blks || []);
+    if (!Array.isArray(snapshots[m]) || snapshots[m].length === 0) {
+      snapshots[m] = [snapshot];
+      indices[m] = 0;
+      return;
+    }
+    if (typeof indices[m] !== "number" || indices[m] < 0 || indices[m] >= snapshots[m].length) {
+      indices[m] = snapshots[m].length - 1;
+    }
+  };
+
+  const resetModeHistories = (initialMode, initialBlocks) => {
+    historyByMode.current = {};
+    histIdxByMode.current = {};
+    ensureModeHistory(initialMode, initialBlocks);
+  };
+
   const switchMode = (m) => {
-    modeBlocksCache.current[mode] = blocksRef.current;
+    const currentMode = modeRef.current || mode;
+    const currentBlocks = blocksRef.current;
+    modeBlocksCache.current[currentMode] = currentBlocks;
+    modeSceneCardMetaCache.current[currentMode] = cloneSceneCardMetaMap(sceneCardMetaRef.current || {});
+    ensureModeHistory(currentMode, currentBlocks);
     const cached = modeBlocksCache.current[m];
-    setBlocks(cached ? [...cached] : (INIT[m]||INIT.film).map(b=>({...b})));
+    const nextBlocks = cached ? [...cached] : (INIT[m]||INIT.film).map(b=>({...b}));
+    const nextSceneCardMeta = cloneSceneCardMetaMap(modeSceneCardMetaCache.current[m] || {});
+    ensureModeHistory(m, nextBlocks);
+    updateSceneCardMeta(nextSceneCardMeta, { autosave:false });
+    setBlocks(nextBlocks);
     setMode(m);
     setFocId(null);
     setToolbarBlockId(null);
     setActiveSceneId(null);
+    setSceneCardMenu(null);
     lastFocId.current = null;
     setMenuOpen(false);
   };
 
   const pushHistory = (blks) => {
-    const snapshot = JSON.stringify(blks);
-    if (history.current[histIdx.current] === snapshot) return;
-    history.current = history.current.slice(0, histIdx.current + 1);
-    history.current.push(snapshot);
-    if (history.current.length > 100) history.current.shift();
-    histIdx.current = history.current.length - 1;
+    const currentMode = modeRef.current || mode;
+    const snapshots = historyByMode.current;
+    const indices = histIdxByMode.current;
+    ensureModeHistory(currentMode, blks);
+    const snapshot = JSON.stringify(blks || []);
+    const list = Array.isArray(snapshots[currentMode]) ? snapshots[currentMode] : [];
+    const idx = typeof indices[currentMode] === "number" ? indices[currentMode] : (list.length - 1);
+    if (list[idx] === snapshot) return;
+    const next = list.slice(0, idx + 1);
+    next.push(snapshot);
+    if (next.length > BLOCK_HISTORY_LIMIT) next.shift();
+    snapshots[currentMode] = next;
+    indices[currentMode] = next.length - 1;
   };
 
   const undo = () => {
-    if (histIdx.current <= 0 || history.current.length === 0) return;
-    histIdx.current--;
-    const blks = JSON.parse(history.current[histIdx.current]);
+    const currentMode = modeRef.current || mode;
+    const list = historyByMode.current[currentMode] || [];
+    const idx = histIdxByMode.current[currentMode];
+    if (idx <= 0 || list.length === 0) return;
+    histIdxByMode.current[currentMode] = idx - 1;
+    const blks = JSON.parse(list[idx - 1]);
     setBlocks(blks);
     setSaved(false);
   };
 
   const redo = () => {
-    if (histIdx.current >= history.current.length - 1) return;
-    histIdx.current++;
-    const blks = JSON.parse(history.current[histIdx.current]);
+    const currentMode = modeRef.current || mode;
+    const list = historyByMode.current[currentMode] || [];
+    const idx = histIdxByMode.current[currentMode];
+    if (typeof idx !== "number" || idx >= list.length - 1) return;
+    histIdxByMode.current[currentMode] = idx + 1;
+    const blks = JSON.parse(list[idx + 1]);
     setBlocks(blks);
     setSaved(false);
   };
@@ -481,7 +1379,7 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
     try {
       const nt = noteTextRef.current;
       const meta = { id, name, mode: mod, updatedAt: Date.now(), blocksCount: blks.filter(b=>b.type==="scene").length };
-      const data = { ...meta, blocks: blks, playHeader, mediaHeader, contentHeader, contentLogo, docFont, sceneAlign, noteText: nt };
+      const data = { ...meta, blocks: blks, playHeader, mediaHeader, contentHeader, contentLogo, docFont, sceneAlign, noteText: nt, sceneCardMeta: sceneCardMetaRef.current, markerHighlights, layout: { leftW, rightW, aiW, leftPanelOpen, rightPanelOpen, aiOpen, sceneCardsOpen, sceneCardsMiniMode, sceneCardsRect } };
       localStorage.setItem("ow_proj_"+id, JSON.stringify(data));
       const index = JSON.parse(localStorage.getItem("ow_index")||"[]");
       const next = [meta, ...index.filter(p=>p.id!==id)];
@@ -489,19 +1387,72 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
     } catch(e) {}
   };
 
-  const markDirty = (newBlocks) => {
-    const blks = newBlocks || blocksRef.current;
+  const registerOpenedProject = (proj) => {
+    try {
+      const nextMode = proj.mode || "film";
+      const nextBlocks = Array.isArray(proj.blocks) ? proj.blocks.map(b=>({...b})) : [];
+      const meta = {
+        id: proj.id,
+        name: proj.name || "Без названия",
+        mode: nextMode,
+        updatedAt: Date.now(),
+        blocksCount: nextBlocks.filter(b=>b.type==="scene").length,
+      };
+      const data = {
+        ...meta,
+        blocks: nextBlocks,
+        playHeader: proj.playHeader,
+        mediaHeader: proj.mediaHeader,
+        contentHeader: proj.contentHeader,
+        contentLogo: proj.contentLogo,
+        docFont: proj.docFont,
+        sceneAlign: proj.sceneAlign,
+        noteText: proj.noteText,
+        sceneCardMeta: proj.sceneCardMeta,
+        markerHighlights: proj.markerHighlights,
+        layout: proj.layout,
+      };
+      localStorage.setItem("ow_proj_" + meta.id, JSON.stringify(data));
+      const index = JSON.parse(localStorage.getItem("ow_index") || "[]");
+      const next = [meta, ...index.filter(p => p.id !== meta.id)];
+      localStorage.setItem("ow_index", JSON.stringify(next));
+    } catch(e) {}
+  };
+
+  const scheduleProjectAutosave = () => {
     setSaved(false);
     clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(()=>{
       setSaved(true);
-      saveProject(projectId, projectName, blocksRef.current, mode);
+      saveProject(projectId, projectName, blocksRef.current, modeRef.current || mode);
     }, 1500);
+  };
+
+  const markDirty = (newBlocks) => {
+    const blks = newBlocks || blocksRef.current;
+    scheduleProjectAutosave();
     pushHistory(blks);
+  };
+
+  useEffect(()=>{
+    ensureModeHistory(mode, blocks);
+  }, []);
+
+  useEffect(()=>()=>{
+    clearTimeout(sceneJumpLockTimer.current);
+  }, []);
+
+  const lockActiveScene = (id, ms=650) => {
+    sceneJumpLockRef.current = id;
+    clearTimeout(sceneJumpLockTimer.current);
+    sceneJumpLockTimer.current = setTimeout(()=>{
+      if (sceneJumpLockRef.current === id) sceneJumpLockRef.current = null;
+    }, ms);
   };
 
   const onScroll = () => {
     const c = scrollRef.current; if (!c) return;
+    if (sceneJumpLockRef.current) return;
     const top = c.scrollTop; let cur = null;
     for (const s of scenes) {
       const el = sceneRefs.current[s.id];
@@ -512,16 +1463,26 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
 
   const goToScene = (id) => {
     const el = sceneRefs.current[id];
-    if (el && scrollRef.current)
+    if (el && scrollRef.current) {
+      lockActiveScene(id);
       scrollRef.current.scrollTo({top: el.offsetTop - 60, behavior:"smooth"});
+    }
     setActiveSceneId(id);
   };
 
   const loadProject = (proj) => {
+    const nextMode = proj.mode||"film";
+    const nextBlocks = proj.blocks.map(b=>({...b}));
+    registerOpenedProject({ ...proj, mode: nextMode, blocks: nextBlocks });
+    modeBlocksCache.current = {};
+    modeSceneCardMetaCache.current = {};
+    resetModeHistories(nextMode, nextBlocks);
     setProjectId(proj.id);
     setProjectName(proj.name);
-    setMode(proj.mode||"film");
-    setBlocks(proj.blocks.map(b=>({...b})));
+    setMode(nextMode);
+    setBlocks(nextBlocks);
+    updateSceneCardMeta({}, { autosave:false });
+    setSceneCardMenu(null);
     setFocId(null);
     setToolbarBlockId(null);
     lastFocId.current = null;
@@ -532,6 +1493,21 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
       if (proj.noteText !== undefined) { setNoteText(proj.noteText); noteTextRef.current = proj.noteText; }
     if (proj.docFont)    setDocFont(proj.docFont);
     if (proj.sceneAlign) setSceneAlign(proj.sceneAlign);
+    if (proj.markerHighlights) setMarkerHighlights(proj.markerHighlights);
+    if (proj.layout) {
+      const l = proj.layout;
+      if (l.leftW)          setLeftW(l.leftW);
+      if (l.rightW)         setRightW(l.rightW);
+      if (l.aiW)            setAiW(l.aiW);
+      if (l.leftPanelOpen  !== undefined) setLeftPanelOpen(l.leftPanelOpen);
+      if (l.rightPanelOpen !== undefined) setRightPanelOpen(l.rightPanelOpen);
+      if (l.aiOpen         !== undefined) setAiOpen(l.aiOpen);
+      if (l.sceneCardsOpen !== undefined) setSceneCardsOpen(l.sceneCardsOpen);
+      if (l.sceneCardsMiniMode !== undefined) setSceneCardsMiniMode(l.sceneCardsMiniMode);
+      if (l.sceneCardsRect)  setSceneCardsRect(l.sceneCardsRect);
+    }
+    updateSceneCardMeta(cloneSceneCardMetaMap(proj.sceneCardMeta || {}), { autosave:false });
+    setSceneCardMenu(null);
     setSaved(true);
     setProjectsOpen(false);
     setMenuOpen(false);
@@ -539,12 +1515,18 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
 
   const newProject = () => {
     const nid = "proj_"+Date.now();
-    const nextMode = mode;
+    const nextMode = modeRef.current || mode;
     const year = new Date().getFullYear()+"";
+    const nextBlocks = (INIT[nextMode] || []).map(b=>({...b}));
 
+    modeBlocksCache.current = {};
+    modeSceneCardMetaCache.current = {};
+    resetModeHistories(nextMode, nextBlocks);
     setProjectId(nid);
     setProjectName("Без названия");
-    setBlocks((INIT[nextMode] || []).map(b=>({...b})));
+    setBlocks(nextBlocks);
+    updateSceneCardMeta({}, { autosave:false });
+    setSceneCardMenu(null);
     setFocId(null);
     setToolbarBlockId(null);
     lastFocId.current = null;
@@ -581,7 +1563,7 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
   };
 
   const buildWhaleExport = () => {
-    const data = JSON.stringify({ name: projectName, mode, blocks, playHeader, mediaHeader, contentHeader, contentLogo, docFont, sceneAlign, noteText, version: 1 }, null, 2);
+    const data = JSON.stringify({ name: projectName, mode, blocks, playHeader, mediaHeader, contentHeader, contentLogo, docFont, sceneAlign, noteText, sceneCardMeta: sceneCardMetaRef.current, version: 1 }, null, 2);
     const name = (projectName || "project") + ".whale";
     return { name, blob: new Blob([data], { type: "application/octet-stream" }) };
   };
@@ -656,9 +1638,156 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
       const index = JSON.parse(localStorage.getItem("ow_index")||"[]");
       setProjectsList(index);
     } catch(e) { setProjectsList([]); }
+    setProjectsView("list");
     setProjectsOpen(true);
     setMenuOpen(false);
   };
+
+  const openMyProjectsList = () => {
+    try {
+      const currentMode = modeRef.current || mode;
+      const index = JSON.parse(localStorage.getItem("ow_index")||"[]");
+      setProjectsList(index.filter(p => (p.mode || "film") === currentMode));
+    } catch(e) { setProjectsList([]); }
+    setProjectsView("list");
+    setProjectsOpen(true);
+    setMenuOpen(false);
+  };
+
+  const openMyProjectsCards = () => {
+    try {
+      const currentMode = modeRef.current || mode;
+      const index = JSON.parse(localStorage.getItem("ow_index")||"[]");
+      setProjectsList(index.filter(p => (p.mode || "film") === currentMode));
+    } catch(e) { setProjectsList([]); }
+    setProjectsView("cards");
+    setProjectsOpen(true);
+    setMenuOpen(false);
+  };
+
+  const clampSceneCardsRect = useCallback((rect) => {
+    const minW = 360;
+    const minH = 260;
+    const pad = 16;
+    const minX = leftSidebarW + 16;
+    const minY = 88;
+    const maxW = Math.max(minW, window.innerWidth - (leftSidebarW + 32));
+    const maxH = Math.max(minH, window.innerHeight - 104);
+    const nextW = Math.max(minW, Math.min(maxW, rect.w));
+    const nextH = Math.max(minH, Math.min(maxH, rect.h));
+    const maxX = Math.max(minX, window.innerWidth - nextW - pad);
+    const maxY = Math.max(minY, window.innerHeight - nextH - pad);
+    return {
+      x: Math.max(minX, Math.min(maxX, rect.x)),
+      y: Math.max(minY, Math.min(maxY, rect.y)),
+      w: nextW,
+      h: nextH,
+    };
+  }, [leftSidebarW]);
+
+  const openSceneCardsWindow = () => {
+    setSceneCardsOpen(v => {
+      const nextOpen = !v;
+      if (nextOpen) {
+        const targetW = Math.min(Math.max(360, window.innerWidth - (leftSidebarW + 32)), 1080);
+        setSceneCardsRect(prev => clampSceneCardsRect({
+          ...prev,
+          w: Math.max(prev.w, targetW),
+        }));
+      }
+      return nextOpen;
+    });
+    setProjectsOpen(false);
+    setMenuOpen(false);
+  };
+
+  const startSceneCardsDrag = (e) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const startRect = sceneCardsRect;
+    const onMove = (ev) => {
+      const dx = ev.clientX - startX;
+      const dy = ev.clientY - startY;
+      setSceneCardsRect(prev => clampSceneCardsRect({
+        ...prev,
+        x: startRect.x + dx,
+        y: startRect.y + dy,
+      }));
+    };
+    const onUp = () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  };
+
+  const startSceneCardsResize = (dir) => (e) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const startRect = sceneCardsRect;
+    const minW = 360;
+    const minH = 260;
+    const minX = leftSidebarW + 16;
+    const minY = 88;
+    const maxW = Math.max(minW, window.innerWidth - (leftSidebarW + 32));
+    const maxH = Math.max(minH, window.innerHeight - 104);
+    const onMove = (ev) => {
+      let dx = ev.clientX - startX;
+      let dy = ev.clientY - startY;
+
+      if (dir.includes("e")) {
+        dx = Math.max(minW - startRect.w, Math.min(maxW - startRect.w, dx));
+      }
+      if (dir.includes("s")) {
+        dy = Math.max(minH - startRect.h, Math.min(maxH - startRect.h, dy));
+      }
+      if (dir.includes("w")) {
+        const minDx = Math.max(minX - startRect.x, startRect.w - maxW);
+        const maxDx = startRect.w - minW;
+        dx = Math.max(minDx, Math.min(maxDx, dx));
+      }
+      if (dir.includes("n")) {
+        const minDy = Math.max(minY - startRect.y, startRect.h - maxH);
+        const maxDy = startRect.h - minH;
+        dy = Math.max(minDy, Math.min(maxDy, dy));
+      }
+
+      const nextRect = {
+        x: dir.includes("w") ? startRect.x + dx : startRect.x,
+        y: dir.includes("n") ? startRect.y + dy : startRect.y,
+        w: dir.includes("w") ? startRect.w - dx : (dir.includes("e") ? startRect.w + dx : startRect.w),
+        h: dir.includes("n") ? startRect.h - dy : (dir.includes("s") ? startRect.h + dy : startRect.h),
+      };
+
+      setSceneCardsRect(clampSceneCardsRect(nextRect));
+    };
+    const onUp = () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  };
+
+  useEffect(() => {
+    if (!sceneCardsOpen) return;
+    const onResize = () => {
+      setSceneCardsRect(prev => clampSceneCardsRect(prev));
+    };
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, [sceneCardsOpen, clampSceneCardsRect]);
+
+  useEffect(() => {
+    if (!sceneCardsOpen) return;
+    setSceneCardsRect(prev => clampSceneCardsRect(prev));
+  }, [sceneCardsOpen, leftSidebarW, clampSceneCardsRect]);
 
   const deleteProject = (id) => {
     try {
@@ -1152,6 +2281,9 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
             if (data.noteText !== undefined) { setNoteText(data.noteText); noteTextRef.current = data.noteText; }
           if (data.docFont)    setDocFont(data.docFont);
           if (data.sceneAlign) setSceneAlign(data.sceneAlign);
+          updateSceneCardMeta(cloneSceneCardMetaMap(data.sceneCardMeta || {}), { autosave:false });
+          setSceneCardMenu(null);
+          modeSceneCardMetaCache.current = {};
           setSaved(true);
           setMenuOpen(false);
         }
@@ -1160,6 +2292,202 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
     if (ext === "docx") reader.readAsArrayBuffer(file);
     else reader.readAsText(file);
     e.target.value = "";
+  };
+
+  const getAiFileExt = (name="") => String(name).split(".").pop().toLowerCase();
+  const isSupportedAiFile = (file) => AI_FILE_EXTS.includes(getAiFileExt(file?.name || ""));
+  const readAsTextFile = (file) => new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onerror = () => reject(r.error || new Error("read error"));
+    r.onload = () => resolve(String(r.result || ""));
+    r.readAsText(file);
+  });
+  const readAsArrayBufferFile = (file) => new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onerror = () => reject(r.error || new Error("read error"));
+    r.onload = () => resolve(r.result);
+    r.readAsArrayBuffer(file);
+  });
+  const htmlToPlainText = (html) => {
+    const tmp = document.createElement("div");
+    tmp.innerHTML = html || "";
+    const nodes = Array.from(tmp.querySelectorAll("p, h1, h2, h3, h4, h5, h6, li, blockquote"));
+    const lines = nodes.length
+      ? nodes.map(el => (el.textContent || "").replace(/ /g, " ").replace(/\s+/g, " ").trim()).filter(Boolean)
+      : [(tmp.textContent || "").replace(/ /g, " ").replace(/\s+/g, " ").trim()].filter(Boolean);
+    return lines.join("\n").trim();
+  };
+  const whaleDataToPlainText = (data, fallbackName="") => {
+    const parts = [];
+    const projectTitle = data?.name || fallbackName.replace(/\.whale$/i, "") || "Документ";
+    parts.push(`Название: ${projectTitle}`);
+    if (data?.mode) parts.push(`Режим: ${data.mode}`);
+
+    const headerLines = [];
+    const pushHeader = (items, title) => {
+      if (!Array.isArray(items) || !items.length) return;
+      const lines = items
+        .map(h => {
+          const label = String(h?.label || h?.key || "").trim();
+          const value = String(h?.text || "").trim();
+          return value ? `${label || "Поле"}: ${value}` : "";
+        })
+        .filter(Boolean);
+      if (lines.length) headerLines.push(`${title}:\n${lines.join("\n")}`);
+    };
+    pushHeader(data?.playHeader, "Заголовок пьесы");
+    pushHeader(data?.mediaHeader, "Заголовок медиа");
+    pushHeader(data?.contentHeader, "Заголовок контента");
+    if (headerLines.length) parts.push(headerLines.join("\n\n"));
+
+    if (Array.isArray(data?.blocks) && data.blocks.length) {
+      const lines = data.blocks.map((b, idx) => {
+        const type = String(b?.type || "block").trim();
+        const name = String(b?.name || "").trim();
+        const body = String(b?.text || "").replace(/ /g, " ").replace(/\s+/g, " ").trim();
+        const label = name ? `${type} ${name}` : type;
+        return `${idx + 1}. [${label}] ${body}`.trim();
+      }).filter(Boolean);
+      if (lines.length) parts.push(`Блоки:\n${lines.join("\n")}`);
+    }
+
+    if (data?.noteText) {
+      const noteText = htmlToPlainText(data.noteText);
+      if (noteText) parts.push(`Заметка:\n${noteText}`);
+    }
+
+    return parts.filter(Boolean).join("\n\n").trim();
+  };
+  const fdxToPlainText = (xmlText, fileName="") => {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(xmlText, "application/xml");
+    const lines = [];
+    const importedTitle = (doc.querySelector('TitlePage Content Paragraph[Type="Title"] Text')?.textContent || "").trim();
+    const importedAuthor = (doc.querySelector('TitlePage Content Paragraph[Type="Author"] Text')?.textContent || "").trim();
+    if (importedTitle) lines.push(`Название: ${importedTitle}`);
+    else if (fileName) lines.push(`Название: ${fileName.replace(/\.fdx$/i, "")}`);
+    if (importedAuthor) lines.push(`Автор: ${importedAuthor}`);
+    const content = doc.querySelector("Content");
+    const paragraphs = content ? Array.from(content.querySelectorAll("Paragraph")) : [];
+    if (paragraphs.length) {
+      const body = paragraphs.map(p => {
+        const fdxType = p.getAttribute("Type") || "Paragraph";
+        const fullText = Array.from(p.querySelectorAll("Text")).map(t => t.textContent || "").join("").replace(/ /g, " ").replace(/\s+/g, " ").trim();
+        return fullText ? `[${fdxType}] ${fullText}` : "";
+      }).filter(Boolean);
+      if (body.length) lines.push(body.join("\n"));
+    }
+    return lines.join("\n\n").trim();
+  };
+  const docxToPlainText = async (file) => {
+    let mammoth;
+    try { mammoth = await loadMammothLib(); }
+    catch(err) { throw new Error("Не удалось загрузить библиотеку Mammoth для DOCX."); }
+    const arrayBuffer = await readAsArrayBufferFile(file);
+    const result = await mammoth.convertToHtml({ arrayBuffer });
+    return htmlToPlainText(result.value || "");
+  };
+  const aiFileToAttachment = async (file) => {
+    const ext = getAiFileExt(file?.name || "");
+    let text = "";
+    if (ext === "txt") {
+      text = (await readAsTextFile(file)).replace(/\r\n/g, "\n").trim();
+    } else if (ext === "docx") {
+      text = await docxToPlainText(file);
+    } else if (ext === "fdx") {
+      text = fdxToPlainText(await readAsTextFile(file), file.name);
+    } else if (ext === "whale") {
+      const raw = await readAsTextFile(file);
+      text = whaleDataToPlainText(JSON.parse(raw), file.name);
+    } else {
+      throw new Error(`Формат .${ext || "?"} не поддерживается.`);
+    }
+    text = String(text || "").replace(/ /g, " ").trim();
+    if (!text) throw new Error(`Не удалось извлечь текст из ${file.name}`);
+    return {
+      id: uid(),
+      name: file.name,
+      ext,
+      text,
+      size: file.size || 0,
+    };
+  };
+  const appendAiAttachments = async (fileList) => {
+    const files = Array.from(fileList || []).filter(isSupportedAiFile);
+    if (!files.length) return;
+    try {
+      const parsed = await Promise.all(files.map(aiFileToAttachment));
+      setAiPendingFiles(prev => {
+        const seen = new Set(prev.map(item => `${item.name}::${item.size}`));
+        const next = [...prev];
+        parsed.forEach(item => {
+          const key = `${item.name}::${item.size}`;
+          if (seen.has(key)) return;
+          seen.add(key);
+          next.push(item);
+        });
+        return next;
+      });
+    } catch (err) {
+      alert(err?.message || "Не удалось добавить файл в ИИ-чат.");
+    }
+  };
+  const importAiFiles = async (e) => {
+    const files = e.target?.files;
+    if (files?.length) await appendAiAttachments(files);
+    if (e.target) e.target.value = "";
+  };
+  const openAiFilePicker = (inputId) => {
+    const input = document.getElementById(inputId);
+    if (!input) return;
+    input.accept = AI_FILE_ACCEPT;
+    input.click();
+  };
+  const removeAiAttachment = (id) => setAiPendingFiles(prev => prev.filter(item => item.id !== id));
+  const buildAiUserVisibleText = (inputText, files=[]) => {
+    const trimmed = String(inputText || "").trim();
+    const fileLabel = files.length ? `📎 ${files.map(f => f.name).join(", ")}` : "";
+    return [trimmed, fileLabel].filter(Boolean).join(trimmed && fileLabel ? "\n" : "").trim();
+  };
+  const buildAiStyleInstruction = () => {
+    if (!AI_CAN_USE_EMOJI) return "";
+    return "СТИЛЬ ИИ: смайлики разрешены, но только уместно и умеренно.";
+  };
+  const buildAiOutgoingText = (inputText, files=[]) => {
+    const trimmed = String(inputText || "").trim();
+    const styleInstruction = buildAiStyleInstruction();
+    const fileChunks = files.map(f => `ФАЙЛ: ${f.name}\n${f.text}`);
+    return [styleInstruction, trimmed, ...fileChunks].filter(Boolean).join("\n\n").trim();
+  };
+  const handleAiDragEnter = (e) => {
+    const items = Array.from(e.dataTransfer?.items || []);
+    if (!items.some(item => item.kind === "file")) return;
+    e.preventDefault();
+    aiDragDepthRef.current += 1;
+    setAiDropActive(true);
+  };
+  const handleAiDragOver = (e) => {
+    const items = Array.from(e.dataTransfer?.items || []);
+    if (!items.some(item => item.kind === "file")) return;
+    e.preventDefault();
+    if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
+    setAiDropActive(true);
+  };
+  const handleAiDragLeave = (e) => {
+    const items = Array.from(e.dataTransfer?.items || []);
+    if (items.length && !items.some(item => item.kind === "file")) return;
+    aiDragDepthRef.current = Math.max(0, aiDragDepthRef.current - 1);
+    if (aiDragDepthRef.current === 0) setAiDropActive(false);
+  };
+  const handleAiDrop = async (e) => {
+    const hasFiles = Array.from(e.dataTransfer?.items || []).some(item => item.kind === "file") || (e.dataTransfer?.files?.length || 0) > 0;
+    if (!hasFiles) return;
+    e.preventDefault();
+    const files = Array.from(e.dataTransfer?.files || []).filter(isSupportedAiFile);
+    aiDragDepthRef.current = 0;
+    setAiDropActive(false);
+    if (!files.length) return;
+    await appendAiAttachments(files);
   };
 
   const saveFile = async (blob, fname, mimeType) => {
@@ -1483,7 +2811,7 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
         const b = blocks[i];
         if (b.type === "act") {
           actNum++; sceneInAct = 0;
-          scriptHtml += `<p style="margin:32px 0 16px;font-weight:bold;text-transform:uppercase;font-size:13pt;text-align:center;letter-spacing:2px;">${b.text||("АКТ "+actNum)}</p>`;
+          scriptHtml += `<p style="margin:32px 0 16px;font-weight:bold;text-transform:uppercase;font-size:13pt;text-align:center;letter-spacing:2px;">${getPlayActDisplayText(b.text, actNum)}</p>`;
         } else if (b.type === "scene") {
           sceneInAct++;
           scriptHtml += `<p style="margin:24px 0 4px;font-weight:bold;font-size:12pt;">${b.text||("Сцена "+sceneInAct)}</p>`;
@@ -1518,7 +2846,7 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
           scriptHtml += `<p style="margin:0;padding-left:1.6in;padding-right:1.5in;font-style:italic;line-height:1.2;">${b.text||""}</p>`;
         } else if (b.type === "trans") {
           scriptHtml += `<p style="margin:12pt 0 0 0;text-align:right;text-transform:uppercase;line-height:1.2;">${b.text||""}</p>`;
-        } else if (b.type === "act") {
+        } else if (b.type === "act" && mode !== "film") {
           scriptHtml += `<p style="margin:24pt 0 12pt 0;text-align:center;font-weight:bold;text-transform:uppercase;line-height:1.2;">${b.text||""}</p>`;
         }
       }
@@ -1661,7 +2989,6 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
       * { box-sizing: border-box; }
       body { font-family: ${isPlay ? playFont : courier}; font-size: 12pt; line-height: 1.7; color: #000; background: #fff; margin: 0; }
       .title-page { ${isPlay && !titleSepPage ? "" : "page-break-after: always;"} display: flex; flex-direction: column; position: relative; font-family: ${isPlay ? playFont : courier}; }
-      @media print { .title-page { height: 100vh; } }
       .title-center { flex: 1; display: flex; flex-direction: column; align-items: center; text-align: center; padding-top: 22vh; }
       .title-name { font-size: 12pt; text-transform: uppercase; margin-bottom: 24pt; letter-spacing: 1px; text-align: center; }
       .title-genre { font-size: 12pt; margin-bottom: 12pt; text-align: center; }
@@ -1670,19 +2997,166 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
       .title-bottom { display: flex; justify-content: space-between; align-items: flex-end; padding-bottom: 0; font-size: 12pt; }
       .contacts { line-height: 1.8; }
       .script { font-family: ${isPlay ? playFont : courier}; font-size: 12pt; line-height: 1.6; }
-      @media print { body { margin: 0; } }
+      ${isPlay ? `
+      .script-source {
+        position: absolute;
+        left: -99999px;
+        top: 0;
+        width: 794px;
+        padding: 96px 96px 96px 96px;
+        visibility: hidden;
+        pointer-events: none;
+      }
+      .script-source-inner {
+        font-family: ${playFont};
+        font-size: 12pt;
+        line-height: 1.6;
+      }
+      .script-pages { width: 794px; }
+      .script-page {
+        height: 1123px;
+        padding: 96px 96px 96px 96px;
+        background: #fff;
+        box-shadow: 0 4px 24px rgba(0,0,0,0.3);
+        margin-bottom: 0;
+        break-after: page;
+        page-break-after: always;
+      }
+      .script-page:last-child {
+        break-after: auto;
+        page-break-after: auto;
+      }
+      .script-page-content {
+        height: 931px;
+        overflow: hidden;
+        font-family: ${playFont};
+        font-size: 12pt;
+        line-height: 1.6;
+      }
+      ` : ""}
+      @media print {
+        body { margin: 0; }
+        .title-page { height: 100vh; }
+        ${isPlay ? `
+        .script-source { display: none !important; }
+        .script-page { height: auto; min-height: auto; box-shadow: none; }
+        .script-page-content { height: auto; min-height: auto; }
+        ` : ""}
+      }
       @media screen {
         html { background: #888; }
         body { width: 794px; transform-origin: top left; margin: 0; }
         .title-page { height: 1123px; padding: 96px 96px 96px ${isPlay ? "96px" : "144px"}; background:#fff; box-shadow:0 4px 24px rgba(0,0,0,0.3); margin-bottom:0; }
-        .script     { min-height: 1123px; padding: 96px 96px 96px ${isPlay ? "96px" : "144px"}; background:#fff; box-shadow:0 4px 24px rgba(0,0,0,0.3); margin-bottom:0; }
-        ${isPlay ? "" : `.title-page { display:block; }
+        .script { min-height: 1123px; padding: 96px 96px 96px ${isPlay ? "96px" : "144px"}; background:#fff; box-shadow:0 4px 24px rgba(0,0,0,0.3); margin-bottom:0; }
+        ${isPlay ? `
+        .script-pages { width: 794px; }
+        .script-page { height: 1123px; padding: 96px 96px 96px 96px; background:#fff; box-shadow:0 4px 24px rgba(0,0,0,0.3); margin-bottom:0; }
+        ` : `.title-page { display:block; }
         .title-center { position:absolute; left:${isPlay ? "96px" : "144px"}; right:96px; top:50%; transform:translateY(-50%); padding-top:0; }
         .title-bottom { position:absolute; left:${isPlay ? "96px" : "144px"}; right:96px; bottom:96px; }`}
       }
     </style>
     <script>
       (function(){
+        ${isPlay ? `
+        function makePlayPage(root){
+          var page = document.createElement('div');
+          page.className = 'script-page';
+          var content = document.createElement('div');
+          content.className = 'script-page-content';
+          page.appendChild(content);
+          root.appendChild(page);
+          return content;
+        }
+        function getPlaySourceText(node){
+          var text = node.textContent || '';
+          var first = node.firstElementChild;
+          if (first && first.tagName === 'STRONG') {
+            var lead = first.textContent || '';
+            if (lead && text.indexOf(lead) === 0) {
+              text = text.slice(lead.length).replace(/^\s+/, '');
+            }
+          }
+          return text;
+        }
+        function setPlayPieceText(piece, node, text){
+          var first = node.firstElementChild;
+          piece.innerHTML = '';
+          if (first && first.tagName === 'STRONG') {
+            piece.appendChild(first.cloneNode(true));
+            if (text) piece.appendChild(document.createTextNode('  ' + text));
+          } else {
+            piece.textContent = text;
+          }
+        }
+        function fillPlaySegment(node, content, tokens, start){
+          var piece = node.cloneNode(false);
+          content.appendChild(piece);
+          var low = 1;
+          var high = tokens.length - start;
+          var best = 0;
+          while (low <= high) {
+            var mid = Math.floor((low + high) / 2);
+            setPlayPieceText(piece, node, tokens.slice(start, start + mid).join(''));
+            if (content.scrollHeight <= content.clientHeight + 1) {
+              best = mid;
+              low = mid + 1;
+            } else {
+              high = mid - 1;
+            }
+          }
+          if (!best) {
+            content.removeChild(piece);
+            return 0;
+          }
+          setPlayPieceText(piece, node, tokens.slice(start, start + best).join('').replace(/^\s+/, ''));
+          return best;
+        }
+        function splitPlayNode(node, content, root){
+          var text = getPlaySourceText(node);
+          var tokens = text.match(/\S+\s*|\s+/g) || [text];
+          var index = 0;
+          var current = content;
+          while (index < tokens.length) {
+            var fitted = fillPlaySegment(node, current, tokens, index);
+            if (!fitted) {
+              current = makePlayPage(root);
+              fitted = fillPlaySegment(node, current, tokens, index);
+              if (!fitted) break;
+            }
+            index += fitted;
+            if (index < tokens.length) current = makePlayPage(root);
+          }
+          return current;
+        }
+        function paginatePlay(){
+          var source = document.querySelector('.script-source');
+          var sourceInner = document.querySelector('.script-source-inner');
+          var root = document.querySelector('.script-pages');
+          if (!source || !sourceInner || !root) return;
+          root.innerHTML = '';
+          var nodes = Array.from(sourceInner.children);
+          var current = makePlayPage(root);
+          nodes.forEach(function(node){
+            var clone = node.cloneNode(true);
+            current.appendChild(clone);
+            if (current.scrollHeight > current.clientHeight + 1) {
+              current.removeChild(clone);
+              if (!current.children.length) {
+                current = splitPlayNode(node, current, root);
+              } else {
+                current = makePlayPage(root);
+                var retry = node.cloneNode(true);
+                current.appendChild(retry);
+                if (current.scrollHeight > current.clientHeight + 1) {
+                  current.removeChild(retry);
+                  current = splitPlayNode(node, current, root);
+                }
+              }
+            }
+          });
+        }
+        ` : ""}
         ${forPDF ? "" : `
         function scale(){
           if(window.matchMedia('print').matches) return;
@@ -1690,7 +3164,18 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
           document.body.style.transform = 'scale('+s+')';
           document.documentElement.style.height = Math.ceil(document.body.scrollHeight * s) + 'px';
         }
-        ${forPDF ? '' : "document.addEventListener('DOMContentLoaded', scale); window.addEventListener('resize', scale); window.addEventListener('beforeprint', function(){ document.body.style.transform='none'; document.body.style.width='auto'; }); window.addEventListener('afterprint', function(){ scale(); });"}
+        function ready(){
+          ${isPlay ? "paginatePlay();" : ""}
+          scale();
+        }
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', ready);
+        } else {
+          ready();
+        }
+        window.addEventListener('resize', function(){ ${isPlay ? "paginatePlay(); " : ""}scale(); });
+        window.addEventListener('beforeprint', function(){ document.body.style.transform='none'; document.body.style.width='auto'; ${isPlay ? "paginatePlay();" : ""} });
+        window.addEventListener('afterprint', function(){ ${isPlay ? "paginatePlay(); " : ""}scale(); });
         `}
       })();
     <\/script>
@@ -1715,7 +3200,9 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
       </div>
       `}
     </div>
-    <div class="script">${scriptHtml}</div>
+    ${isPlay
+      ? `<div class="script-source"><div class="script-source-inner">${scriptHtml}</div></div><div class="script-pages"></div>`
+      : `<div class="script">${scriptHtml}</div>`}
     </body></html>`;
   };
 
@@ -2241,7 +3728,7 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
       if (isPlayTXT) {
         if (b.type==="act") {
           actNum++; sceneInAct=0;
-          lines.push("",""); lines.push(center((b.text||("АКТ "+actNum)).toUpperCase())); lines.push("","");
+          lines.push("",""); lines.push(center(getPlayActDisplayText(b.text, actNum).toUpperCase())); lines.push("","");
         } else if (b.type==="scene") {
           sceneInAct++;
           lines.push(""); lines.push((b.text||("Сцена "+sceneInAct)));
@@ -2273,7 +3760,7 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
           wrap("("+b.text+")",25,30).forEach(l=>lines.push(l));
         } else if (b.type==="trans") {
           lines.push(""); lines.push(" ".repeat(42)+(b.text||"").toUpperCase()); lines.push("");
-        } else if (b.type==="act") {
+        } else if (b.type==="act" && mode!=="film") {
           lines.push("",""); lines.push(center((b.text||"").toUpperCase())); lines.push("","");
         }
       }
@@ -2301,7 +3788,7 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
     for (const b of blocks) {
       let type = ""; let text = b.text||"";
       if (isPlayFDX) {
-        if (b.type==="act")      { actNum++; sceneInAct=0; type="Scene Heading"; text=text.toUpperCase()||("АКТ "+actNum); }
+        if (b.type==="act")      { actNum++; sceneInAct=0; type="Scene Heading"; text=getPlayActDisplayText(text, actNum).toUpperCase(); }
         else if (b.type==="scene")    { sceneInAct++; type="Scene Heading"; text=text||(actNum+"."+sceneInAct); }
         else if (b.type==="cast")     { type="Action"; text="("+text+")"; }
         else if (b.type==="stage")    { type="Action"; }
@@ -2315,7 +3802,7 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
         else if (b.type==="dialogue"){ type="Dialogue"; }
         else if (b.type==="paren")   { type="Parenthetical"; text="("+text+")"; }
         else if (b.type==="trans")   { type="Transition"; text=text.toUpperCase(); }
-        else if (b.type==="act")     { type="Action"; text=text.toUpperCase(); }
+        else if (b.type==="act" && mode!=="film")     { type="Action"; text=text.toUpperCase(); }
       }
       if (!type) continue;
       const escaped = text.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
@@ -2347,7 +3834,90 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
 
   const updBlock     = (id, text) => { setBlocks(bs=>bs.map(b=>b.id===id?{...b,text}:b)); markDirty(); };
   const updBlockName = (id, name) => { setBlocks(bs=>bs.map(b=>b.id===id?{...b,name}:b)); markDirty(); };
-  const chType       = (id, type) => { setBlocks(bs=>bs.map(b=>b.id===id?{...b,type}:b)); markDirty(); };
+  const buildFilmTypeChangedBlock = (block, type, textOverride) => {
+    const next = {
+      id: block.id,
+      type,
+      text: textOverride !== undefined ? textOverride : block.text,
+    };
+    if (Object.prototype.hasOwnProperty.call(block, "name")) next.name = block.name || "";
+    if (block.color) next.color = block.color;
+    if (block.bold) next.bold = true;
+    if (block.semibold) next.semibold = true;
+    if (block.italic) next.italic = true;
+    if (block.underline) next.underline = true;
+    return next;
+  };
+  const chType       = (id, type) => { setBlocks(bs=>bs.map(b=>{
+    if (b.id !== id) return b;
+    if (mode === "film" && b.type === "note" && type !== "note") return buildFilmTypeChangedBlock(b, type);
+    return {...b,type};
+  })); markDirty(); };
+
+  const changeFilmBlockTypeFromActiveLine = (id, targetType) => {
+    if (mode !== "film") return false;
+    const currentBlocks = blocksRef.current || [];
+    const block = currentBlocks.find(b => b.id === id);
+    if (!block || !targetType) return false;
+    const text = typeof block.text === "string" ? block.text : "";
+    if (!text.includes("\n")) {
+      chType(id, targetType);
+      return true;
+    }
+
+    const activeEl = (() => {
+      const refEl = blockRefs.current[id];
+      if (refEl && typeof refEl.selectionStart === "number") return refEl;
+      const ae = document.activeElement;
+      if (ae && ae.tagName === "TEXTAREA" && String(ae.dataset.blockId || "") === String(id) && typeof ae.selectionStart === "number") return ae;
+      return null;
+    })();
+
+    if (!activeEl) {
+      chType(id, targetType);
+      return true;
+    }
+
+    const sliceStartAbs = parseInt(activeEl.dataset.sliceStart || "0", 10) || 0;
+    const localCursor = typeof activeEl.selectionStart === "number" ? activeEl.selectionStart : text.length;
+    const absCursor = Math.max(0, Math.min(text.length, sliceStartAbs + localCursor));
+    const lines = text.split("\n");
+    const activeLineIx = Math.min(lines.length - 1, Math.max(0, text.substring(0, absCursor).split("\n").length - 1));
+    const beforeText = lines.slice(0, activeLineIx).join("\n");
+    const lineText = lines[activeLineIx] ?? "";
+    const afterText = lines.slice(activeLineIx + 1).join("\n");
+
+    const beforeBlock = beforeText === "" ? null : { ...block, id: uid(), text: beforeText };
+    const currentBlock = (block.type === "note" && targetType !== "note")
+      ? buildFilmTypeChangedBlock(block, targetType, lineText)
+      : { ...block, id, type: targetType, text: lineText };
+    const afterBlock = afterText === "" ? null : { ...block, id: uid(), text: afterText };
+    const extraAfter = targetType === "scene" ? [{ ...block, id: uid(), type: "cast", text: "" }] : [];
+
+    setBlocks(bs => {
+      const i = bs.findIndex(b => b.id === id);
+      if (i === -1) return bs;
+      const replacement = [];
+      if (beforeBlock) replacement.push(beforeBlock);
+      replacement.push(currentBlock);
+      if (extraAfter.length) replacement.push(...extraAfter);
+      if (afterBlock) replacement.push(afterBlock);
+      const next = [...bs];
+      next.splice(i, 1, ...replacement);
+      return next;
+    });
+    markDirty();
+    setFocId(id);
+    setTimeout(() => {
+      const nextEl = blockRefs.current[id];
+      if (!nextEl) return;
+      try { nextEl.focus({ preventScroll: true }); } catch(err) { nextEl.focus(); }
+      const pos = Math.min((lineText || "").length, (nextEl.value || "").length);
+      try { nextEl.setSelectionRange(pos, pos); } catch(err) {}
+      autoH(nextEl);
+    }, 0);
+    return true;
+  };
 
   const sceneNum = (blockId) => {
     let n = 0;
@@ -2368,6 +3938,77 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
     markDirty();
     setTimeout(()=>{ blockRefs.current[nid]?.focus(); setFoc(nid); }, 60);
   }, [mode]);
+
+  const addBefore = useCallback((id, type) => {
+    const nid = uid();
+    const toAdd = type==="scene"
+      ? [{id:nid,type:"scene",text:""},{id:uid(),type:"cast",text:""}]
+      : type==="line"
+      ? [{id:nid,type:"line",name:"",text:""}]
+      : [{id:nid,type,text:""}];
+    setBlocks(bs=>{ const i=bs.findIndex(b=>b.id===id); if (i < 0) return bs; const a=[...bs]; a.splice(i,0,...toAdd); return a; });
+    if (type==="scene" || type==="act") setActiveSceneId(nid);
+    markDirty();
+    setTimeout(()=>{ blockRefs.current[nid]?.focus?.(); setFoc(nid); }, 60);
+  }, [mode]);
+
+  const insertFilmAct = useCallback(() => {
+    const cur = blocksRef.current || [];
+    const target = activeSceneId
+      ? cur.find(b => b.id === activeSceneId && (b.type === "scene" || b.type === "act"))
+      : null;
+    if (target) {
+      addBefore(target.id, "act");
+      return;
+    }
+    const lastSceneLike = [...cur].reverse().find(b => b.type === "scene" || b.type === "act");
+    if (lastSceneLike) addAfter(lastSceneLike.id, "act");
+  }, [activeSceneId, addAfter, addBefore]);
+
+  const insertPlayAct = useCallback(() => {
+    const cur = blocksRef.current || [];
+    const playScenes = getScenes(cur, "play").filter(s => s.kind === "scene");
+    const playSceneMap = new Map(playScenes.map(s => [s.id, s]));
+    let target = activeSceneId ? (playSceneMap.get(activeSceneId) || null) : null;
+
+    if (!target && focId) {
+      const focusIndex = cur.findIndex(b => b.id === focId);
+      if (focusIndex !== -1) {
+        for (let j = focusIndex; j >= 0; j--) {
+          if (cur[j].type === "scene") {
+            target = playSceneMap.get(cur[j].id) || null;
+            break;
+          }
+          if (cur[j].type === "act") break;
+        }
+      }
+    }
+
+    const nid = uid();
+
+    if (target) {
+      const targetIndex = cur.findIndex(b => b.id === target.id);
+      const actNumber = cur.slice(0, targetIndex).filter(b => b.type === "act").length + 1;
+      const title = getPlayActTitle(actNumber);
+      setBlocks(bs => {
+        const i = bs.findIndex(b => b.id === target.id);
+        if (i < 0) return bs;
+        const a = [...bs];
+        a.splice(i, 0, { id: nid, type: "act", text: title });
+        return a;
+      });
+      setActiveSceneId(nid);
+      markDirty();
+      setTimeout(()=>{ blockRefs.current[nid]?.focus?.(); setFoc(nid); }, 60);
+      return;
+    }
+
+    const title = getPlayActTitle(cur.filter(b => b.type === "act").length + 1);
+    setBlocks(bs => [...bs, { id: nid, type: "act", text: title }]);
+    setActiveSceneId(nid);
+    markDirty();
+    setTimeout(()=>{ blockRefs.current[nid]?.focus?.(); setFoc(nid); }, 60);
+  }, [activeSceneId, focId]);
 
   const delBlock = (id) => {
     if (blocks.length<=1) return;
@@ -2431,8 +4072,12 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
     const cur = blocksRef.current;
     const i = cur.findIndex(b=>b.id===fromId);
     if (i===-1) return;
-    // Определяем типы-головы сцены в зависимости от режима
-    const SCENE_TYPES = ["scene","act","segment","video","anchor","sync","vtr","offscreen","lower3","question","hook","body","cta","action"];
+    const currentMode = modeRef.current || mode;
+    // В film/play action — это содержимое сцены, а не её граница.
+    // Иначе при переносе сцена обрывается перед первым action.
+    const SCENE_TYPES = (currentMode==="film" || currentMode==="play")
+      ? ["scene","act"]
+      : ["scene","act","segment","video","anchor","sync","vtr","offscreen","lower3","question","hook","body","cta","action"];
     let end = cur.length;
     for (let j=i+1; j<cur.length; j++) {
       if (SCENE_TYPES.includes(cur[j].type)) { end=j; break; }
@@ -2443,6 +4088,53 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
     if (insertAt===-1) return;
     nb.splice(insertAt, 0, ...fromBlocks);
     const moved = [...nb]; setBlocks(moved); markDirty(moved);
+  };
+
+  const getSceneCardsDropSide = (e, isAct=false) => {
+    const rect = e && e.currentTarget && typeof e.currentTarget.getBoundingClientRect === "function"
+      ? e.currentTarget.getBoundingClientRect()
+      : null;
+    if (!rect) return isAct ? "top" : "left";
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const distances = isAct
+      ? [
+          { side:"top", value:y },
+          { side:"bottom", value:Math.max(0, rect.height - y) },
+        ]
+      : [
+          { side:"top", value:y },
+          { side:"right", value:Math.max(0, rect.width - x) },
+          { side:"bottom", value:Math.max(0, rect.height - y) },
+          { side:"left", value:x },
+        ];
+    distances.sort((a,b)=>a.value-b.value);
+    return distances[0]?.side || (isAct ? "top" : "left");
+  };
+
+  const moveSceneDirectional = (fromId, toId, side) => {
+    if (fromId===toId) return;
+    const cur = blocksRef.current;
+    const i = cur.findIndex(b=>b.id===fromId);
+    if (i===-1) return;
+    const currentMode = modeRef.current || mode;
+    const SCENE_TYPES = (currentMode==="film" || currentMode==="play")
+      ? ["scene","act"]
+      : ["scene","act","segment","video","anchor","sync","vtr","offscreen","lower3","question","hook","body","cta","action"];
+    let end = cur.length;
+    for (let j=i+1; j<cur.length; j++) {
+      if (SCENE_TYPES.includes(cur[j].type)) { end=j; break; }
+    }
+    const fromBlocks = cur.slice(i, end);
+    const nb = cur.filter(b=>!fromBlocks.includes(b));
+    const targetIndex = nb.findIndex(b=>b.id===toId);
+    if (targetIndex===-1) return;
+    const insertAfter = side === "right" || side === "bottom";
+    const insertAt = insertAfter ? targetIndex + 1 : targetIndex;
+    nb.splice(insertAt, 0, ...fromBlocks);
+    const moved = [...nb];
+    setBlocks(moved);
+    markDirty(moved);
   };
 
   const onKey = (e, block, ctx={}) => {
@@ -2459,11 +4151,13 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
       return;
     }
     if (e.key==="Enter" && !e.shiftKey) {
-      if (block.type==="line") { e.preventDefault(); addAfter(block.id, "line"); return; }
       e.preventDefault();
       const el = e.target || blockRefs.current[block.id];
       const cursor = el ? el.selectionStart : block.text.length;
       const absCursor = (ctx && typeof ctx.sliceStartAbs === "number") ? (ctx.sliceStartAbs + cursor) : cursor;
+      if (block.type==="line" && !(el && absCursor > 0 && absCursor < block.text.length)) {
+        addAfter(block.id, "line"); return;
+      }
       if (el && absCursor > 0 && absCursor < block.text.length && block.type === "dialogue") {
         // Разделяем диалог: часть1 + новый char(то же имя) + новый dialogue(остаток)
         const before = block.text.substring(0, absCursor);
@@ -2493,7 +4187,7 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
           const newEl = blockRefs.current[dialId];
           if (newEl) { newEl.focus(); newEl.selectionStart = newEl.selectionEnd = 0; }
         }, 0);
-      } else if (mode === "film" && el && absCursor > 0 && absCursor < block.text.length && ["action", "paren", "note"].includes(block.type)) {
+      } else if (el && absCursor > 0 && absCursor < block.text.length && !["scene", "act", "spacer"].includes(block.type)) {
         const before = block.text.substring(0, absCursor);
         const after = block.text.substring(absCursor).trimStart();
         updBlock(block.id, before);
@@ -2519,7 +4213,9 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
       const PROT = ["scene","line","act"];
       if (!PROT.includes(block.type)) {
         const i = defs.findIndex(d=>d.type===block.type);
-        chType(block.id, defs[(i+1)%defs.length].type);
+        const nextType = defs[(i+1)%defs.length].type;
+        if (mode === "film" && changeFilmBlockTypeFromActiveLine(block.id, nextType)) return;
+        chType(block.id, nextType);
       }
       return;
     }
@@ -2594,6 +4290,157 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
             return;
           }
         }
+        if (mode === "play" && bi > 0 && block.type !== "act") {
+          if (block.type === "line") {
+            const nameText = block.name || "";
+            const rowEl = el && el.parentElement ? el.parentElement : null;
+            const nameInput = rowEl ? rowEl.querySelector('input') : null;
+            e.preventDefault();
+            if (nameText.length > 0) {
+              updBlockName(block.id, nameText.slice(0, -1));
+            }
+            setTimeout(() => {
+              if (!nameInput) return;
+              try { nameInput.focus({ preventScroll: true }); } catch(err) { nameInput.focus(); }
+              const pos = Math.max(0, nameText.length - 1);
+              try { nameInput.setSelectionRange(pos, pos); } catch(err) {}
+            }, 0);
+            return;
+          }
+          const prev = currentBlocks[bi - 1];
+          if (prev && prev.type && prev.type !== "act") {
+            e.preventDefault();
+            if (isBlankBlock) {
+              delBlock(block.id);
+              setTimeout(() => {
+                const prevEl = blockRefs.current[prev.id];
+                if (!prevEl) return;
+                try { prevEl.focus({ preventScroll: true }); } catch(err) { prevEl.focus(); }
+                const pos = (prevEl.value || "").length;
+                try { prevEl.setSelectionRange(pos, pos); } catch(err) {}
+              }, 0);
+              return;
+            }
+            if (prev.type !== block.type) {
+              chType(block.id, prev.type);
+              return;
+            }
+            const prevText = prev.text || "";
+            const curText = block.text || "";
+            const needsSpace = !!prevText && !!curText && !/\s$/.test(prevText) && !/^\s/.test(curText);
+            const joiner = needsSpace ? " " : "";
+            const caretPos = prevText.length + joiner.length;
+            setBlocks(bs => {
+              const prevIdx = bs.findIndex(b => b.id === prev.id);
+              const curIdx = bs.findIndex(b => b.id === block.id);
+              if (prevIdx < 0 || curIdx < 0 || prevIdx >= curIdx) return bs;
+              const mergedPrev = { ...bs[prevIdx], text: (bs[prevIdx].text || "") + joiner + curText };
+              const next = [...bs];
+              next[prevIdx] = mergedPrev;
+              next.splice(curIdx, 1);
+              return next;
+            });
+            markDirty();
+            setTimeout(() => {
+              const prevEl = blockRefs.current[prev.id];
+              if (!prevEl) return;
+              try { prevEl.focus({ preventScroll: true }); } catch(err) { prevEl.focus(); }
+              try { prevEl.setSelectionRange(caretPos, caretPos); } catch(err) {}
+              autoH(prevEl);
+            }, 0);
+            return;
+          }
+        }
+        if (mode === "short" && bi > 0 && block.type !== "act") {
+          const prev = currentBlocks[bi - 1];
+          if (prev && prev.type && prev.type !== "act") {
+            e.preventDefault();
+            if (isBlankBlock) {
+              delBlock(block.id);
+              setTimeout(() => {
+                const prevEl = blockRefs.current[prev.id];
+                if (!prevEl) return;
+                try { prevEl.focus({ preventScroll: true }); } catch(err) { prevEl.focus(); }
+                const pos = (prevEl.value || "").length;
+                try { prevEl.setSelectionRange(pos, pos); } catch(err) {}
+              }, 0);
+              return;
+            }
+            if (prev.type !== block.type) {
+              chType(block.id, prev.type);
+              return;
+            }
+            const prevText = prev.text || "";
+            const curText = block.text || "";
+            const needsSpace = !!prevText && !!curText && !/\s$/.test(prevText) && !/^\s/.test(curText);
+            const joiner = needsSpace ? " " : "";
+            const caretPos = prevText.length + joiner.length;
+            setBlocks(bs => {
+              const prevIdx = bs.findIndex(b => b.id === prev.id);
+              const curIdx = bs.findIndex(b => b.id === block.id);
+              if (prevIdx < 0 || curIdx < 0 || prevIdx >= curIdx) return bs;
+              const mergedPrev = { ...bs[prevIdx], text: (bs[prevIdx].text || "") + joiner + curText };
+              const next = [...bs];
+              next[prevIdx] = mergedPrev;
+              next.splice(curIdx, 1);
+              return next;
+            });
+            markDirty();
+            setTimeout(() => {
+              const prevEl = blockRefs.current[prev.id];
+              if (!prevEl) return;
+              try { prevEl.focus({ preventScroll: true }); } catch(err) { prevEl.focus(); }
+              try { prevEl.setSelectionRange(caretPos, caretPos); } catch(err) {}
+              autoH(prevEl);
+            }, 0);
+            return;
+          }
+        }
+        if (mode === "media" && bi > 0 && block.type !== "act") {
+          const prev = currentBlocks[bi - 1];
+          if (prev && prev.type && prev.type !== "act") {
+            e.preventDefault();
+            if (isBlankBlock) {
+              delBlock(block.id);
+              setTimeout(() => {
+                const prevEl = blockRefs.current[prev.id];
+                if (!prevEl) return;
+                try { prevEl.focus({ preventScroll: true }); } catch(err) { prevEl.focus(); }
+                const pos = (prevEl.value || "").length;
+                try { prevEl.setSelectionRange(pos, pos); } catch(err) {}
+              }, 0);
+              return;
+            }
+            if (prev.type !== block.type) {
+              chType(block.id, prev.type);
+              return;
+            }
+            const prevText = prev.text || "";
+            const curText = block.text || "";
+            const needsSpace = !!prevText && !!curText && !/\s$/.test(prevText) && !/^\s/.test(curText);
+            const joiner = needsSpace ? " " : "";
+            const caretPos = prevText.length + joiner.length;
+            setBlocks(bs => {
+              const prevIdx = bs.findIndex(b => b.id === prev.id);
+              const curIdx = bs.findIndex(b => b.id === block.id);
+              if (prevIdx < 0 || curIdx < 0 || prevIdx >= curIdx) return bs;
+              const mergedPrev = { ...bs[prevIdx], text: (bs[prevIdx].text || "") + joiner + curText };
+              const next = [...bs];
+              next[prevIdx] = mergedPrev;
+              next.splice(curIdx, 1);
+              return next;
+            });
+            markDirty();
+            setTimeout(() => {
+              const prevEl = blockRefs.current[prev.id];
+              if (!prevEl) return;
+              try { prevEl.focus({ preventScroll: true }); } catch(err) { prevEl.focus(); }
+              try { prevEl.setSelectionRange(caretPos, caretPos); } catch(err) {}
+              autoH(prevEl);
+            }, 0);
+            return;
+          }
+        }
       }
       if (isBlankBlock && block.type !== "act") {
         e.preventDefault(); delBlock(block.id); return;
@@ -2602,29 +4449,388 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
     // Cmd+1..9 — смена типа блока по хоткею
     if ((e.ctrlKey||e.metaKey) && /^[1-9]$/.test(e.key)) {
       const target = defs.find(d=>d.hotkey===e.key);
-      if (target && !["scene","act"].includes(block.type)) { e.preventDefault(); chType(block.id, target.type); }
+      if (target && !["scene","act"].includes(block.type)) {
+        e.preventDefault();
+        if (mode === "film" && changeFilmBlockTypeFromActiveLine(block.id, target.type)) return;
+        chType(block.id, target.type);
+      }
     }
   };
 
+  const clearAiReplyTimer = () => {
+    if (!aiReplyTimerRef.current) return;
+    clearTimeout(aiReplyTimerRef.current);
+    aiReplyTimerRef.current = null;
+  };
+  const clearAiModelMenuTimer = () => {
+    if (!aiModelMenuTimerRef.current) return;
+    clearTimeout(aiModelMenuTimerRef.current);
+    aiModelMenuTimerRef.current = null;
+  };
+  const armAiModelMenuTimer = () => {
+    clearAiModelMenuTimer();
+    aiModelMenuTimerRef.current = setTimeout(()=>setAiModelMenuOpen(false), 60000);
+  };
+  const getCurrentAiChat = () => normalizeAiChat({
+    id: aiChatId,
+    createdAt: aiChatCreatedAt,
+    updatedAt: Date.now(),
+    model: aiMod,
+    modelVariant: aiModelVariant,
+    messages: msgs,
+  }, aiMod, aiModelVariant);
+  const archiveAiChat = (chat) => {
+    if (!hasAiChatContent(chat)) return;
+    setAiHistory(prev=>[
+      normalizeAiChat(chat, chat?.model || aiMod, chat?.modelVariant || aiModelVariant),
+      ...prev.filter(item=>item.id !== chat.id),
+    ].slice(0, AI_HISTORY_LIMIT));
+  };
+  const startNewAiChat = () => {
+    archiveAiChat(getCurrentAiChat());
+    clearAiReplyTimer();
+    const now = Date.now();
+    setAiChatId(makeAiChatId());
+    setAiChatCreatedAt(now);
+    setMsgs([makeAiGreeting()]);
+    setAiIn("");
+    setAiLoad(false);
+    setAiHistoryOpen(false);
+    setAiPreviewChat(null);
+  };
+  const openAiPreview = (chat) => {
+    setAiPreviewChat(normalizeAiChat(chat, chat?.model || aiMod, chat?.modelVariant || aiModelVariant));
+    setAiHistoryOpen(false);
+  };
+  const deleteAiHistoryChat = (chatId) => {
+    setAiHistory(prev => prev.filter(item => item.id !== chatId));
+    setAiPreviewChat(prev => prev?.id === chatId ? null : prev);
+  };
+  const clearAiHistory = () => {
+    setAiHistory([]);
+    setAiPreviewChat(null);
+  };
+  const copyAiPreview = async () => {
+    if (!aiPreviewChat) return;
+    const text = buildAiPreviewText(aiPreviewChat);
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+      }
+    } catch (e) {}
+  };
+  const selectAiProvider = (providerId) => {
+    const safeProvider = AIM.some(x=>x.id===providerId) ? providerId : AI_DEFAULT_MODEL;
+    setAiMod(safeProvider);
+    setAiModelVariant(prev => normalizeAiModelVariant(safeProvider, safeProvider===aiMod ? prev : undefined));
+    setAiModelMenuOpen(prev => safeProvider===aiMod ? !prev : true);
+  };
+  const selectAiVariant = (providerId, variantId) => {
+    const safeProvider = AIM.some(x=>x.id===providerId) ? providerId : AI_DEFAULT_MODEL;
+    const safeVariant = normalizeAiModelVariant(safeProvider, variantId);
+    setAiMod(safeProvider);
+    setAiModelVariant(safeVariant);
+    setAiModelMenuOpen(false);
+  };
+  const renderAiVariantPicker = (providerId, compact=false) => {
+    const variants = getAiVariants(providerId);
+    if (!variants.length) return null;
+    return (
+      <div style={{
+        marginTop: compact ? "8px" : "6px",
+        padding: compact ? "7px" : "8px",
+        borderRadius: compact ? "12px" : "10px",
+        background:BG,
+        boxShadow:SH_IN,
+        display:"flex",
+        flexDirection:"column",
+        gap: compact ? "4px" : "5px",
+      }}>
+        {variants.map(variant=>{
+          const active = aiMod===providerId && aiModelVariant===variant.id;
+          return (
+            <button
+              key={variant.id}
+              onClick={()=>selectAiVariant(providerId, variant.id)}
+              style={{
+                width:"100%",
+                display:"flex",
+                alignItems:"center",
+                justifyContent:"space-between",
+                padding: compact ? "8px 10px" : "7px 9px",
+                background: active ? SURF : "transparent",
+                boxShadow: active ? SH_SM : "none",
+                border:"none",
+                borderRadius:"10px",
+                cursor:"pointer",
+                fontFamily:"inherit",
+                color: active ? T1 : T2,
+                fontSize: compact ? "11px" : "10px",
+              }}
+            >
+              <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",paddingRight:"8px"}}>{getAiVariantMenuLabel(providerId, variant)}</span>
+              <span style={{color:active ? getAiProvider(providerId).color : T3, fontSize:"9px", flexShrink:0}}>{active ? "ВЫБРАНО" : ""}</span>
+            </button>
+          );
+        })}
+      </div>
+    );
+  };
   const send = () => {
-    if (!aiIn.trim()) return;
-    const m = AIM.find(x=>x.id===aiMod);
+    if ((!aiIn.trim() && aiPendingFiles.length===0) || aiLoad) return;
+    const m = getAiProvider(aiMod);
+    const queuedFiles = aiPendingFiles.slice();
+    const userText = buildAiUserVisibleText(aiIn, queuedFiles);
     if (!m.free && credits<10) {
-      setMsgs(p=>[...p,{role:"user",text:aiIn},{role:"ai",text:"Недостаточно кредитов.",model:aiMod}]);
-      setAiIn(""); return;
+      setMsgs(p=>[...p,{role:"user",text:userText},{role:"ai",text:"Недостаточно кредитов.",model:aiMod,modelVariant:aiModelVariant}]);
+      setAiIn("");
+      setAiPendingFiles([]);
+      return;
     }
-    const q = aiIn;
-    setMsgs(p=>[...p,{role:"user",text:q}]);
-    setAiIn(""); setAiLoad(true);
-    setTimeout(()=>{
-      const rs=AIR[aiMod];
-      setMsgs(p=>[...p,{role:"ai",text:rs[Math.floor(Math.random()*rs.length)],model:aiMod}]);
+    const q = buildAiOutgoingText(aiIn, queuedFiles);
+    const modelAtSend = aiMod;
+    const modelVariantAtSend = aiModelVariant;
+    const chatIdAtSend = aiChatId;
+    setMsgs(p=>[...p,{role:"user",text:userText}]);
+    setAiIn("");
+    setAiPendingFiles([]);
+    setAiLoad(true);
+    clearAiReplyTimer();
+    aiReplyTimerRef.current = setTimeout(()=>{
+      const rs = AIR[modelAtSend] || AIR.deepseek;
+      if (chatIdAtSend !== aiChatIdRef.current) {
+        setAiLoad(false);
+        aiReplyTimerRef.current = null;
+        return;
+      }
+      setMsgs(p=>[...p,{role:"ai",text:rs[Math.floor(Math.random()*rs.length)],model:modelAtSend,modelVariant:modelVariantAtSend}]);
       setAiLoad(false);
+      aiReplyTimerRef.current = null;
       if (!m.free) setCredits(c=>Math.max(0,c-12));
     },1400);
   };
 
+  const renderAiHistoryDropdown = () => aiHistoryOpen && (
+    <div style={{
+      position:"absolute",
+      left:0,
+      right:0,
+      bottom:"100%",
+      marginBottom:"8px",
+      background:SURF,
+      boxShadow:"0 -2px 18px rgba(0,0,0,0.28)",
+      border:`1px solid ${T3}22`,
+      borderRadius:"12px",
+      overflow:"hidden",
+      zIndex:40,
+      maxHeight:"240px",
+      display:"flex",
+      flexDirection:"column",
+    }}>
+      <div style={{padding:"9px 10px", borderBottom:`1px solid ${T3}22`, display:"flex", alignItems:"center", justifyContent:"space-between", gap:"8px"}}>
+        <span style={{fontSize:"9px", color:T3, letterSpacing:"1.5px"}}>ИСТОРИЯ ЧАТОВ</span>
+        <button
+          onMouseDown={e=>{e.stopPropagation(); e.preventDefault();}}
+          onClick={e=>{e.stopPropagation(); clearAiHistory();}}
+          aria-label="Очистить историю чатов"
+          {...getTooltipAnchorProps("Очистить историю")}
+          style={{
+            background:"transparent",
+            border:"none",
+            padding:0,
+            margin:0,
+            width:"10px",
+            height:"10px",
+            display:"inline-flex",
+            alignItems:"center",
+            justifyContent:"center",
+            cursor:"pointer",
+            flexShrink:0,
+          }}
+        >
+          <svg width="9" height="9" viewBox="0 0 8 8" fill="none" stroke="#f87171" strokeWidth="1.4" strokeLinecap="round">
+            <line x1="1" y1="1" x2="7" y2="7"/>
+            <line x1="7" y1="1" x2="1" y2="7"/>
+          </svg>
+        </button>
+      </div>
+      <div style={{overflowY:"auto", maxHeight:"196px"}}>
+        {aiHistory.length ? aiHistory.map(chat=>(
+          <div
+            key={chat.id}
+            style={{
+              width:"100%",
+              padding:"10px",
+              background:"transparent",
+              borderBottom:`1px solid ${T3}12`,
+              fontFamily:"inherit",
+            }}
+          >
+            <div
+              onClick={()=>openAiPreview(chat)}
+              style={{cursor:"pointer"}}
+            >
+              <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"4px", gap:"8px"}}>
+                <span style={{color:T1, fontSize:"11px", lineHeight:"1.4"}}>{getAiChatTitle(chat)}</span>
+                <span style={{color:T3, fontSize:"9px", flexShrink:0}}>{formatAiChatStamp(chat.updatedAt || chat.createdAt)}</span>
+              </div>
+              <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", gap:"8px"}}>
+                <div style={{display:"flex", alignItems:"center", gap:"8px", minWidth:0, flex:1}}>
+                  <span style={{color:T3, fontSize:"9px", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", minWidth:0}}>
+                    {getAiModelDisplayLabel(chat.model, chat.modelVariant)} · {(chat.messages || []).filter(m=>m.role!=="sys").length} сообщений
+                  </span>
+                  <button
+                    onMouseDown={e=>{e.stopPropagation(); e.preventDefault();}}
+                    onClick={e=>{e.stopPropagation(); deleteAiHistoryChat(chat.id);}}
+                    aria-label="Удалить чат из истории"
+                    {...getTooltipAnchorProps("Удалить чат")}
+                    style={{
+                      background:"transparent",
+                      border:"none",
+                      padding:0,
+                      margin:0,
+                      width:"10px",
+                      height:"10px",
+                      display:"inline-flex",
+                      alignItems:"center",
+                      justifyContent:"center",
+                      cursor:"pointer",
+                      flexShrink:0,
+                    }}
+                  >
+                    <svg width="9" height="9" viewBox="0 0 8 8" fill="none" stroke="#f87171" strokeWidth="1.4" strokeLinecap="round">
+                      <line x1="1" y1="1" x2="7" y2="7"/>
+                      <line x1="7" y1="1" x2="1" y2="7"/>
+                    </svg>
+                  </button>
+                </div>
+                <span style={{color:mc, fontSize:"9px", flexShrink:0}}>просмотр</span>
+              </div>
+            </div>
+          </div>
+        )) : (
+          <div style={{padding:"14px 10px", color:T3, fontSize:"10px", lineHeight:"1.6"}}>
+            Здесь появятся завершённые чаты после кнопки «Новый чат».
+          </div>
+        )}
+      </div>
+    </div>
+  );
+  const renderAiPreviewOverlay = () => aiPreviewChat && (
+    <div style={{
+      position:"absolute",
+      inset:0,
+      background:"rgba(10,10,18,0.74)",
+      zIndex:60,
+      display:"flex",
+      alignItems:"center",
+      justifyContent:"center",
+      padding:"14px",
+    }}>
+      <div style={{
+        width:"100%",
+        maxWidth:"560px",
+        maxHeight:"82%",
+        background:SURF,
+        boxShadow:"0 20px 45px rgba(0,0,0,0.45)",
+        border:`1px solid ${T3}22`,
+        borderRadius:"14px",
+        display:"flex",
+        flexDirection:"column",
+        overflow:"hidden",
+      }}>
+        <div style={{padding:"12px 14px", borderBottom:`1px solid ${T3}22`, display:"flex", alignItems:"center", justifyContent:"space-between", gap:"10px"}}>
+          <div style={{minWidth:0}}>
+            <div style={{color:T1, fontSize:"12px", marginBottom:"3px", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis"}}>{getAiChatTitle(aiPreviewChat)}</div>
+            <div style={{color:T3, fontSize:"9px", letterSpacing:"1px"}}>{formatAiChatStamp(aiPreviewChat.updatedAt || aiPreviewChat.createdAt)}</div>
+          </div>
+          <div style={{display:"flex", gap:"8px", flexShrink:0}}>
+            <button onClick={copyAiPreview} style={{padding:"6px 10px", background:BG, boxShadow:SH_IN, border:"none", borderRadius:"8px", color:T2, fontSize:"10px", cursor:"pointer", fontFamily:"inherit"}}>копировать</button>
+            <button onClick={()=>setAiPreviewChat(null)} style={{padding:"6px 10px", background:BG, boxShadow:SH_IN, border:"none", borderRadius:"8px", color:mc, fontSize:"10px", cursor:"pointer", fontFamily:"inherit"}}>закрыть</button>
+          </div>
+        </div>
+        <textarea
+          readOnly
+          value={buildAiPreviewText(aiPreviewChat)}
+          style={{
+            flex:1,
+            minHeight:"240px",
+            background:BG,
+            color:T1,
+            border:"none",
+            outline:"none",
+            padding:"14px",
+            fontSize:"11px",
+            lineHeight:"1.7",
+            fontFamily:"inherit",
+            resize:"none",
+            overflowY:"auto",
+            cursor:"text",
+          }}
+        />
+      </div>
+    </div>
+  );
+
   // ── Effects ──────────────────────────────────
+  useEffect(()=>{
+    writeAiStore({
+      current: {
+        id: aiChatId,
+        createdAt: aiChatCreatedAt,
+        updatedAt: Date.now(),
+        model: aiMod,
+        modelVariant: aiModelVariant,
+        messages: msgs,
+      },
+      history: aiHistory,
+    });
+  }, [aiChatId, aiChatCreatedAt, aiMod, aiModelVariant, msgs, aiHistory]);
+
+  useEffect(()=>{
+    setAiModelVariant(prev => normalizeAiModelVariant(aiMod, prev));
+  }, [aiMod]);
+
+  useEffect(()=>{
+    const onDown = (e) => {
+      if (!aiHistoryOpen) return;
+      const root = aiHistoryLayerRef.current;
+      if (root && !root.contains(e.target)) setAiHistoryOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    return ()=>document.removeEventListener("mousedown", onDown);
+  }, [aiHistoryOpen]);
+
+  useEffect(()=>{
+    if (!aiModelMenuOpen) {
+      clearAiModelMenuTimer();
+      return;
+    }
+    armAiModelMenuTimer();
+    const wheelOpts = { passive:true };
+    const onPointer = (e) => {
+      const root = aiModelMenuRootRef.current;
+      if (root && root.contains(e.target)) {
+        armAiModelMenuTimer();
+      } else {
+        setAiModelMenuOpen(false);
+      }
+    };
+    const onActivity = () => armAiModelMenuTimer();
+    document.addEventListener("mousedown", onPointer);
+    document.addEventListener("touchstart", onPointer);
+    window.addEventListener("keydown", onActivity, true);
+    window.addEventListener("wheel", onActivity, wheelOpts);
+    return ()=>{
+      document.removeEventListener("mousedown", onPointer);
+      document.removeEventListener("touchstart", onPointer);
+      window.removeEventListener("keydown", onActivity, true);
+      window.removeEventListener("wheel", onActivity, wheelOpts);
+    };
+  }, [aiModelMenuOpen]);
+
+  useEffect(()=>()=>{ clearAiReplyTimer(); clearAiModelMenuTimer(); },[]);
+
   useEffect(()=>{ msgEnd.current?.scrollIntoView({behavior:"smooth"}); },[msgs]);
 
   useEffect(()=>{
@@ -2818,28 +5024,45 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
     }
     const autoLabel = "Сцена " + sceneInAct;
     return (
-      <textarea
-        ref={el=>{blockRefs.current[block.id]=el;if(el)autoH(el);}}
-        value={block.text}
-        onChange={e=>{updBlock(block.id,e.target.value);autoH(e.target);}}
-        onFocus={()=>setFoc(block.id)}
-        onBlur={()=>setTimeout(()=>setFocId(f=>f===block.id?null:f),300)}
-        onKeyDown={e=>onKey(e,block)}
-        placeholder={autoLabel}
-        className="scene-ph"
-        spellCheck={false} rows={1}
-        style={{
-          width:"100%",background:"transparent",border:"none",outline:"none",
-          resize:"none",overflow:"hidden",
-          fontFamily:`${docFont||"Times New Roman"},serif`,
-          fontSize:"15px",lineHeight:"1.7",
-          fontWeight:"bold",
-          textAlign: sceneAlign||"left",
-          color:T1,
-          boxSizing:"border-box",padding:"16px 0 4px",
-          "::placeholder":{color:T1,opacity:1},
-        }}
-      />
+      <div style={{position:"relative", width:"100%"}}>
+        {renderSearchOverlay({
+          scope:"block",
+          blockId:block.id,
+          text:block.text,
+          overlayStyle:{
+            boxSizing:"border-box",
+            padding:"16px 0 4px",
+            fontFamily:`${docFont||"Times New Roman"},serif`,
+            fontSize:"15px",
+            lineHeight:"1.7",
+            fontWeight:"bold",
+            textAlign:sceneAlign||"left",
+          }
+        })}
+        <textarea
+          ref={el=>{blockRefs.current[block.id]=el;if(el)autoH(el);}}
+          value={block.text}
+          onChange={e=>{updBlock(block.id,e.target.value);autoH(e.target);}}
+          onFocus={()=>setFoc(block.id)}
+          onBlur={()=>setTimeout(()=>setFocId(f=>f===block.id?null:f),300)}
+          onKeyDown={e=>onKey(e,block)}
+          placeholder={autoLabel}
+          className="scene-ph"
+          spellCheck={false} rows={1}
+          style={{
+            width:"100%", display:"block", position:"relative", zIndex:1,
+            background:"transparent",border:"none",outline:"none",
+            resize:"none",overflow:"hidden",
+            fontFamily:`${docFont||"Times New Roman"},serif`,
+            fontSize:"15px",lineHeight:"1.7",
+            fontWeight:"bold",
+            textAlign: sceneAlign||"left",
+            color:T1,
+            boxSizing:"border-box",padding:"16px 0 4px",
+            "::placeholder":{color:T1,opacity:1},
+          }}
+        />
+      </div>
     );
   };
 
@@ -2882,61 +5105,220 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
         style={{background:"transparent",border:"none",outline:"none",fontWeight:"bold",color:T1,fontFamily:`${docFont||'Times New Roman'},serif`,fontSize:"15px",flexShrink:0,padding:"0",margin:"0",minWidth:"30px"}}
       />
       <span style={{color:T1,fontWeight:"bold",fontSize:"15px",marginRight:"7px",flexShrink:0}}>.</span>
-      <textarea
-        ref={el=>{blockRefs.current[block.id]=el;if(el)autoH(el);}}
-        value={block.text} onChange={e=>{updBlock(block.id,e.target.value);autoH(e.target);}}
-        onFocus={()=>setFoc(block.id)}
-        onBlur={()=>setTimeout(()=>setFocId(f=>f===block.id?null:f),500)}
-        onKeyDown={e=>onKey(e,block)}
-        placeholder="текст реплики..." rows={1}
-        style={{flex:1,background:"transparent",border:"none",outline:"none",resize:"none",overflow:"hidden",color:T1,fontSize:"15px",lineHeight:"1.7",fontFamily:`${docFont||'Times New Roman'},serif`,boxSizing:"border-box",padding:"0",margin:"0"}}
-      />
+      <div style={{position:"relative", flex:1}}>
+        {renderSearchOverlay({
+          scope:"block",
+          blockId:block.id,
+          text:block.text,
+          overlayStyle:{
+            boxSizing:"border-box",
+            padding:"0",
+            margin:"0",
+            fontFamily:`${docFont||'Times New Roman'},serif`,
+            fontSize:"15px",
+            lineHeight:"1.7",
+          }
+        })}
+        <textarea
+          ref={el=>{blockRefs.current[block.id]=el;if(el)autoH(el);}}
+          value={block.text} onChange={e=>{updBlock(block.id,e.target.value);autoH(e.target);}}
+          onFocus={()=>setFoc(block.id)}
+          onBlur={()=>setTimeout(()=>setFocId(f=>f===block.id?null:f),500)}
+          onKeyDown={e=>onKey(e,block)}
+          placeholder="текст реплики..." rows={1}
+          style={{width:"100%",display:"block",position:"relative",zIndex:1,background:"transparent",border:"none",outline:"none",resize:"none",overflow:"hidden",color:T1,fontSize:"15px",lineHeight:"1.7",fontFamily:`${docFont||'Times New Roman'},serif`,boxSizing:"border-box",padding:"0",margin:"0"}}
+        />
+      </div>
     </div>
   );
+
+  const SHORT_SCENE_ICON = 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'14\' height=\'14\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'%23000000\' stroke-opacity=\'0\' stroke-width=\'1.7\' stroke-linecap=\'round\' stroke-linejoin=\'round\'%3E%3Cpath d=\'M12 21s-5.5-5.14-5.5-10A5.5 5.5 0 0 1 12 5.5A5.5 5.5 0 0 1 17.5 11c0 4.86-5.5 10-5.5 10Z\'/%3E%3Ccircle cx=\'12\' cy=\'11\' r=\'2.25\'/%3E%3C/svg%3E")';
+  const SHORT_CAST_ICON  = 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'14\' height=\'14\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'%23000000\' stroke-opacity=\'0\' stroke-width=\'1.7\' stroke-linecap=\'round\' stroke-linejoin=\'round\'%3E%3Cpath d=\'M20 21a8 8 0 0 0-16 0\'/%3E%3Ccircle cx=\'12\' cy=\'8\' r=\'3.25\'/%3E%3C/svg%3E")';
 
   // Обычная textarea
   const renderTextarea = (block, extraStyle={}) => {
     const def = defs.find(d=>d.type===block.type)||defs[0];
     const UPPER = ["cast","char","scene"];
+    const textareaStyle = {
+      width:"100%",background:"transparent",border:"none",outline:"none",
+      resize:"none",overflow:"hidden",color:T2,
+      fontSize:"16px",
+      lineHeight:mode==="play"?"1.7":"1.85",
+      fontFamily:mode==="play"?`${docFont||'Times New Roman'},serif`:"'Courier New',monospace",
+      boxSizing:"border-box",padding:"5px 0",
+      position:"relative", zIndex:1, display:"block",
+      ...def.st,
+      ...(mode==="short" && block.type==="scene" ? {
+        backgroundImage: block.text ? "none" : SHORT_SCENE_ICON,
+        backgroundRepeat:"no-repeat",
+        backgroundPosition:"0 50%",
+        backgroundSize:"11px 11px",
+      } : {}),
+      ...(mode==="short" && block.type==="cast" ? {
+        backgroundImage: block.text ? "none" : SHORT_CAST_ICON,
+        backgroundRepeat:"no-repeat",
+        backgroundPosition:"0 50%",
+        backgroundSize:"11px 11px",
+      } : {}),
+      ...(extraStyle.paddingLeft==="0" ? {paddingLeft:0,paddingRight:0,textAlign:"left"} : {}),
+      ...extraStyle,
+      fontWeight: block.bold ? "bold" : block.semibold ? "600" : def.st?.fontWeight,
+      fontStyle: block.italic ? "italic" : def.st?.fontStyle,
+      textDecoration: block.underline ? "underline" : def.st?.textDecoration,
+      color: block.color || def.st?.color || "#e8e4d8",
+    };
     return (
-      <textarea
-        ref={el=>{blockRefs.current[block.id]=el;if(el)autoH(el);}}
-        value={block.text}
-        onChange={e=>{
-          const val = UPPER.includes(block.type) ? e.target.value.toUpperCase() : e.target.value;
-          updBlock(block.id, val); autoH(e.target);
-        }}
-        onFocus={()=>setFoc(block.id)}
-        onBlur={()=>setTimeout(()=>{if(document.activeElement!==blockRefs.current[block.id])setFocId(f=>f===block.id?null:f);},300)}
-        onKeyDown={e=>onKey(e,block)}
-        placeholder={def.ph} spellCheck={spellOn && def.spell} rows={1}
-        autoCorrect={spellOn ? "on" : "off"}
-        autoComplete="off"
-        autoCapitalize={spellOn ? "sentences" : "off"}
-        style={{
-          width:"100%",background:"transparent",border:"none",outline:"none",
-          resize:"none",overflow:"hidden",
-          fontSize:"16px",
-          lineHeight:mode==="play"?"1.7":"1.85",
-          fontFamily:mode==="play"?`${docFont||'Times New Roman'},serif`:"'Courier New',monospace",
-          boxSizing:"border-box",padding:"5px 0",
-          ...def.st,
-          ...(extraStyle.paddingLeft==="0" ? {paddingLeft:0,paddingRight:0,textAlign:"left"} : {}),
-          ...extraStyle,
-          fontWeight: block.bold ? "bold" : block.semibold ? "600" : def.st?.fontWeight,
-          fontStyle: block.italic ? "italic" : def.st?.fontStyle,
-          textDecoration: block.underline ? "underline" : def.st?.textDecoration,
-          color: block.color || def.st?.color || "#e8e4d8",
-        }}
-      />
+      <div style={{position:"relative", width:"100%"}}>
+        {renderSearchOverlay({
+          scope:"block",
+          blockId:block.id,
+          text:block.text,
+          overlayStyle:{
+            boxSizing:"border-box",
+            padding:textareaStyle.padding,
+            fontSize:textareaStyle.fontSize,
+            lineHeight:textareaStyle.lineHeight,
+            fontFamily:textareaStyle.fontFamily,
+            fontWeight:textareaStyle.fontWeight,
+            fontStyle:textareaStyle.fontStyle,
+            textDecoration:textareaStyle.textDecoration,
+            textAlign:textareaStyle.textAlign,
+            paddingLeft:textareaStyle.paddingLeft,
+            paddingRight:textareaStyle.paddingRight,
+            paddingTop:textareaStyle.paddingTop,
+            paddingBottom:textareaStyle.paddingBottom,
+          }
+        })}
+        <textarea
+          ref={el=>{blockRefs.current[block.id]=el;if(el)autoH(el);}}
+          value={block.text}
+          onChange={e=>{
+            const val = UPPER.includes(block.type) ? e.target.value.toUpperCase() : e.target.value;
+            updBlock(block.id, val); autoH(e.target);
+          }}
+          onFocus={()=>setFoc(block.id)}
+          onBlur={()=>setTimeout(()=>{if(document.activeElement!==blockRefs.current[block.id])setFocId(f=>f===block.id?null:f);},300)}
+          onKeyDown={e=>onKey(e,block)}
+          onPaste={e=>{
+            // — play / short / media: многострочная вставка → отдельные блоки —
+            if (mode === "play" || mode === "short" || mode === "media") {
+              const text = e.clipboardData.getData('text/plain');
+              const lines = text.split('\n');
+              if (lines.length <= 1) return;
+              e.preventDefault();
+              const el = e.target;
+              const selStart = el.selectionStart ?? 0;
+              const selEnd   = el.selectionEnd   ?? 0;
+              const curText  = block.text || '';
+              const before   = curText.substring(0, selStart);
+              const after    = curText.substring(selEnd);
+              const baseType = block.type !== 'spacer' ? block.type
+                : (mode === 'play' ? 'line' : mode === 'short' ? 'action' : 'anchor');
+              const lineType = (l) => l.trim() === '' ? 'spacer' : baseType;
+              const firstText = before + lines[0];
+              const firstType = lineType(lines[0]) === 'spacer' && before ? baseType : lineType(lines[0]);
+              const lastId   = uid();
+              const lastText = lines[lines.length - 1] + after;
+              const lastType = lineType(lines[lines.length - 1]);
+              const middle   = lines.slice(1, -1);
+              setBlocks(bs => {
+                const i = bs.findIndex(b => b.id === block.id);
+                if (i === -1) return bs;
+                const next = [...bs];
+                const replacement = [
+                  { ...block, type: firstType, text: firstText },
+                  ...middle.map(l => ({ id: uid(), type: lineType(l), text: l })),
+                  { id: lastId, type: lastType, text: lastText },
+                ];
+                next.splice(i, 1, ...replacement);
+                return next;
+              });
+              markDirty();
+              setTimeout(() => {
+                const lastEl = blockRefs.current[lastId];
+                if (!lastEl) return;
+                try { lastEl.focus(); } catch(err) {}
+                try { lastEl.setSelectionRange(lastText.length, lastText.length); } catch(err) {}
+                autoH(lastEl);
+              }, 60);
+              return;
+            }
+            // — film —
+            if (mode !== "film") return;
+            const text = e.clipboardData.getData('text/plain');
+            const lines = text.split('\n');
+            if (lines.length <= 1) return;
+            e.preventDefault();
+            const el = e.target;
+            const selStart = el.selectionStart ?? 0;
+            const selEnd = el.selectionEnd ?? 0;
+            const curText = block.text || '';
+            const before = curText.substring(0, selStart);
+            const after = curText.substring(selEnd);
+            const detectFilmType = (line) => {
+              const t = line.trim();
+              if (!t) return 'spacer';
+              if (/^(?:\d+[\.\s]+)?(?:ИНТ|INT)[\.\s]/i.test(t)) return 'scene';
+              if (/^(?:\d+[\.\s]+)?(?:НАТ|NAT|EXT)[\.\s]/i.test(t)) return 'scene';
+              if (/^\(\s*.+\s*\)$/.test(t)) return 'paren';
+              if (/^(?:CUT TO|FADE|СМЕНА)/i.test(t)) return 'trans';
+              if (t === t.toUpperCase() && t.length <= 40 && /[A-ZА-ЯЁ]/.test(t)) return 'char';
+              return 'action';
+            };
+            const upMob = (t, tp) => (tp === 'scene' || tp === 'char') ? t.toUpperCase() : t;
+            const firstType = before.trim() ? block.type : detectFilmType(lines[0]);
+            const firstText = upMob(before + lines[0], firstType);
+            const lastLineType = detectFilmType(lines[lines.length - 1]);
+            const lastText = upMob(lines[lines.length - 1] + after, lastLineType);
+            const middleLines = lines.slice(1, -1);
+            const lastId = uid();
+            setBlocks(bs => {
+              const i = bs.findIndex(b => b.id === block.id);
+              if (i === -1) return bs;
+              const next = [...bs];
+              const replacement = [
+                { ...block, type: firstType, text: firstText },
+                ...middleLines.map(l => { const tp = detectFilmType(l); return { id: uid(), type: tp, text: upMob(l, tp) }; }),
+                { id: lastId, type: lastLineType, text: lastText },
+              ];
+              next.splice(i, 1, ...replacement);
+              return next;
+            });
+            markDirty();
+            setTimeout(() => {
+              const lastEl = blockRefs.current[lastId];
+              if (!lastEl) return;
+              try { lastEl.focus(); } catch(err) {}
+              const pos = lastText.length;
+              try { lastEl.setSelectionRange(pos, pos); } catch(err) {}
+              autoH(lastEl);
+            }, 60);
+          }}
+          placeholder={def.ph} spellCheck={spellOn && def.spell} rows={1}
+          autoCorrect={spellOn ? "on" : "off"}
+          autoComplete="off"
+          autoCapitalize={spellOn ? "sentences" : "off"}
+          style={textareaStyle}
+        />
+      </div>
     );
   };
 
   // Рендер одного блока
   const renderBlock = (block, mobile=false) => {
     const def = defs.find(d=>d.type===block.type)||defs[0];
-    const isSceneHead = block.type==="scene"||block.type==="act";
+    const isSceneHead = block.type==="scene" || (mode!=="film" && block.type==="act");
     const num = isSceneHead ? sceneNum(block.id) : null;
+    let playActNum = 0;
+    if (mode === "play" && block.type === "act") {
+      for (const b of blocks) {
+        if (b.type === "act") playActNum++;
+        if (b.id === block.id) break;
+      }
+    }
+    const displayBlock = mode === "play" && block.type === "act"
+      ? { ...block, text: getPlayActDisplayText(block.text, playActNum) }
+      : block;
     const canDel = mobile && blocks.length > 1;
     return (
       <div key={block.id}
@@ -3030,22 +5412,34 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
           <div style={{position:"absolute",top:"-8px",left:0,right:0,height:"1px",
             background:`linear-gradient(to right,transparent,${T3}44,transparent)`}}/>
         )}
-        {isSceneHead && num && mode!=="play" && mode!=="media" && (
-          <div style={{
-            position:"absolute", top: mobile ? "24px" : "32px", left:0,
-            color:T2, fontSize:"16px", fontFamily:"'Courier New',monospace",
-            fontWeight:"bold", pointerEvents:"none", userSelect:"none",
-          }}>{num}.</div>
-        )}
         {mobile && mode==="film" && block.type==="scene"
           ? renderTextarea(block, {paddingLeft:"28px", paddingRight:"0", fontWeight:"bold", textTransform:"uppercase", paddingTop:"24px", fontSize:"16px"})
+          : isSceneHead && num && mode!=="play" && mode!=="media" && !mobile
+          ? (
+            <div style={{position:"relative", width:"100%"}}>
+              <div style={{
+                position:"absolute",
+                top:def.st?.paddingTop || "32px",
+                left:0,
+                color:T2,
+                fontSize:"16px",
+                lineHeight:def.st?.lineHeight || "1.5",
+                fontFamily:"'Courier New',monospace",
+                fontWeight:"bold",
+                pointerEvents:"none",
+                userSelect:"none",
+                zIndex:2,
+              }}>{num}.</div>
+              {renderTextarea(block, {paddingLeft:"40px"})}
+            </div>
+          )
           : mode==="play" && block.type==="spacer"
           ? renderPlaySpacer(block)
           : mode==="play" && block.type==="scene"
           ? renderPlayScene(block)
           : mode==="play" && block.type==="line"
           ? renderPlayLine(block)
-          : renderTextarea(block, mobile ? {paddingLeft:"0",paddingRight:"0",textAlign:mode==="film"&&block.type==="trans"?"right":"left"} : {})
+          : renderTextarea(displayBlock, mobile ? {paddingLeft:"0",paddingRight:"0",textAlign:mode==="film"&&block.type==="trans"?"right":"left"} : {})
         }
       </div>
     );
@@ -3102,7 +5496,7 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
               return (
                 <div style={{display:"flex",alignItems:"center",marginRight:"6px"}}>
                   {fmtCfg.bold && fmtBtn("bold","Ж",{fontWeight:"bold",fontFamily:"serif"})}
-                  <button onMouseDown={e=>e.preventDefault()} onClick={resetFmt}
+                  <button onMouseDown={e=>e.preventDefault()} onClick={resetFmt} {...getTooltipAnchorProps("Сбросить формат")}
                     style={{width:"24px",height:"24px",borderRadius:"6px",marginRight:"3px",background:BG,border:`1px solid ${mc}33`,color:T2,fontSize:"11px",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",WebkitAppearance:"none"}}>Н</button>
                   {fmtCfg.italic && fmtBtn("italic","К",{fontStyle:"italic",fontFamily:"serif"})}
                   {fmtCfg.underline && fmtBtn("underline","Ч",{textDecoration:"underline"})}
@@ -3111,7 +5505,7 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
             })()}
             {(mode==="play" || mode==="media" || mode==="short") && (
               <div style={{position:"relative"}}>
-                <button onMouseDown={e=>e.preventDefault()} onClick={()=>setDocFontOpen(o=>!o)}
+                <button onMouseDown={e=>e.preventDefault()} onClick={()=>setDocFontOpen(o=>!o)} {...getTooltipAnchorProps("Шрифт")}
                   style={{padding:"5px 10px",background:BG,boxShadow:SH_SM,border:`1px solid ${mc}44`,borderRadius:"8px",
                     color:mc,fontSize:"9px",cursor:"pointer",fontFamily:"inherit",letterSpacing:"1px"}}>Аа</button>
                 {docFontOpen && (
@@ -3132,27 +5526,33 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
                 )}
               </div>
             )}
-            <button onMouseDown={e=>e.preventDefault()} onClick={()=>setSpellOn(v=>!v)}
-              title={spellOn?"Выключить проверку орфографии":"Включить проверку орфографии"}
+            <button onMouseDown={e=>e.preventDefault()} onClick={()=>setSpellOn(v=>!v)} {...getTooltipAnchorProps("Орфография")}
               style={{padding:"5px 10px",background:spellOn?`${mc}22`:BG,boxShadow:SH_SM,
                 border:`1px solid ${spellOn?mc:mc+"44"}`,borderRadius:"8px",
                 color:spellOn?mc:mc+"77",fontSize:"9px",cursor:"pointer",
                 fontFamily:"inherit",letterSpacing:"1px",position:"relative",whiteSpace:"nowrap",marginLeft:"6px"}}>
               АБВ{spellOn&&<span style={{position:"absolute",top:"-3px",right:"-3px",width:"6px",height:"6px",background:mc,borderRadius:"50%"}}/>}
             </button>
-            <div style={{display:"flex",marginLeft:"6px"}}>
+            <div style={{display:"flex",marginLeft:"6px",gap:"6px"}}>
               <button onMouseDown={e=>e.preventDefault()}
                 onClick={()=>{const last=blocksRef.current[blocksRef.current.length-1];if(!last)return; if(mode==="media"){addAfter(last.id,"segment");}else if(mode==="short"){addAfter(last.id,"video");}else{addAfter(last.id,"scene");}}}
                 style={{padding:"5px 10px",background:BG,boxShadow:SH_SM,border:"none",borderRadius:"8px",color:mc,fontSize:"9px",cursor:"pointer",fontFamily:"inherit",letterSpacing:"1px"}}>
                 {mode==="media" ? "+ БЛОК" : "+ СЦЕНА"}
               </button>
+              {mode==="film" && (
+                <button onMouseDown={e=>e.preventDefault()}
+                  onClick={()=>insertFilmAct()}
+                  style={{padding:"5px 10px",background:BG,boxShadow:SH_SM,border:"none",borderRadius:"8px",color:mc,fontSize:"9px",cursor:"pointer",fontFamily:"inherit",letterSpacing:"1px"}}>
+                  АКТ
+                </button>
+              )}
             </div>
           </div>
         </div>
         <div style={{display:"flex",overflowX:"auto",padding:"6px 12px 10px",scrollbarWidth:"none",WebkitOverflowScrolling:"touch"}}>
           {mode==="play" && (
             <button onMouseDown={e=>e.preventDefault()}
-              onClick={()=>{const last=blocks[blocks.length-1];if(last)addAfter(last.id,"act");}}
+              onClick={()=>{insertPlayAct();}}
               style={{padding:"5px 12px",background:BG,boxShadow:SH_SM,border:"none",borderRadius:"8px",color:T2,fontSize:"9px",cursor:"pointer",fontFamily:"inherit",letterSpacing:"1px",marginRight:"6px",flexShrink:0}}>
               + АКТ
             </button>
@@ -3178,6 +5578,7 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
                   if (curType===d.type) {
                     addAfter(curId, d.type);
                   } else if (!PROT.includes(curType)) {
+                    if (mode === "film" && changeFilmBlockTypeFromActiveLine(curId, d.type)) return;
                     chType(curId, d.type);
                   }
                 }}
@@ -3329,7 +5730,7 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
               padding:"0",zIndex:1,overflowY:"auto",
             }}>
               {/* Лого */}
-              <div style={{padding:"16px 14px 12px",display:"flex",alignItems:"center",borderBottom:`1px solid ${T3}22`}}>
+              <div style={{padding:"16px 14px 12px",display:"flex",alignItems:"center",columnGap:"12px",borderBottom:`1px solid ${T3}22`}}>
                 <div style={{
                   width:"36px", height:"36px", borderRadius:"10px",
                   background: BG, boxShadow: SH_SM,
@@ -3337,7 +5738,7 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
                 }}>
                   <Whale size={22}/>
                 </div>
-                <div style={{flex:1, marginLeft:"10px"}}>
+                <div style={{flex:1}}>
                   <div style={{color:T1, fontSize:"12px", letterSpacing:"3px"}}>OLD WHALE</div>
                   <div style={{color:T3, fontSize:"9px", letterSpacing:"2px"}}>РЕДАКТОР</div>
                 </div>
@@ -3759,11 +6160,12 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
               
               {scenes.map((s,idx)=>(
                 <div key={s.id}>
-                  {(mode==="play"||mode==="short"||mode==="media") && s.kind==="act" ? (
+                  {(mode==="film"||mode==="play"||mode==="short"||mode==="media") && s.kind==="act" ? (
                     <div onClick={()=>{
                       if (_dragSceneId.current || _dragJustEnded.current) return;
                       if (mode==="media"||mode==="short") { toggleSceneSelect(s.id); return; }
                       if (selectedScenes.size > 0) { toggleActSelect(s.actNum); return; }
+                      if (mode==="film") { setActiveSceneId(s.id); return; }
                       setMobileTab("editor");setActiveSceneId(s.id);setTimeout(()=>{const el=sceneRefs.current[s.id];if(el&&scrollRef.current)scrollRef.current.scrollTo({top:el.offsetTop-60,behavior:"smooth"});},80);
                     }}
                       style={{
@@ -3771,7 +6173,7 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
                         marginTop:idx>0?"6px":"0",
                         background:activeSceneId===s.id?BG:SURF,
                         boxShadow:activeSceneId===s.id?SH_IN:"none",
-                        borderLeft:`3px solid ${(mode==="media"||mode==="short")?selectedScenes.has(s.id)?mc:"transparent":activeSceneId===s.id?mc:"transparent"}`,
+                        borderLeft:`3px solid ${(mode==="media"||mode==="short")?selectedScenes.has(s.id)?(getSceneCardMetaById(s.id).color || mc):(getSceneCardMetaById(s.id).color||"transparent"):activeSceneId===s.id?(getSceneCardMetaById(s.id).color || mc):(getSceneCardMetaById(s.id).color||"transparent")}`,
                       }}>
                       <div style={{display:"flex",alignItems:"center",width:"100%"}}>
                         {(mode==="film"||mode==="play"||mode==="media"||mode==="short") && (
@@ -3782,7 +6184,7 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
                             display:"flex",alignItems:"center",justifyContent:"center",
                           }}>{selectedScenes.has(s.id)&&<span style={{color:"#000",fontSize:"11px",fontWeight:"bold"}}>✓</span>}</div>
                         )}
-                        <span style={{color:mc,fontSize:"11px",minWidth:"20px"}}>{s.actNum}.</span>
+                        {mode!=="film" && <span style={{color:(getSceneCardMetaById(s.id).color || mc),fontSize:"11px",minWidth:"20px"}}>{s.actNum}.</span>}
                         <span style={{color:T1,fontSize:"13px",lineHeight:"1.4"}}>{s.text||(mode==="media"?"БЛОК":mode==="short"?"ВИДЕО":"АКТ")}</span>
                       </div>
                     </div>
@@ -3978,7 +6380,7 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
                 }}>{mode==="media" ? "+ БЛОК" : mode==="short" ? "+ ВИДЕО" : "+ СЦЕНА"}</button>
                 {mode==="play" && (
                   <button onMouseDown={e=>e.preventDefault()}
-                    onClick={()=>{const last=blocks[blocks.length-1];if(last)addAfter(last.id,"act");}} style={{
+                    onClick={()=>{insertPlayAct();}} style={{
                     flex:1,padding:"14px",background:BG,boxShadow:SH_SM,
                     border:"none",borderRadius:"14px",color:T2,fontSize:"11px",cursor:"pointer",fontFamily:"inherit",letterSpacing:"2px",
                   }}>+ АКТ</button>
@@ -4093,7 +6495,8 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
                       {noteToolbar.slice(0,4).map((t,i)=> t.sep
                         ? <div key={i} style={{width:"1px",height:"16px",background:T3+"33",marginRight:"6px",marginBottom:"3px"}}/>
                         : <button key={i}
-                            title={t.title}
+                            {...(t.cmd==="removeFormat" ? getTooltipAnchorProps("Сбросить формат") : {})}
+                            title={t.cmd==="removeFormat" ? undefined : t.title}
                             onMouseDown={e=>{
                               e.preventDefault();
                               const editor = noteEditorRef.current;
@@ -4119,7 +6522,7 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
                       )}
                       <div style={{position:"relative",marginRight:"3px",marginBottom:"3px"}}>
                         <button
-                          title="Цвет текста"
+                          {...getTooltipAnchorProps("Цвет текста")}
                           onMouseDown={e=>{e.preventDefault(); e.stopPropagation(); saveNoteSelection(); setNoteColorOpen(v=>!v);}}
                           style={{
                             width:"26px",height:"26px",borderRadius:"6px",
@@ -4267,7 +6670,7 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
                         backgroundAttachment:"local",
                       }}
                     />
-                    <style>{`[contenteditable]:empty:before{content:attr(data-placeholder);color:${T3};pointer-events:none;}`}</style>
+                    <style>{`[contenteditable]:empty:before{content:attr(data-placeholder);color:${T3};pointer-events:none;}::highlight(ow-note-search){background:rgba(250,204,21,0.32);}`}</style>
                   </div>
                 );
               })()}
@@ -4291,6 +6694,8 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
                       items={playHeader} setItems={setPlayHeader}
                       focKey={playHeaderFoc} setFocKey={setPlayHeaderFoc}
                       T1={T1} T2={T2} T3={T3} SURF={SURF} BG={BG} mc={mc} SH_SM={SH_SM} docFont={docFont}
+                      searchScope="play"
+                      renderSearchOverlay={renderSearchOverlay}
                     />
                   )}
                   {mode==="media" && (
@@ -4298,6 +6703,8 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
                       items={mediaHeader} setItems={setMediaHeader}
                       focKey={mediaHeaderFoc} setFocKey={setMediaHeaderFoc}
                       T1={T1} T2={T2} T3={T3} SURF={SURF} BG={BG} mc={mc} SH_SM={SH_SM} docFont="Arial"
+                      searchScope="media"
+                      renderSearchOverlay={renderSearchOverlay}
                     />
                   )}
                   {mode==="short" && (
@@ -4327,10 +6734,12 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
                         items={contentHeader} setItems={setContentHeader}
                         focKey={contentHeaderFoc} setFocKey={setContentHeaderFoc}
                         T1={T1} T2={T2} T3={T3} SURF={SURF} BG={BG} mc={mc} SH_SM={SH_SM} docFont="Arial"
+                        searchScope="short"
+                        renderSearchOverlay={renderSearchOverlay}
                       />
                     </div>
                   )}
-                  {blocks.map(block=>renderBlock(block,true))}
+                  {blocks.filter(block => !(mode==="film" && block.type==="act")).map(block=>renderBlock(block,true))}
                   <div style={{height:"20px"}}/>
                 </div>
                 </div>
@@ -4341,25 +6750,33 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
 
           {/* AI */}
           {mobileTab==="ai" && (
-            <div style={{height:"100%",display:"flex",flexDirection:"column"}}>
-              <div style={{padding:"10px 12px",display:"flex",flexShrink:0}}>
-                {AIM.map(m=>(
-                  <button key={m.id} onClick={()=>setAiMod(m.id)} style={{
-                    flex:1,padding:"8px 6px",background:aiMod===m.id?BG:SURF,
-                    boxShadow:aiMod===m.id?SH_IN:SH_SM,border:"none",borderRadius:"12px",
-                    cursor:"pointer",fontFamily:"inherit",display:"flex",flexDirection:"column",alignItems:"center",
-                  }}>
-                    <div style={{width:"7px",height:"7px",borderRadius:"50%",background:m.color,boxShadow:aiMod===m.id?`0 0 8px ${m.color}`:"none",opacity:aiMod===m.id?1:0.3}}/>
-                    <span style={{color:aiMod===m.id?T1:T2,fontSize:"10px"}}>{m.label}</span>
-                  </button>
-                ))}
+            <div style={{height:"100%",minHeight:0,display:"flex",flexDirection:"column", position:"relative"}}>
+              <div ref={aiModelMenuRootRef} style={{padding:"10px 12px 8px",display:"flex",flexDirection:"column",flexShrink:0,gap:"8px"}}>
+                <div style={{fontSize:"9px",color:T3,letterSpacing:"1.8px"}}>ИИ МОДЕЛИ</div>
+                <div style={{display:"flex",gap:"6px"}}>
+                  {AIM.map(m=>(
+                    <button key={m.id} onClick={()=>selectAiProvider(m.id)} style={{
+                      flex:1,padding:"8px 6px",background:aiMod===m.id?BG:SURF,
+                      boxShadow:aiMod===m.id?SH_IN:SH_SM,border:"none",borderRadius:"12px",
+                      cursor:"pointer",fontFamily:"inherit",display:"flex",flexDirection:"column",alignItems:"center",
+                    }}>
+                      <div style={{width:"7px",height:"7px",borderRadius:"50%",background:m.color,boxShadow:aiMod===m.id?`0 0 8px ${m.color}`:"none",opacity:aiMod===m.id?1:0.3}}/>
+                      <span style={{color:aiMod===m.id?T1:T2,fontSize:"10px"}}>{m.label}</span>
+                    </button>
+                  ))}
+                </div>
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:"8px"}}>
+                  <span style={{color:T2,fontSize:"10px",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{getAiModelDisplayLabel(aiMod, aiModelVariant)}</span>
+                  <button onClick={()=>setAiModelMenuOpen(v=>!v)} style={{background:"transparent",border:"none",padding:0,color:getAiProvider(aiMod).color,cursor:"pointer",fontSize:"10px",fontFamily:"inherit",flexShrink:0}}>модели</button>
+                </div>
+                {aiModelMenuOpen && renderAiVariantPicker(aiMod, true)}
               </div>
-              <div style={{flex:1,overflow:"auto",padding:"8px 12px",display:"flex",flexDirection:"column"}}>
+              <div style={{flex:1,minHeight:0,overflow:"auto",padding:"8px 12px",display:"flex",flexDirection:"column"}}>
                 {msgs.map((m,i)=>(
                   <div key={i} style={{display:"flex",justifyContent:m.role==="user"?"flex-end":"flex-start"}}>
                     <div style={{maxWidth:"85%",padding:"10px 14px",background:m.role==="user"?BG:SURF,boxShadow:SH_SM,
                       borderRadius:m.role==="user"?"14px 14px 2px 14px":"14px 14px 14px 2px",
-                      borderLeft:m.role==="ai"?`2px solid ${AIM.find(x=>x.id===m.model)?.color||T3}`:"none",
+                      borderLeft:m.role==="ai"?`2px solid ${getAiProvider(m.model).color||T3}`:"none",
                       fontSize:"13px",lineHeight:"1.7",color:m.role==="user"?T2:T1}}>
                       {m.text}
                     </div>
@@ -4369,15 +6786,106 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
                 <div ref={msgEnd}/>
               </div>
               <div style={{padding:"10px 12px",flexShrink:0}}>
-                <div style={{display:"flex",alignItems:"center",background:BG,boxShadow:SH_IN,borderRadius:"14px",padding:"10px 14px"}}>
-                  <input value={aiIn} onChange={e=>setAiIn(e.target.value)}
-                    onKeyDown={e=>{if(e.key==="Enter"){e.preventDefault();send();}}}
-                    placeholder={`${AIM.find(m=>m.id===aiMod)?.label}...`}
-                    style={{flex:1,background:"transparent",border:"none",outline:"none",color:T1,fontSize:"13px",fontFamily:"inherit"}}
-                  />
-                  <button onClick={send} style={{padding:"6px 12px",background:SURF,boxShadow:SH_SM,border:"none",borderRadius:"10px",color:mc,fontSize:"16px",cursor:"pointer"}}>→</button>
+                <div ref={aiHistoryLayerRef} style={{position:"relative"}}>
+                  {renderAiHistoryDropdown()}
+                  <div
+                    onDragEnter={handleAiDragEnter}
+                    onDragOver={handleAiDragOver}
+                    onDragLeave={handleAiDragLeave}
+                    onDrop={handleAiDrop}
+                    style={{
+                      position:"relative",
+                      display:"flex",alignItems:"flex-end",background:BG,boxShadow:SH_IN,borderRadius:"14px",padding:"10px 12px",gap:"8px",
+                      outline: aiDropActive ? `1px solid ${mc}55` : "none",
+                      boxShadow: aiDropActive ? `0 0 0 1px ${mc}28, 0 0 18px ${mc}20, ${SH_IN}` : SH_IN,
+                    }}
+                  >
+                    <input id="ai-file-import-mobile" type="file" multiple accept={AI_FILE_ACCEPT} onChange={importAiFiles} style={{display:"none"}}/>
+                    {aiDropActive && (
+                      <div style={{position:"absolute",inset:0,borderRadius:"14px",background:`${mc}14`,display:"flex",alignItems:"center",justifyContent:"center",pointerEvents:"none",zIndex:2}}>
+                        <div style={{width:"34px",height:"34px",borderRadius:"12px",background:SURF,boxShadow:SH_SM,display:"flex",alignItems:"center",justifyContent:"center",color:mc,fontSize:"22px",lineHeight:"1"}}>+</div>
+                      </div>
+                    )}
+                    <div style={{display:"flex",gap:"10px",alignItems:"center",flexShrink:0,marginRight:"2px",position:"relative",zIndex:3}}>
+                      <button onClick={startNewAiChat} aria-label="Новый чат" {...getTooltipAnchorProps("Новый чат")} style={{
+                        width:"30px",height:"30px",padding:0,
+                        display:"flex",alignItems:"center",justifyContent:"center",
+                        background:SURF,
+                        boxShadow:`0 0 0 1px ${mc}14, 0 0 16px ${mc}16, ${SH_SM}`,
+                        border:`1px solid ${mc}18`,borderRadius:"10px",
+                        color:mc,cursor:"pointer",fontFamily:"inherit",
+                        transition:"all .08s",flexShrink:0,
+                      }}>
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                          <path d="M12 5v14"/>
+                          <path d="M5 12h14"/>
+                        </svg>
+                      </button>
+                      <button onClick={()=>{setAiHistoryOpen(v=>!v); setAiPreviewChat(null);}} aria-label="Просмотреть историю" {...getTooltipAnchorProps("История чатов")} style={{
+                        width:"30px",height:"30px",padding:0,
+                        display:"flex",alignItems:"center",justifyContent:"center",
+                        background:SURF,
+                        boxShadow: aiHistoryOpen
+                          ? `0 0 0 1px ${mc}28, 0 0 18px ${mc}28, ${SH_SM}`
+                          : `0 0 0 1px ${mc}14, 0 0 16px ${mc}16, ${SH_SM}`,
+                        border: aiHistoryOpen ? `1px solid ${mc}30` : `1px solid ${mc}18`,
+                        borderRadius:"10px",
+                        color: aiHistoryOpen ? T1 : mc,cursor:"pointer",fontFamily:"inherit",
+                        transition:"all .08s",flexShrink:0,
+                      }}>
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                          <path d="M6 7h12"/>
+                          <path d="M6 12h12"/>
+                          <path d="M6 17h12"/>
+                        </svg>
+                      </button>
+                    </div>
+                    <div style={{flex:1,minWidth:0,display:"flex",flexDirection:"column",justifyContent:"flex-end",position:"relative",zIndex:3}}>
+                      {aiPendingFiles.length>0 && (
+                        <div style={{display:"flex",flexWrap:"wrap",gap:"6px",marginBottom:"7px"}}>
+                          {aiPendingFiles.map(file => (
+                            <div key={file.id} style={{display:"inline-flex",alignItems:"center",maxWidth:"100%",gap:"6px",padding:"4px 8px",borderRadius:"999px",background:SURF,boxShadow:SH_SM,color:T2,fontSize:"11px"}}>
+                              <span style={{whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:"180px"}}>📎 {file.name}</span>
+                              <button onClick={()=>removeAiAttachment(file.id)} title="Убрать файл" style={{border:"none",background:"transparent",color:mc,cursor:"pointer",padding:0,fontSize:"12px",lineHeight:"1"}}>×</button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      <input value={aiIn} onChange={e=>setAiIn(e.target.value)}
+                        onKeyDown={e=>{if(e.key==="Enter"){e.preventDefault();send();}}}
+                        onMouseDown={e=>e.stopPropagation()}
+                        onPointerDown={e=>e.stopPropagation()}
+                        onWheel={e=>e.stopPropagation()}
+                        onTouchStart={e=>e.stopPropagation()}
+                        onTouchMove={e=>e.stopPropagation()}
+                        data-ai-scrollable="true"
+                        placeholder={aiPendingFiles.length ? "Файл добавлен. Напишите сообщение или отправьте." : `${getAiModelDisplayLabel(aiMod, aiModelVariant, { withProvider:false })}...`}
+                        style={{flex:1,minWidth:0,background:"transparent",border:"none",outline:"none",color:T1,fontSize:"13px",fontFamily:"inherit"}}
+                      />
+                    </div>
+                    <button onClick={()=>openAiFilePicker("ai-file-import-mobile")} title="Добавить файл" style={{
+                      width:"30px",height:"30px",padding:0,
+                      display:"flex",alignItems:"center",justifyContent:"center",
+                      background:SURF,boxShadow:SH_SM,
+                      border:"none",borderRadius:"10px",
+                      color:mc,cursor:"pointer",flexShrink:0,position:"relative",zIndex:3,
+                    }}>
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M21.44 11.05l-8.49 8.49a6 6 0 0 1-8.49-8.49l8.49-8.48a4 4 0 0 1 5.66 5.65l-8.5 8.49a2 2 0 0 1-2.82-2.83l7.78-7.78"/>
+                      </svg>
+                    </button>
+                    <button onClick={send} style={{
+                      width:"30px",height:"30px",padding:0,
+                      display:"flex",alignItems:"center",justifyContent:"center",
+                      background:SURF,boxShadow:SH_SM,
+                      border:"none",borderRadius:"10px",
+                      color:mc,fontSize:"15px",lineHeight:"1",cursor:"pointer",flexShrink:0,position:"relative",zIndex:3,
+                    }}>→</button>
+                  </div>
                 </div>
               </div>
+              {renderAiPreviewOverlay()}
+              <TooltipBubble tooltip={uiTooltip}/>
             </div>
           )}
         </div>
@@ -4421,7 +6929,49 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
               {projectsList.length===0 && (
                 <div style={{color:T3,fontSize:"13px",textAlign:"center",paddingTop:"40px",letterSpacing:"1px"}}>Нет сохранённых проектов</div>
               )}
-              {projectsList.map(p=>(
+              {projectsView === "cards" ? (
+                <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(132px, 1fr))",gap:"10px"}}>
+                  {projectsList.map(p=>(
+                    <div key={p.id} style={{
+                      minHeight:"118px", padding:"12px", borderRadius:"14px",
+                      background:p.id===projectId?BG:SURF,
+                      boxShadow:p.id===projectId?SH_IN:SH_SM,
+                      border:`1px solid ${p.id===projectId?mc:mc+"22"}`,
+                      position:"relative", display:"flex", flexDirection:"column",
+                    }}>
+                      <button onClick={()=>deleteProject(p.id)} style={{
+                        position:"absolute", top:"8px", right:"8px",
+                        width:"24px", height:"24px", background:"transparent", border:"none",
+                        cursor:"pointer", padding:"0", lineHeight:1,
+                        display:"flex", alignItems:"center", justifyContent:"center",
+                      }}><svg width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="#f87171" strokeWidth="1.5" strokeLinecap="round"><line x1="1" y1="1" x2="7" y2="7"/><line x1="7" y1="1" x2="1" y2="7"/></svg></button>
+                      <div style={{cursor:"pointer", flex:1, paddingRight:"18px"}} onClick={()=>{
+                        try {
+                          const data = JSON.parse(localStorage.getItem("ow_proj_"+p.id)||"null");
+                          if (data) { loadProject(data); setProjectsOpen(false); }
+                        } catch(e) {}
+                      }}>
+                        <div style={{display:"flex", alignItems:"center", gap:"6px", marginBottom:"10px"}}>
+                          <div style={{width:"24px", height:"24px", borderRadius:"8px", border:`1px solid ${mc}33`, display:"flex", alignItems:"center", justifyContent:"center", color:mc, flexShrink:0}}>
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                              <rect x="4" y="4" width="7" height="7" rx="1.2"/>
+                              <rect x="13" y="4" width="7" height="7" rx="1.2"/>
+                              <rect x="4" y="13" width="7" height="7" rx="1.2"/>
+                              <rect x="13" y="13" width="7" height="7" rx="1.2"/>
+                            </svg>
+                          </div>
+                          <div style={{color:T3,fontSize:"9px",letterSpacing:"1.4px",textTransform:"uppercase"}}>{p.mode||"film"}</div>
+                        </div>
+                        <div style={{color:T1,fontSize:"12px",lineHeight:1.35,marginBottom:"8px",wordBreak:"break-word"}}>{p.name||"Без названия"}</div>
+                        <div style={{marginTop:"auto", color:T3,fontSize:"9px",lineHeight:1.45}}>
+                          <div>{new Date((p.updatedAt || p.ts || 0)).toLocaleDateString("ru", { day:"numeric", month:"short" })}</div>
+                          <div>{(p.blocksCount||0)} сц.</div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : projectsList.map(p=>(
                 <div key={p.id} style={{
                   padding:"14px 16px",borderRadius:"14px",marginBottom:"8px",
                   background:p.id===projectId?BG:SURF,
@@ -4436,7 +6986,7 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
                     } catch(e) {}
                   }}>
                     <div style={{color:T1,fontSize:"13px",marginBottom:"3px"}}>{p.name||"Без названия"}</div>
-                    <div style={{color:T3,fontSize:"10px"}}>{p.mode||"film"} · {new Date(p.ts||0).toLocaleDateString("ru")}</div>
+                    <div style={{color:T3,fontSize:"10px"}}>{p.mode||"film"} · {new Date((p.updatedAt || p.ts || 0)).toLocaleDateString("ru")}</div>
                   </div>
                   <button onClick={()=>deleteProject(p.id)} style={{
                     background:"transparent",border:"none",color:T3,fontSize:"16px",
@@ -4444,14 +6994,6 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
                   }}><svg width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="#f87171" strokeWidth="1.5" strokeLinecap="round"><line x1="1" y1="1" x2="7" y2="7"/><line x1="7" y1="1" x2="1" y2="7"/></svg></button>
                 </div>
               ))}
-            </div>
-            <div style={{padding:"12px"}}>
-              <button onClick={()=>{newProject();setProjectsOpen(false);}} style={{
-                width:"100%",padding:"12px",background:BG,boxShadow:SH_SM,
-                border:"none",borderRadius:"12px",color:mc,fontSize:"10px",
-                cursor:"pointer",fontFamily:"inherit",letterSpacing:"2px",
-                WebkitAppearance:"none",
-              }}>+ НОВЫЙ ПРОЕКТ</button>
             </div>
           </div>
         </div>
@@ -4468,7 +7010,7 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
             padding:"0",zIndex:1,overflowY:"auto",
           }}>
             {/* Лого */}
-            <div style={{padding:"16px 14px 12px",display:"flex",alignItems:"center",borderBottom:`1px solid ${T3}22`}}>
+            <div style={{padding:"16px 14px 12px",display:"flex",alignItems:"center",columnGap:"12px",borderBottom:`1px solid ${T3}22`}}>
               <div style={{
                 width:"36px", height:"36px", borderRadius:"10px",
                 background: BG, boxShadow: SH_SM,
@@ -4500,7 +7042,7 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
                   padding:"11px 20px",background:"transparent",border:"none",
                   color:T1,fontSize:"13px",cursor:"pointer",fontFamily:"inherit",textAlign:"left",
                 }}>
-                  <span style={{width:"20px",display:"flex",alignItems:"center",justifyContent:"center",color:T2,flexShrink:0}}>{svg}</span>
+                  <span style={{width:"20px",display:"flex",alignItems:"center",justifyContent:"center",color:T2,flexShrink:0,marginRight:"12px",paddingTop:"1px"}}>{svg}</span>
                   {label}
                 </button>
               ))}
@@ -4554,7 +7096,7 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
                     color:locked?"#f472b6":mode===m.id?mc:T1,fontSize:"13px",
                     cursor:locked?"default":"pointer",fontFamily:"inherit",textAlign:"left",opacity:locked?0.5:1,
                   }}>
-                    <span style={{fontSize:"16px",width:"20px",display:"flex",alignItems:"center",justifyContent:"center"}}>{m.icon}</span>
+                    <span style={{fontSize:"16px",width:"20px",display:"flex",alignItems:"center",justifyContent:"center",marginRight:"12px",paddingTop:"1px",flexShrink:0}}>{m.icon}</span>
                     {m.label}
                     {mode===m.id && <span style={{marginLeft:"auto",color:mc}}>✓</span>}
                   </button>
@@ -4568,7 +7110,7 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
                 display:"flex",alignItems:"center",width:"100%",
                 padding:"11px 20px",background:"transparent",border:"none",
                 color:T1,fontSize:"13px",cursor:"pointer",fontFamily:"inherit",textAlign:"left",
-              }}><span style={{fontSize:"16px",width:"20px",textAlign:"center"}}>⏻</span>На главную</button>
+              }}><span style={{fontSize:"16px",width:"20px",display:"flex",alignItems:"center",justifyContent:"center",marginRight:"12px",paddingTop:"1px",flexShrink:0}}>⏻</span>На главную</button>
             </div>
           </div>
         </div>
@@ -4699,6 +7241,905 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
         </div>
       )}
 
+      {sceneCardsOpen && (
+        <div style={{
+          position:"fixed",
+          top:`${sceneCardsRect.y}px`,
+          left:`${sceneCardsRect.x}px`,
+          width:`${sceneCardsRect.w}px`,
+          height:`${sceneCardsRect.h}px`,
+          minWidth:"360px",
+          minHeight:"260px",
+          maxWidth:`calc(100vw - ${leftSidebarW + 32}px)`,
+          maxHeight:"calc(100vh - 104px)",
+          background:SURF,
+          border:`1px solid ${T3}20`,
+          borderRadius:"11px",
+          boxShadow:"0 14px 34px rgba(0,0,0,0.28)",
+          zIndex:460,
+          display:"flex",
+          flexDirection:"column",
+          overflow:"hidden",
+        }}>
+          <div
+            onMouseDown={startSceneCardsDrag}
+            style={{padding:"10px 12px",display:"flex",alignItems:"center",borderBottom:`1px solid ${T3}18`,background:"rgba(17,20,46,0.72)",flexShrink:0,cursor:"move"}}
+          >
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{color:T1,fontSize:"11px",letterSpacing:"3px"}}>КАРТОЧКИ СЦЕН</div>
+              <div style={{color:T3,fontSize:"9px",letterSpacing:"1px",marginTop:"2px"}}>{mode === "film" ? "АКТЫ И СЦЕНЫ" : "СЦЕНЫ"} — {scenes.length}</div>
+            </div>
+            <div style={{display:"flex",alignItems:"center",gap:"8px",flexShrink:0}}>
+              <div
+                onMouseDown={e=>{ e.preventDefault(); e.stopPropagation(); }}
+                onClick={e=>e.stopPropagation()}
+                style={{
+                  display:"inline-flex",
+                  alignItems:"center",
+                  padding:"3px",
+                  borderRadius:"9px",
+                  border:`1px solid ${T3}18`,
+                  background:"rgba(255,255,255,0.03)",
+                  boxShadow:"none",
+                  gap:"3px",
+                }}
+              >
+                <button
+                  type="button"
+                  onMouseDown={e=>{ e.preventDefault(); e.stopPropagation(); }}
+                  onClick={()=>setSceneCardsMiniMode(false)}
+                  style={{
+                    minWidth:"74px",
+                    height:"24px",
+                    padding:"0 10px",
+                    borderRadius:"7px",
+                    border:"none",
+                    background:sceneCardsMiniMode ? "transparent" : "rgba(255,255,255,0.08)",
+                    color:sceneCardsMiniMode ? T3 : T1,
+                    cursor:"pointer",
+                    fontSize:"10px",
+                    letterSpacing:"0.8px",
+                    fontFamily:"inherit",
+                    boxShadow:"none",
+                  }}
+                >ОБЫЧНЫЙ</button>
+                <button
+                  type="button"
+                  onMouseDown={e=>{ e.preventDefault(); e.stopPropagation(); }}
+                  onClick={()=>setSceneCardsMiniMode(true)}
+                  style={{
+                    minWidth:"84px",
+                    height:"24px",
+                    padding:"0 10px",
+                    borderRadius:"7px",
+                    border:"none",
+                    background:sceneCardsMiniMode ? "rgba(255,255,255,0.08)" : "transparent",
+                    color:sceneCardsMiniMode ? T1 : T3,
+                    cursor:"pointer",
+                    fontSize:"10px",
+                    letterSpacing:"0.8px",
+                    fontFamily:"inherit",
+                    boxShadow:"none",
+                  }}
+                >МИНИАТЮРЫ</button>
+              </div>
+              <button
+                onMouseDown={e=>e.stopPropagation()}
+                onClick={()=>setSceneCardsOpen(false)}
+                style={{
+                  background:"transparent",border:`1px solid ${T3}18`,color:T2,fontSize:"16px",
+                  cursor:"pointer",padding:"4px 8px",lineHeight:1,
+                  borderRadius:"7px",boxShadow:"none",WebkitAppearance:"none",opacity:0.88,
+                  flexShrink:0,
+                }}
+              >✕</button>
+            </div>
+          </div>
+
+          <div style={{flex:1,overflow:"auto",padding:"14px"}}>
+            <div style={{
+              display:"grid",
+              gridTemplateColumns:"repeat(auto-fill, minmax(280px, 1fr))",
+              gap:"14px",
+              alignContent:"start",
+            }}>
+              {scenes.map(s=>{
+                const isAct = s.kind === "act";
+                const meta = getDesktopSceneCardMeta(s);
+                const cardMeta = meta.cardMeta || {};
+                const cardTag = getSceneCardDisplayTag(s.id);
+                const cardFunction = SCENE_CARD_FUNCTION_OPTIONS.find(opt => opt.id === cardMeta.sceneFunction);
+                const cardStatus = SCENE_CARD_STATUS_OPTIONS.find(opt => opt.id === cardMeta.status);
+                const cardTempo = clampSceneCardTempo(cardMeta.tempo);
+                const cardEmotion = clampSceneCardEmotion(cardMeta.emotion);
+                const cardAccent = cardMeta.color || null;
+                const actTempoItems = isAct ? getSceneCardTempoSeries(s.actNum) : [];
+                const actSelected = isAct && scenes.filter(ss=>ss.kind==="scene"&&ss.actNum===s.actNum).length>0 && scenes.filter(ss=>ss.kind==="scene"&&ss.actNum===s.actNum).every(ss=>selectedScenes.has(ss.id));
+                const menuOpen = sceneCardMenu && sceneCardMenu.id === s.id;
+                const menuSection = menuOpen ? sceneCardMenu.section : "main";
+                const cardHeaderBg = "rgba(24,29,63,0.92)";
+                const cardHeaderBorder = `${T3}18`;
+                const cardAccentLineDefault = "rgba(41,47,84,0.95)";
+                const cardAccentLine = cardAccent || cardAccentLineDefault;
+                const inlineCardTag = normalizeSceneCardTagValue(cardMeta.tag || "");
+                const inlineCardComment = String(cardMeta.comment || "");
+                const isMiniActCard = sceneCardsMiniMode && isAct;
+                const isMiniSceneCard = sceneCardsMiniMode && !isAct;
+                const isMiniCard = isMiniActCard || isMiniSceneCard;
+                const miniSceneSecondaryText = meta.castText || meta.previewText || "";
+                const stopCardMetaInput = (e) => { e.stopPropagation(); };
+                const isSceneCardsDropTarget = sceneCardsDropId===s.id && sceneCardsDragId!==s.id;
+                const activeDropSide = isSceneCardsDropTarget ? sceneCardsDropSide : null;
+                const showDropTop = activeDropSide === "top";
+                const showDropRight = !isAct && activeDropSide === "right";
+                const showDropBottom = activeDropSide === "bottom";
+                const showDropLeft = !isAct && activeDropSide === "left";
+                return (
+                  <div
+                    key={s.id}
+                    onDragOver={e=>{
+                      e.preventDefault();
+                      try { if (e.dataTransfer) e.dataTransfer.dropEffect = "move"; } catch(err) {}
+                      if (sceneCardsDragId && sceneCardsDragId !== s.id) {
+                        setSceneCardsDropId(s.id);
+                        setSceneCardsDropSide(getSceneCardsDropSide(e, isAct));
+                      }
+                    }}
+                    onDrop={e=>{
+                      e.preventDefault();
+                      const fromId = sceneCardsDragId || (e.dataTransfer ? e.dataTransfer.getData("text/plain") : "");
+                      const dropSide = getSceneCardsDropSide(e, isAct);
+                      if (fromId && fromId !== s.id) moveSceneDirectional(fromId, s.id, dropSide);
+                      setSceneCardsDragId(null);
+                      setSceneCardsDropId(null);
+                      setSceneCardsDropSide(null);
+                    }}
+                    style={{
+                      position:"relative",
+                      minWidth:0,
+                      padding:"8px",
+                      margin:"-8px",
+                      gridColumn:isAct?"1 / -1":"auto",
+                    }}
+                  >
+                    <div style={{
+                      position:"absolute",
+                      left:"14px",
+                      right:"14px",
+                      top:"2px",
+                      height:"3px",
+                      borderRadius:"999px",
+                      background:mc,
+                      opacity:showDropTop ? 1 : 0,
+                      transform:showDropTop ? "scaleX(1)" : "scaleX(0.72)",
+                      transformOrigin:"center",
+                      transition:"opacity .12s, transform .12s, box-shadow .12s",
+                      boxShadow:showDropTop ? `0 0 0 1px ${mc}22, 0 0 12px ${mc}44` : "none",
+                      pointerEvents:"none",
+                    }} />
+                    <div style={{
+                      position:"absolute",
+                      left:"14px",
+                      right:"14px",
+                      bottom:"2px",
+                      height:"3px",
+                      borderRadius:"999px",
+                      background:mc,
+                      opacity:showDropBottom ? 1 : 0,
+                      transform:showDropBottom ? "scaleX(1)" : "scaleX(0.72)",
+                      transformOrigin:"center",
+                      transition:"opacity .12s, transform .12s, box-shadow .12s",
+                      boxShadow:showDropBottom ? `0 0 0 1px ${mc}22, 0 0 12px ${mc}44` : "none",
+                      pointerEvents:"none",
+                    }} />
+                    <div style={{
+                      position:"absolute",
+                      top:"10px",
+                      bottom:"10px",
+                      left:"2px",
+                      width:"3px",
+                      borderRadius:"999px",
+                      background:mc,
+                      opacity:showDropLeft ? 0.82 : 0,
+                      transform:showDropLeft ? "scaleY(1)" : "scaleY(0.6)",
+                      transformOrigin:"center",
+                      transition:"opacity .12s, transform .12s",
+                      pointerEvents:"none",
+                    }} />
+                    <div style={{
+                      position:"absolute",
+                      top:"10px",
+                      bottom:"10px",
+                      right:"2px",
+                      width:"3px",
+                      borderRadius:"999px",
+                      background:mc,
+                      opacity:showDropRight ? 0.82 : 0,
+                      transform:showDropRight ? "scaleY(1)" : "scaleY(0.6)",
+                      transformOrigin:"center",
+                      transition:"opacity .12s, transform .12s",
+                      pointerEvents:"none",
+                    }} />
+                    <div
+                      draggable
+                      onDragStart={e=>{
+                        setSceneCardsDragId(s.id);
+                        setSceneCardsDropId(null);
+                        setSceneCardsDropSide(null);
+                        setSceneCardMenu(null);
+                        try { e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", s.id); } catch(err) {}
+                      }}
+                      onDragEnd={()=>{ setSceneCardsDragId(null); setSceneCardsDropId(null); setSceneCardsDropSide(null); }}
+                      onClick={()=>{
+                        if (sceneCardsDragId) return;
+                        if (mode === "film" && isAct) { setActiveSceneId(s.id); return; }
+                        goToScene(s.id);
+                      }}
+                      style={{
+                        position:"relative",
+                        zIndex:menuOpen?6:1,
+                        minHeight:isAct?(isMiniActCard?"94px":"124px"):(isMiniSceneCard?"104px":"184px"),
+                        padding:"0",
+                        borderRadius:"10px",
+                        background:activeSceneId===s.id?"rgba(255,255,255,0.03)":"rgba(255,255,255,0.018)",
+                        boxShadow:activeSceneId===s.id?"0 10px 24px rgba(0,0,0,0.22)":"0 8px 18px rgba(0,0,0,0.16)",
+                        border:`1px solid ${activeSceneId===s.id ? T2+"26" : T3+"16"}`,
+                        opacity:sceneCardsDragId===s.id?0.45:1,
+                        cursor:"grab",
+                        display:"flex",
+                        flexDirection:"column",
+                        gap:0,
+                        transition:"border-color .12s, opacity .12s, box-shadow .12s",
+                        userSelect:"none",
+                        WebkitUserSelect:"none",
+                      }}>
+                    <div style={{
+                      display:"flex", alignItems:"center", justifyContent:"space-between", gap:"8px",
+                      minHeight:"32px", padding:"7px 12px",
+                      borderBottom:`1px solid ${cardHeaderBorder}`,
+                      background:cardHeaderBg,
+                      boxShadow:`inset 0 2px 0 ${cardAccentLine}`,
+                      borderTopLeftRadius:"9px", borderTopRightRadius:"9px",
+                    }}>
+                      <div style={{display:"flex", alignItems:"center", gap:"10px", minWidth:0, flex:1}}>
+                        {isAct ? (
+                          <>
+                            <div
+                              onMouseDown={e=>{ e.stopPropagation(); }}
+                              onClick={e=>{
+                                if (sceneCardsDragId) return;
+                                e.stopPropagation();
+                                toggleActSelect(s.actNum);
+                              }}
+                              style={{
+                                width:"18px",height:"18px",borderRadius:"5px",flexShrink:0,
+                                border:`1px solid ${actSelected ? mc : T2+"55"}`,
+                                background:actSelected ? mc : "transparent",
+                                display:"flex",alignItems:"center",justifyContent:"center",
+                                cursor:sceneCardsDragId?"default":"pointer",
+                                pointerEvents:sceneCardsDragId?"none":"auto",
+                              }}>
+                              {actSelected && <span style={{color:"#000",fontSize:"10px",fontWeight:"bold",lineHeight:1}}>✓</span>}
+                            </div>
+                            <span style={{color:T2,fontSize:"10px",letterSpacing:"1.4px",textTransform:"uppercase",lineHeight:1,whiteSpace:"nowrap"}}>{(mode==="media"||mode==="short") ? `${s.actNum}` : `Акт ${s.actNum}`}</span>
+                            {cardStatus && <span style={{
+                              display:"inline-flex", alignItems:"center", flexShrink:0,
+                              padding:"2px 7px",
+                              borderRadius:"999px",
+                              border:`1px solid ${T3}20`,
+                              background:"rgba(255,255,255,0.03)",
+                              color:T2,
+                              fontSize:"9px",
+                              letterSpacing:"0.45px",
+                              lineHeight:1.15,
+                              whiteSpace:"nowrap",
+                            }}>{cardStatus.label}</span>}
+                          </>
+                        ) : (
+                          <>
+                            <div
+                              onMouseDown={e=>{ e.stopPropagation(); }}
+                              onClick={e=>{
+                                if (sceneCardsDragId) return;
+                                e.stopPropagation();
+                                toggleSceneSelect(s.id);
+                              }}
+                              style={{
+                                width:"18px",height:"18px",borderRadius:"5px",flexShrink:0,
+                                border:`1px solid ${selectedScenes.has(s.id) ? mc : T2+"55"}`,
+                                background:selectedScenes.has(s.id) ? mc : "transparent",
+                                display:"flex",alignItems:"center",justifyContent:"center",
+                                cursor:sceneCardsDragId?"default":"pointer",
+                                pointerEvents:sceneCardsDragId?"none":"auto",
+                              }}>
+                              {selectedScenes.has(s.id) && <span style={{color:"#000",fontSize:"10px",fontWeight:"bold",lineHeight:1}}>✓</span>}
+                            </div>
+                            <span style={{color:T2,fontSize:"10px",letterSpacing:"1.4px",textTransform:"uppercase",lineHeight:1,whiteSpace:"nowrap"}}>Сцена {s.num}</span>
+                            {cardStatus && <span style={{
+                              display:"inline-flex", alignItems:"center", flexShrink:0,
+                              padding:"2px 7px",
+                              borderRadius:"999px",
+                              border:`1px solid ${T3}20`,
+                              background:"rgba(255,255,255,0.03)",
+                              color:T2,
+                              fontSize:"9px",
+                              letterSpacing:"0.45px",
+                              lineHeight:1.15,
+                              whiteSpace:"nowrap",
+                            }}>{cardStatus.label}</span>}
+                          </>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        draggable={false}
+                        onMouseDown={e=>{ e.preventDefault(); e.stopPropagation(); }}
+                        onClick={e=>{
+                          e.stopPropagation();
+                          if (sceneCardsDragId) return;
+                          setSceneCardMenu(prev => prev && prev.id === s.id ? null : { id:s.id, section:"main" });
+                        }}
+                        style={{
+                          width:"18px", height:"18px", flexShrink:0,
+                          borderRadius:"5px", border:`1px solid ${T3}28`, background:"transparent", color:T2,
+                          display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer",
+                          boxShadow:"none", fontSize:"9px", lineHeight:1, padding:0, opacity:0.92,
+                        }}
+                        aria-label="Меню карточки"
+                      >☰</button>
+                    </div>
+
+                    {menuOpen && (
+                      <div
+                        ref={sceneCardMenuRef}
+                        onMouseDown={e=>e.stopPropagation()}
+                        onClick={e=>e.stopPropagation()}
+                        style={{
+                          position:"absolute", top:"34px", right:"8px", width:"220px", background:BG,
+                          border:`1px solid ${T3}18`, borderRadius:"10px", boxShadow:"0 12px 24px rgba(0,0,0,0.26)",
+                          padding:"8px", zIndex:4,
+                        }}
+                      >
+                        {menuSection !== "main" && (
+                          <button type="button" onMouseDown={e=>e.preventDefault()} onClick={()=>setSceneCardMenu({ id:s.id, section:"main" })} style={{
+                            width:"100%", display:"flex", alignItems:"center", gap:"8px", padding:"8px 9px", marginBottom:"6px",
+                            background:"transparent", border:"none", color:T2, fontSize:"11px", cursor:"pointer", fontFamily:"inherit", textAlign:"left",
+                          }}>← назад</button>
+                        )}
+
+                        {menuSection === "main" && (
+                          <>
+                            {!isAct && (
+                              <button type="button" onMouseDown={e=>e.preventDefault()} onClick={()=>setSceneCardMenu({ id:s.id, section:"dramaturgy" })} style={{
+                                width:"100%", display:"flex", alignItems:"center", justifyContent:"space-between", padding:"9px 10px",
+                                background:"transparent", border:"none", color:T1, fontSize:"12px", cursor:"pointer", fontFamily:"inherit", textAlign:"left",
+                              }}><span>Драматургия</span><span style={{color:T3}}>›</span></button>
+                            )}
+                            <button type="button" onMouseDown={e=>e.preventDefault()} onClick={()=>setSceneCardMenu({ id:s.id, section:"labels" })} style={{
+                              width:"100%", display:"flex", alignItems:"center", justifyContent:"space-between", padding:"9px 10px",
+                              background:"transparent", border:"none", color:T1, fontSize:"12px", cursor:"pointer", fontFamily:"inherit", textAlign:"left",
+                            }}><span>Метки</span><span style={{color:T3}}>›</span></button>
+                            <button type="button" onMouseDown={e=>e.preventDefault()} onClick={()=>setSceneCardMenu({ id:s.id, section:"status" })} style={{
+                              width:"100%", display:"flex", alignItems:"center", justifyContent:"space-between", padding:"9px 10px",
+                              background:"transparent", border:"none", color:T1, fontSize:"12px", cursor:"pointer", fontFamily:"inherit", textAlign:"left",
+                            }}><span>Статус</span><span style={{color:T3}}>›</span></button>
+                            <button type="button" onMouseDown={e=>e.preventDefault()} onClick={()=>promptSceneCardNote(s.id, isAct ? `Акт ${s.actNum}` : `Сцена ${s.num}`)} style={{
+                              width:"100%", display:"flex", alignItems:"center", justifyContent:"space-between", padding:"9px 10px",
+                              background:"transparent", border:"none", color:T1, fontSize:"12px", cursor:"pointer", fontFamily:"inherit", textAlign:"left",
+                            }}><span>Заметки</span><span style={{color:T3, fontSize:"10px", maxWidth:"82px", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}}>{cardMeta.note ? "есть" : "…"}</span></button>
+                            <div style={{height:"1px", background:`${T3}22`, margin:"6px 0"}} />
+                            <button type="button" onMouseDown={e=>e.preventDefault()} onClick={()=>{ resetSceneCardMeta(s.id); setSceneCardMenu(null); }} style={{
+                              width:"100%", display:"flex", alignItems:"center", justifyContent:"space-between", padding:"9px 10px",
+                              background:"transparent", border:"none", color:"#fca5a5", fontSize:"12px", cursor:"pointer", fontFamily:"inherit", textAlign:"left",
+                            }}><span>Сброс</span><span>×</span></button>
+                          </>
+                        )}
+
+                        {menuSection === "dramaturgy" && !isAct && (
+                          <>
+                            <div style={{color:T3, fontSize:"9px", letterSpacing:"2px", padding:"4px 10px 6px"}}>ТЕМП</div>
+                            <div style={{display:"grid", gridTemplateColumns:"repeat(5, 1fr)", gap:"6px", padding:"0 10px 10px"}}>
+                              {[1,2,3,4,5].map(value => (
+                                <button key={value} type="button" onMouseDown={e=>e.preventDefault()} onClick={()=>setSceneCardTempoValue(s.id, value)} style={{
+                                  height:"30px", borderRadius:"8px", border:`1px solid ${(cardTempo===value?mc:T3)+"44"}`,
+                                  background:cardTempo===value?`${mc}22`:SURF, color:cardTempo===value?mc:T1,
+                                  fontSize:"12px", cursor:"pointer", fontFamily:"inherit",
+                                }}>{value}</button>
+                              ))}
+                            </div>
+                            <div style={{color:T3, fontSize:"9px", letterSpacing:"2px", padding:"0 10px 6px"}}>ЭМОЦИЯ</div>
+                            <div style={{display:"grid", gridTemplateColumns:"repeat(5, 1fr)", gap:"6px", padding:"0 10px 10px"}}>
+                              {[1,2,3,4,5].map(value => (
+                                <button key={`emotion-${value}`} type="button" onMouseDown={e=>e.preventDefault()} onClick={()=>setSceneCardEmotionValue(s.id, value)} style={{
+                                  height:"30px", borderRadius:"8px", border:`1px solid ${(cardEmotion===value?"#7dd3fc":T3)+"44"}`,
+                                  background:cardEmotion===value?`rgba(125,211,252,0.16)`:SURF, color:cardEmotion===value?"#7dd3fc":T1,
+                                  fontSize:"12px", cursor:"pointer", fontFamily:"inherit",
+                                }}>{value}</button>
+                              ))}
+                            </div>
+                            <div style={{height:"1px", background:`${T3}22`, margin:"0 0 8px"}} />
+                            <div style={{color:T3, fontSize:"9px", letterSpacing:"2px", padding:"0 10px 6px"}}>ФУНКЦИЯ СЦЕНЫ</div>
+                            {SCENE_CARD_FUNCTION_OPTIONS.map(opt => (
+                              <button key={opt.id} type="button" onMouseDown={e=>e.preventDefault()} onClick={()=>setSceneCardFunction(s.id, opt.id)} style={{
+                                width:"100%", display:"flex", alignItems:"center", justifyContent:"space-between", padding:"8px 10px",
+                                background:"transparent", border:"none", color:cardMeta.sceneFunction===opt.id?mc:T1, fontSize:"12px", cursor:"pointer", fontFamily:"inherit", textAlign:"left",
+                              }}><span>{opt.label}</span>{cardMeta.sceneFunction===opt.id && <span>✓</span>}</button>
+                            ))}
+                          </>
+                        )}
+
+                        {menuSection === "labels" && (
+                          <>
+                            <div style={{color:T3, fontSize:"9px", letterSpacing:"2px", padding:"4px 10px 6px"}}>ЦВЕТ</div>
+                            <div style={{display:"grid", gridTemplateColumns:"repeat(5, 1fr)", gap:"7px", padding:"0 10px 10px"}}>
+                              {SCENE_CARD_COLOR_OPTIONS.map(opt => (
+                                <button key={opt.id} type="button" onMouseDown={e=>e.preventDefault()} onClick={()=>setSceneCardColor(s.id, opt.value)} style={{
+                                  width:"30px", height:"30px", borderRadius:"9px", border:`1px solid ${(cardAccent===opt.value?mc:T3)+"44"}`,
+                                  background:opt.value || SURF, color:opt.value?"transparent":T2, cursor:"pointer", padding:0,
+                                  display:"flex", alignItems:"center", justifyContent:"center", fontSize:"10px", fontFamily:"inherit",
+                                }}>{opt.value ? "" : "Ø"}</button>
+                              ))}
+                            </div>
+                            <div style={{height:"1px", background:`${T3}22`, margin:"0 0 8px"}} />
+                            <button type="button" onMouseDown={e=>e.preventDefault()} onClick={()=>promptSceneCardTag(s.id)} style={{
+                              width:"100%", display:"flex", alignItems:"center", justifyContent:"space-between", padding:"9px 10px",
+                              background:"transparent", border:"none", color:T1, fontSize:"12px", cursor:"pointer", fontFamily:"inherit", textAlign:"left",
+                            }}><span>Хэштег</span><span style={{color:T3, fontSize:"10px", maxWidth:"100px", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap"}}>{cardTag || "…"}</span></button>
+                          </>
+                        )}
+
+                        {menuSection === "status" && (
+                          <>
+                            <div style={{color:T3, fontSize:"9px", letterSpacing:"2px", padding:"4px 10px 6px"}}>СТАТУС</div>
+                            {SCENE_CARD_STATUS_OPTIONS.map(opt => (
+                              <button key={opt.id} type="button" onMouseDown={e=>e.preventDefault()} onClick={()=>setSceneCardStatus(s.id, opt.id)} style={{
+                                width:"100%", display:"flex", alignItems:"center", justifyContent:"space-between", padding:"8px 10px",
+                                background:"transparent", border:"none", color:cardMeta.status===opt.id?mc:T1, fontSize:"12px", cursor:"pointer", fontFamily:"inherit", textAlign:"left",
+                              }}><span>{opt.label}</span>{cardMeta.status===opt.id && <span>✓</span>}</button>
+                            ))}
+                          </>
+                        )}
+                      </div>
+                    )}
+
+                    {isAct ? (
+                      <div style={{display:"flex", alignItems:isMiniActCard?"center":"stretch", gap:isMiniActCard?"10px":"14px", minWidth:0, flexWrap:isMiniActCard?"nowrap":"wrap", padding:isMiniActCard?"10px 15px 50px":"14px 15px 76px"}}>
+                        <div style={{flex:1, minWidth:0}}>
+                          <div style={{display:"flex",alignItems:"center",gap:"6px",minWidth:0,flexWrap:"wrap"}}>
+                            <span style={{
+                              color:activeSceneId===s.id?T1:mc,
+                              fontSize:isMiniActCard?"12px":"13px",
+                              fontWeight:"bold",
+                              letterSpacing:isMiniActCard?"1.2px":"1.4px",
+                              lineHeight:isMiniActCard?"1.15":"1.25",
+                              wordBreak:"break-word",
+                              textTransform:"uppercase",
+                              display:isMiniActCard?"-webkit-box":"inline",
+                              WebkitBoxOrient:isMiniActCard?"vertical":undefined,
+                              WebkitLineClamp:isMiniActCard?1:undefined,
+                              overflow:isMiniActCard?"hidden":"visible",
+                            }}>{s.text || "АКТ"}</span>
+                            {cardTag && <span style={{color:T3,fontSize:isMiniActCard?"9px":"10px",lineHeight:1.2,whiteSpace:isMiniActCard?"nowrap":"normal",overflow:isMiniActCard?"hidden":"visible",textOverflow:isMiniActCard?"ellipsis":"clip",maxWidth:isMiniActCard?"120px":"none"}}>{cardTag}</span>}
+                          </div>
+                        </div>
+                        <div style={{flex:isMiniActCard?"0 0 280px":"1 1 360px", minWidth:isMiniActCard?"220px":"260px", maxWidth:isMiniActCard?"360px":"680px", marginLeft:"auto"}}>
+                          <ActTempoSparkline items={actTempoItems} accent={cardAccent || mc} T3={T3} compact={isMiniActCard} />
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{display:"flex", flexDirection:"column", gap:isMiniSceneCard?"4px":"9px", padding:isMiniSceneCard?"10px 15px 52px":"14px 15px 76px"}}>
+                        <div style={{
+                          color:T1,
+                          fontSize:"13px",
+                          lineHeight:isMiniSceneCard?"1.22":"1.34",
+                          wordBreak:"break-word",
+                          display:isMiniSceneCard?"-webkit-box":"block",
+                          WebkitBoxOrient:isMiniSceneCard?"vertical":undefined,
+                          WebkitLineClamp:isMiniSceneCard?1:undefined,
+                          overflow:isMiniSceneCard?"hidden":"visible",
+                        }}>{s.text || "—"}</div>
+                        {!isMiniSceneCard && (cardFunction || cardTag || cardTempo != null || cardEmotion != null) && (
+                          <div style={{display:"flex",alignItems:"center",gap:"6px",flexWrap:"wrap"}}>
+                            {cardFunction && <span style={{padding:"2px 6px",borderRadius:"999px",background:`${mc}18`,color:mc,fontSize:"9px",letterSpacing:"0.4px"}}>{cardFunction.label}</span>}
+                            {cardTag && <span style={{color:T3,fontSize:isMiniActCard?"9px":"10px",lineHeight:1.2,whiteSpace:isMiniActCard?"nowrap":"normal",overflow:isMiniActCard?"hidden":"visible",textOverflow:isMiniActCard?"ellipsis":"clip",maxWidth:isMiniActCard?"120px":"none"}}>{cardTag}</span>}
+                            {cardTempo != null && <span style={{color:T3,fontSize:"9px",letterSpacing:"1px"}}>темп {cardTempo}</span>}
+                            {cardEmotion != null && <span style={{color:T3,fontSize:"9px",letterSpacing:"1px"}}>эмоция {cardEmotion}</span>}
+                          </div>
+                        )}
+                        {isMiniSceneCard ? (
+                          miniSceneSecondaryText ? (
+                            <div style={{
+                              color:T2,
+                              fontSize:"10px",
+                              lineHeight:"1.2",
+                              wordBreak:"break-word",
+                              display:"-webkit-box",
+                              WebkitBoxOrient:"vertical",
+                              WebkitLineClamp:1,
+                              overflow:"hidden",
+                            }}>{miniSceneSecondaryText}</div>
+                          ) : <div style={{height:"12px"}} />
+                        ) : (
+                          <>
+                            {meta.castText && (
+                              <div style={{color:T2,fontSize:"10px",lineHeight:"1.26",wordBreak:"break-word"}}>{meta.castText}</div>
+                            )}
+                            {meta.previewText && (
+                              <div style={{color:T3,fontSize:"10px",lineHeight:"1.42",wordBreak:"break-word",display:"-webkit-box",WebkitBoxOrient:"vertical",WebkitLineClamp:5,overflow:"hidden"}}>
+                                {meta.previewText}
+                              </div>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    )}
+
+                    <div
+                      onMouseDown={stopCardMetaInput}
+                      onClick={stopCardMetaInput}
+                      onDragStart={stopCardMetaInput}
+                      style={{
+                        position:"absolute",
+                        left:isMiniCard?"10px":"12px",
+                        right:isMiniCard?"10px":"12px",
+                        bottom:isMiniCard?"10px":"12px",
+                        display:"grid",
+                        gridTemplateColumns:isAct ? "minmax(0, 0.95fr) minmax(0, 1.25fr)" : "minmax(0, 0.9fr) minmax(0, 1.35fr)",
+                        gap:isMiniCard?"6px":"8px",
+                        alignItems:"start",
+                        zIndex:2,
+                      }}
+                    >
+                      <input
+                        type="text"
+                        draggable={false}
+                        value={inlineCardTag}
+                        onMouseDown={stopCardMetaInput}
+                        onClick={stopCardMetaInput}
+                        onDragStart={stopCardMetaInput}
+                        onChange={e=>setSceneCardTag(s.id, e.target.value)}
+                        placeholder="хэштеги"
+                        spellCheck={false}
+                        style={{
+                          width:"100%",
+                          minWidth:0,
+                          height:isMiniCard?"24px":"28px",
+                          padding:isMiniCard?"0 8px":"0 10px",
+                          borderRadius:"8px",
+                          border:`1px solid ${T3}16`,
+                          background:"rgba(255,255,255,0.022)",
+                          color:T2,
+                          outline:"none",
+                          boxShadow:"none",
+                          fontFamily:"inherit",
+                          fontSize:isMiniCard?"9px":"10px",
+                          letterSpacing:"0.35px",
+                          WebkitAppearance:"none",
+                        }}
+                      />
+                      <textarea
+                        draggable={false}
+                        value={inlineCardComment}
+                        onMouseDown={stopCardMetaInput}
+                        onClick={stopCardMetaInput}
+                        onDragStart={stopCardMetaInput}
+                        onChange={e=>setSceneCardComment(s.id, e.target.value)}
+                        placeholder="комментарий"
+                        rows={1}
+                        style={{
+                          width:"100%",
+                          minWidth:0,
+                          minHeight:isMiniCard?"24px":"28px",
+                          maxHeight:isMiniCard?"24px":"46px",
+                          padding:isMiniCard?"5px 8px":"7px 10px",
+                          borderRadius:"8px",
+                          border:`1px solid ${T3}16`,
+                          background:"rgba(255,255,255,0.026)",
+                          color:T2,
+                          outline:"none",
+                          boxShadow:"none",
+                          fontFamily:"inherit",
+                          fontSize:isMiniCard?"9px":"10px",
+                          lineHeight:isMiniCard?"1.2":"1.35",
+                          resize:"none",
+                          overflow:"auto",
+                          WebkitAppearance:"none",
+                        }}
+                      />
+                    </div>
+                  </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {sceneCardNoteEditor && (
+            <div
+              onMouseDown={e=>e.stopPropagation()}
+              onClick={e=>e.stopPropagation()}
+              style={{
+                position:"absolute",
+                inset:0,
+                zIndex:470,
+                background:"rgba(8,10,24,0.62)",
+                display:"flex",
+                alignItems:"center",
+                justifyContent:"center",
+                padding:"24px",
+              }}
+            >
+              <div
+                onMouseDown={e=>e.stopPropagation()}
+                onClick={e=>e.stopPropagation()}
+                style={{
+                  width:"min(560px, calc(100% - 24px))",
+                  minHeight:"320px",
+                  maxHeight:"min(76vh, 640px)",
+                  background:"rgba(19,23,51,0.98)",
+                  border:`1px solid ${T3}20`,
+                  borderRadius:"14px",
+                  boxShadow:"0 24px 56px rgba(0,0,0,0.42)",
+                  display:"flex",
+                  flexDirection:"column",
+                  overflow:"hidden",
+                }}
+              >
+                <div style={{
+                  display:"flex",
+                  alignItems:"center",
+                  gap:"10px",
+                  padding:"12px 14px",
+                  borderBottom:`1px solid ${T3}18`,
+                  background:"rgba(23,28,60,0.94)",
+                }}>
+                  <div style={{flex:1, minWidth:0}}>
+                    <div style={{color:T2, fontSize:"10px", letterSpacing:"1.5px", textTransform:"uppercase"}}>Заметки</div>
+                    <div style={{color:T3, fontSize:"10px", marginTop:"3px", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis"}}>{sceneCardNoteEditor.label || "Карточка"}</div>
+                  </div>
+                  <button
+                    type="button"
+                    onMouseDown={e=>e.preventDefault()}
+                    onClick={closeSceneCardNoteEditor}
+                    style={{
+                      width:"28px",
+                      height:"28px",
+                      borderRadius:"8px",
+                      border:`1px solid ${T3}18`,
+                      background:"transparent",
+                      color:T2,
+                      cursor:"pointer",
+                      fontSize:"14px",
+                      lineHeight:1,
+                      padding:0,
+                      flexShrink:0,
+                    }}
+                    aria-label="Закрыть заметки"
+                  >✕</button>
+                </div>
+                <div style={{padding:"14px", display:"flex", flexDirection:"column", gap:"10px", flex:1, minHeight:0}}>
+                  <div style={{color:T3, fontSize:"11px", lineHeight:1.45}}>
+                    Отдельное поле для пояснений к карточке. Комментарий внизу карточки остаётся коротким тезисом.
+                  </div>
+                  <textarea
+                    ref={sceneCardNoteInputRef}
+                    value={sceneCardNoteDraft}
+                    onChange={e=>setSceneCardNoteDraft(e.target.value)}
+                    placeholder="Подробные заметки к сцене..."
+                    spellCheck={false}
+                    style={{
+                      width:"100%",
+                      flex:1,
+                      minHeight:"190px",
+                      padding:"12px 13px",
+                      borderRadius:"10px",
+                      border:`1px solid ${T3}18`,
+                      background:"rgba(255,255,255,0.03)",
+                      color:T1,
+                      outline:"none",
+                      boxShadow:"none",
+                      fontFamily:"inherit",
+                      fontSize:"12px",
+                      lineHeight:"1.55",
+                      resize:"none",
+                      overflow:"auto",
+                      WebkitAppearance:"none",
+                    }}
+                  />
+                  <div style={{display:"flex", alignItems:"center", justifyContent:"space-between", gap:"10px", flexWrap:"wrap"}}>
+                    <div style={{color:T3, fontSize:"10px", lineHeight:1.4}}>Esc — закрыть, Ctrl/⌘ + Enter — сохранить</div>
+                    <div style={{display:"flex", alignItems:"center", gap:"8px"}}>
+                      <button
+                        type="button"
+                        onMouseDown={e=>e.preventDefault()}
+                        onClick={closeSceneCardNoteEditor}
+                        style={{
+                          padding:"8px 12px",
+                          borderRadius:"9px",
+                          border:`1px solid ${T3}18`,
+                          background:"transparent",
+                          color:T2,
+                          cursor:"pointer",
+                          fontSize:"11px",
+                          fontFamily:"inherit",
+                        }}
+                      >Отмена</button>
+                      <button
+                        type="button"
+                        onMouseDown={e=>e.preventDefault()}
+                        onClick={saveSceneCardNoteEditor}
+                        style={{
+                          padding:"8px 12px",
+                          borderRadius:"9px",
+                          border:`1px solid ${mc}44`,
+                          background:`${mc}18`,
+                          color:mc,
+                          cursor:"pointer",
+                          fontSize:"11px",
+                          fontFamily:"inherit",
+                        }}
+                      >Сохранить</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+          {[
+            {
+              dir:"n",
+              style:{
+                position:"absolute",
+                top:"4px",
+                left:"50%",
+                transform:"translateX(-50%)",
+                width:"30px",
+                height:"4px",
+                cursor:"ns-resize",
+                borderRadius:"999px",
+                background:`${T3}28`,
+                boxShadow:"none", opacity:0.9,
+                zIndex:8,
+                pointerEvents:"auto",
+              }
+            },
+            {
+              dir:"s",
+              style:{
+                position:"absolute",
+                bottom:"4px",
+                left:"50%",
+                transform:"translateX(-50%)",
+                width:"30px",
+                height:"4px",
+                cursor:"ns-resize",
+                borderRadius:"999px",
+                background:`${T3}28`,
+                boxShadow:"none", opacity:0.9,
+                zIndex:8,
+                pointerEvents:"auto",
+              }
+            },
+            {
+              dir:"w",
+              style:{
+                position:"absolute",
+                left:"4px",
+                top:"50%",
+                transform:"translateY(-50%)",
+                width:"4px",
+                height:"34px",
+                cursor:"ew-resize",
+                borderRadius:"999px",
+                background:`${T3}28`,
+                boxShadow:"none", opacity:0.9,
+                zIndex:8,
+                pointerEvents:"auto",
+              }
+            },
+            {
+              dir:"e",
+              style:{
+                position:"absolute",
+                right:"4px",
+                top:"50%",
+                transform:"translateY(-50%)",
+                width:"4px",
+                height:"34px",
+                cursor:"ew-resize",
+                borderRadius:"999px",
+                background:`${T3}28`,
+                boxShadow:"none", opacity:0.9,
+                zIndex:8,
+                pointerEvents:"auto",
+              }
+            },
+            {
+              dir:"nw",
+              style:{
+                position:"absolute",
+                left:"0px",
+                top:"0px",
+                width:"16px",
+                height:"16px",
+                cursor:"nwse-resize",
+                background:"transparent",
+                zIndex:8,
+                pointerEvents:"auto",
+              }
+            },
+            {
+              dir:"ne",
+              style:{
+                position:"absolute",
+                right:"0px",
+                top:"0px",
+                width:"16px",
+                height:"16px",
+                cursor:"nesw-resize",
+                background:"transparent",
+                zIndex:8,
+                pointerEvents:"auto",
+              }
+            },
+            {
+              dir:"sw",
+              style:{
+                position:"absolute",
+                left:"0px",
+                bottom:"0px",
+                width:"16px",
+                height:"16px",
+                cursor:"nesw-resize",
+                background:"transparent",
+                zIndex:8,
+                pointerEvents:"auto",
+              }
+            },
+          ].map(handle => (
+            <div
+              key={handle.dir}
+              onMouseDown={startSceneCardsResize(handle.dir)}
+              style={{
+                ...handle.style,
+                userSelect:"none",
+                WebkitUserSelect:"none",
+              }}
+            />
+          ))}
+          <div
+            onMouseDown={startSceneCardsResize("se")}
+            style={{
+              position:"absolute",
+              right:"8px",
+              bottom:"8px",
+              width:"20px",
+              height:"20px",
+              cursor:"nwse-resize",
+              display:"flex",
+              alignItems:"center",
+              justifyContent:"center",
+              color:T3,
+              background:"transparent",
+              border:`1px solid ${T3}22`,
+              borderRadius:"6px",
+              boxShadow:"none",
+              opacity:0.72,
+              userSelect:"none",
+              WebkitUserSelect:"none",
+              pointerEvents:"auto",
+              zIndex:9,
+            }}
+          >
+            <svg width="12" height="12" viewBox="0 0 15 15" fill="none" stroke="currentColor" strokeWidth="1.15" strokeLinecap="round">
+              <path d="M4 11L11 4" />
+              <path d="M7 11L11 7" />
+              <path d="M10 11L11 10" />
+            </svg>
+          </div>
+        </div>
+      )}
+
       {/* ══ DESKTOP: previewOpen ══ */}
       {previewOpen && (() => {
         const pw = previewW || Math.round(window.innerWidth * 0.6);
@@ -4735,15 +8176,25 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
       })()}
 
       {/* ══ LEFT SIDEBAR ══ */}
+      {leftPanelOpen ? (
       <div style={{
-        width:`${leftW}px`, minWidth:`${leftW}px`,
+        width:`${leftSidebarW}px`, minWidth:`${leftSidebarW}px`, maxWidth:`${leftSidebarW}px`,
         background: SURF,
         boxShadow: "4px 0 20px rgba(0,0,0,0.4)",
         display:"flex", flexDirection:"column", overflow:"hidden",
+        position:"relative",
+        transition:"width .22s ease, min-width .22s ease, max-width .22s ease",
       }}>
 
+        <button onMouseDown={e=>e.preventDefault()} onClick={()=>setLeftPanelOpen(false)} title="Свернуть левое меню" style={{
+          ...sideToggleBase,
+          right:"-12px",
+          borderRadius:"0 14px 14px 0",
+          clipPath:SIDE_TAB_CLIP_RIGHT,
+        }}><SideChevron dir="left"/></button>
+
         {/* Logo */}
-        <div style={{padding:"16px 14px 12px", display:"flex", alignItems:"center"}}>
+        <div style={{padding:"16px 14px 12px", display:"flex", alignItems:"center", columnGap:"12px"}}>
           <div style={{
             width:"36px", height:"36px", borderRadius:"10px",
             background: BG, boxShadow: SH_SM,
@@ -4801,18 +8252,269 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
 
         {/* МОИ ПРОЕКТЫ */}
         <div style={{padding:"0 10px 8px"}}>
-          <button onClick={()=>openProjectsList()} style={{
-            width:"100%", padding:"8px 12px",
-            background: BG, boxShadow: SH_SM,
-            border:`1px solid ${mc}44`, borderRadius:"10px",
-            color: mc, fontSize:"9px", cursor:"pointer",
-            fontFamily:"inherit", letterSpacing:"2px",
-            display:"flex", alignItems:"center", justifyContent:"center",
-            WebkitAppearance:"none",
+          <div style={{
+            display:"grid",
+            gridTemplateColumns:"repeat(4, minmax(0, 1fr))",
+            gap:"8px",
+            alignItems:"stretch",
           }}>
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{marginRight:"6px"}}><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-            МОИ ПРОЕКТЫ
-          </button>
+            <button
+              {...getTooltipAnchorProps("Мои проекты")}
+              aria-label="Мои проекты"
+              onClick={()=>openMyProjectsList()}
+              style={{
+                width:"100%", height:"40px",
+                background: BG, boxShadow: SH_SM,
+                border:`1px solid ${mc}44`, borderRadius:"10px",
+                color: mc, cursor:"pointer",
+                display:"flex", alignItems:"center", justifyContent:"center",
+                WebkitAppearance:"none",
+              }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H10l2 2h6.5A2.5 2.5 0 0 1 21 9.5v8A2.5 2.5 0 0 1 18.5 20h-13A2.5 2.5 0 0 1 3 17.5z"/>
+                <path d="M8 11h8"/>
+                <path d="M8 15h5"/>
+              </svg>
+            </button>
+            <button
+              {...getTooltipAnchorProps("Новый проект")}
+              aria-label="Новый проект"
+              onClick={()=>{newProject();setProjectsOpen(false);}}
+              style={{
+                width:"100%", height:"40px",
+                background:BG, boxShadow:SH_SM,
+                border:`1px solid ${mc}44`, borderRadius:"10px", color:mc,
+                cursor:"pointer",
+                display:"flex", alignItems:"center", justifyContent:"center",
+                WebkitAppearance:"none",
+              }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 5v14"/>
+                <path d="M5 12h14"/>
+              </svg>
+            </button>
+            <button
+              {...getTooltipAnchorProps("Карточки сцен")}
+              aria-label="Карточки сцен"
+              onClick={()=>openSceneCardsWindow()}
+              style={{
+                width:"100%", height:"40px",
+                background:BG, boxShadow:SH_SM,
+                border:`1px solid ${mc}44`, borderRadius:"10px", color:mc,
+                cursor:"pointer",
+                display:"flex", alignItems:"center", justifyContent:"center",
+                WebkitAppearance:"none",
+              }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="4" y="5" width="6" height="6" rx="1.2"/>
+                <rect x="14" y="5" width="6" height="6" rx="1.2"/>
+                <rect x="4" y="13" width="6" height="6" rx="1.2"/>
+                <rect x="14" y="13" width="6" height="6" rx="1.2"/>
+              </svg>
+            </button>
+            <button
+              {...getTooltipAnchorProps("Поиск в активном редакторе")}
+              aria-label="Поиск в активном редакторе"
+              onClick={editorSearchOpen ? closeEditorSearch : openEditorSearch}
+              style={{
+                width:"100%", height:"40px",
+                background:BG, boxShadow:SH_SM,
+                border:`1px solid ${mc}44`, borderRadius:"10px", color:mc,
+                cursor:"pointer",
+                display:"flex", alignItems:"center", justifyContent:"center",
+                WebkitAppearance:"none",
+              }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="11" cy="11" r="7"/>
+                <path d="m20 20-3.5-3.5"/>
+              </svg>
+            </button>
+          </div>
+
+          <div style={{
+            display:"grid",
+            gridTemplateColumns:"repeat(4, minmax(0, 1fr))",
+            gap:"8px",
+            alignItems:"stretch",
+            marginTop:"8px",
+          }}>
+            <button
+              {...getTooltipAnchorProps("Режим маркера")}
+              aria-label="Режим маркера"
+              onClick={()=>setMarkerModeOn(v=>!v)}
+              style={{
+                width:"100%", height:"40px",
+                background: markerModeOn ? mc+"33" : BG, boxShadow: SH_SM,
+                border:`1px solid ${markerModeOn ? mc : mc+"44"}`, borderRadius:"10px",
+                color: mc, cursor:"pointer",
+                display:"flex", alignItems:"center", justifyContent:"center",
+                WebkitAppearance:"none",
+              }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 21h4.5L19 9.5a2.12 2.12 0 0 0-3-3L4.5 18 3 21z"/>
+                <path d="M16 6l2 2"/>
+              </svg>
+            </button>
+            <button
+              {...getTooltipAnchorProps("Доп. кнопка 2")}
+              aria-label="Дополнительная кнопка 2"
+              onClick={()=>{}}
+              style={{
+                width:"100%", height:"40px",
+                background:BG, boxShadow:SH_SM,
+                border:`1px solid ${mc}44`, borderRadius:"10px", color:mc,
+                cursor:"pointer",
+                display:"flex", alignItems:"center", justifyContent:"center",
+                WebkitAppearance:"none",
+              }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 4 20 18H4z"/>
+                <path d="M12 9v4"/>
+                <circle cx="12" cy="16" r=".8" fill="currentColor" stroke="none"/>
+              </svg>
+            </button>
+            <button
+              {...getTooltipAnchorProps("Доп. кнопка 3")}
+              aria-label="Дополнительная кнопка 3"
+              onClick={()=>{}}
+              style={{
+                width:"100%", height:"40px",
+                background:BG, boxShadow:SH_SM,
+                border:`1px solid ${mc}44`, borderRadius:"10px", color:mc,
+                cursor:"pointer",
+                display:"flex", alignItems:"center", justifyContent:"center",
+                WebkitAppearance:"none",
+              }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M4 12c2.2-4 5.8-4 8 0s5.8 4 8 0"/>
+                <path d="M4 16c2.2-4 5.8-4 8 0s5.8 4 8 0"/>
+                <path d="M4 8c2.2-4 5.8-4 8 0s5.8 4 8 0"/>
+              </svg>
+            </button>
+            <button
+              {...getTooltipAnchorProps("Доп. кнопка 4")}
+              aria-label="Дополнительная кнопка 4"
+              onClick={()=>{}}
+              style={{
+                width:"100%", height:"40px",
+                background:BG, boxShadow:SH_SM,
+                border:`1px solid ${mc}44`, borderRadius:"10px", color:mc,
+                cursor:"pointer",
+                display:"flex", alignItems:"center", justifyContent:"center",
+                WebkitAppearance:"none",
+              }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 3 14.6 9.4 21 12l-6.4 2.6L12 21l-2.6-6.4L3 12l6.4-2.6z"/>
+              </svg>
+            </button>
+          </div>
+
+          {editorSearchOpen && (
+            <div
+              onMouseDown={e=>e.stopPropagation()}
+              onClick={e=>e.stopPropagation()}
+              style={{
+                marginTop:"8px",
+                background:BG,
+                boxShadow:SH_SM,
+                border:`1px solid ${mc}44`,
+                borderRadius:"10px",
+                color:mc,
+                padding:"8px 10px",
+                display:"flex",
+                flexDirection:"column",
+                gap:"8px",
+                position:"relative",
+                zIndex:24,
+                pointerEvents:"auto",
+              }}>
+              <div style={{
+                display:"flex",
+                alignItems:"center",
+                gap:"8px",
+                minHeight:"24px",
+                position:"relative",
+                zIndex:25,
+              }}>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{flexShrink:0}}>
+                  <circle cx="11" cy="11" r="7"/>
+                  <path d="m20 20-3.5-3.5"/>
+                </svg>
+                <input
+                  ref={searchInputRef}
+                  autoFocus
+                  value={editorSearchQuery}
+                  onMouseDown={e=>e.stopPropagation()}
+                  onClick={e=>e.stopPropagation()}
+                  onFocus={e=>e.stopPropagation()}
+                  onChange={e=>setEditorSearchQuery(e.target.value)}
+                  onKeyDown={e=>{
+                    e.stopPropagation();
+                    if (e.key === "Escape") {
+                      e.preventDefault();
+                      closeEditorSearch();
+                      return;
+                    }
+                  }}
+                  placeholder="Поиск / #тег"
+                  spellCheck={false}
+                  style={{
+                    flex:1,
+                    minWidth:0,
+                    background:"transparent",
+                    border:"none",
+                    outline:"none",
+                    color:T2,
+                    fontSize:"11px",
+                    fontFamily:"inherit",
+                    pointerEvents:"auto",
+                    position:"relative",
+                    zIndex:26,
+                  }}
+                />
+                <button
+                  title="Свернуть поиск"
+                  aria-label="Свернуть поиск"
+                  onClick={closeEditorSearch}
+                  style={{
+                    width:"24px", height:"24px", flexShrink:0,
+                    background:"transparent", border:"none", color:mc,
+                    cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center",
+                    WebkitAppearance:"none",
+                  }}>
+                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+                    <path d="M1 1l8 8"/>
+                    <path d="M9 1L1 9"/>
+                  </svg>
+                </button>
+              </div>
+
+              <div style={{
+                display:"flex",
+                alignItems:"center",
+                justifyContent:"space-between",
+                gap:"8px",
+                minHeight:"18px",
+              }}>
+                <div style={{
+                  color:editorSearchMatches.length ? T2 : T3,
+                  fontSize:"9px",
+                  letterSpacing:"1px",
+                  whiteSpace:"nowrap",
+                }}>
+                  {editorSearchMatches.length ? `НАЙДЕНО: ${editorSearchMatches.length}` : "НАЙДЕНО: 0"}
+                </div>
+                <div style={{
+                  color:T3,
+                  fontSize:"8px",
+                  letterSpacing:"1px",
+                  textAlign:"right",
+                }}>
+                  ПОДСВЕТКА В АКТИВНОМ РЕДАКТОРЕ
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Scene list */}
@@ -4918,64 +8620,110 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
                     else toggleSceneSelect(s.id);
                     return;
                   }
+                  if (mode === "film" && s.kind === "act") { setActiveSceneId(s.id); return; }
                   goToScene(s.id);
                 }}
                 style={{
                   padding:"8px 10px", borderRadius:"14px", cursor:"grab", marginBottom:"4px",
                   background: activeSceneId===s.id ? BG : "transparent",
                   boxShadow: activeSceneId===s.id ? SH_IN : "none",
-                  borderLeft:`3px solid ${selectedScenes.has(s.id)?mc:activeSceneId===s.id?mc:"transparent"}`,
+                  borderLeft:`3px solid ${selectedScenes.has(s.id)?(getSceneCardMetaById(s.id).color || mc):activeSceneId===s.id?(getSceneCardMetaById(s.id).color || mc):(getSceneCardMetaById(s.id).color||"transparent")}`,
                   transition:"all .22s",
                   opacity: dragSceneId===s.id ? 0 : 1,
                   userSelect:"none", WebkitUserSelect:"none",
                 }}>
-                <div style={{display:"flex", alignItems:"center"}}>
-                  {/* Checkbox for scenes, act-checkbox for acts */}
-                  {s.kind === "act" ? (
+                {s.kind === "act" ? (
+                  <div style={{display:"flex", alignItems:"center"}}>
                     <div onClick={e=>{if(_dragSceneId.current||_dragJustEnded.current)return;e.stopPropagation();toggleActSelect(s.actNum);}} style={{
-                      width:"16px",height:"16px",borderRadius:"5px",flexShrink:0,cursor:"pointer",marginRight:"6px",
-                      border:`2px solid ${scenes.filter(ss=>ss.kind==="scene"&&ss.actNum===s.actNum).every(ss=>selectedScenes.has(ss.id))&&scenes.filter(ss=>ss.kind==="scene"&&ss.actNum===s.actNum).length>0?mc:T3+"99"}`,
-                      background:scenes.filter(ss=>ss.kind==="scene"&&ss.actNum===s.actNum).every(ss=>selectedScenes.has(ss.id))&&scenes.filter(ss=>ss.kind==="scene"&&ss.actNum===s.actNum).length>0?mc:"transparent",
+                      width:"18px",height:"18px",borderRadius:"6px",flexShrink:0,cursor:"pointer",marginRight:"8px",
+                      border:`1px solid ${scenes.filter(ss=>ss.kind==="scene"&&ss.actNum===s.actNum).every(ss=>selectedScenes.has(ss.id))&&scenes.filter(ss=>ss.kind==="scene"&&ss.actNum===s.actNum).length>0?mc:T3+"55"}`,
+                      background:scenes.filter(ss=>ss.kind==="scene"&&ss.actNum===s.actNum).every(ss=>selectedScenes.has(ss.id))&&scenes.filter(ss=>ss.kind==="scene"&&ss.actNum===s.actNum).length>0?mc:T3+"14",
                       display:"flex",alignItems:"center",justifyContent:"center",
-                      transition:"border-color .15s",
-                    }}>{scenes.filter(ss=>ss.kind==="scene"&&ss.actNum===s.actNum).every(ss=>selectedScenes.has(ss.id))&&scenes.filter(ss=>ss.kind==="scene"&&ss.actNum===s.actNum).length>0&&<span style={{color:"#000",fontSize:"9px",fontWeight:"bold"}}>✓</span>}</div>
-                  ) : (
-                    <div onClick={e=>{if(_dragSceneId.current||_dragJustEnded.current)return;e.stopPropagation();toggleSceneSelect(s.id);}} style={{
-                      width:"16px",height:"16px",borderRadius:"5px",flexShrink:0,cursor:"pointer",marginRight:"6px",
-                      border:`2px solid ${selectedScenes.has(s.id)?mc:T3+"99"}`,
-                      background:selectedScenes.has(s.id)?mc:"transparent",
-                      display:"flex",alignItems:"center",justifyContent:"center",
-                      transition:"border-color .15s",
-                    }}>{selectedScenes.has(s.id)&&<span style={{color:"#000",fontSize:"9px",fontWeight:"bold"}}>✓</span>}</div>
-                  )}
-                  <span style={{color: activeSceneId===s.id ? mc : T3, fontSize:"10px", minWidth:"16px", flexShrink:0}}>{s.num}.</span>
-                  <span style={{
-                    color: s.kind==="act" ? mc : activeSceneId===s.id ? T1 : T2,
-                    fontSize: s.kind==="act" ? "10px" : "11px",
-                    fontWeight: s.kind==="act" ? "bold" : "normal",
-                    letterSpacing: s.kind==="act" ? "1px" : "0",
-                    lineHeight:"1.4",
-                    whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis",
-                    flex:1, minWidth:0,
-                  }}>{s.text || "—"}</span>
-                  {/* Dup/Del buttons — показываем при hover через CSS не работает в inline, покажем всегда маленькими */}
-                  {s.kind !== "act" && (
-                    <div style={{display:"flex", flexShrink:0}}>
-                      <button onMouseDown={e=>{e.stopPropagation();e.preventDefault();}} onClick={e=>{e.stopPropagation();dupScene(s.id);}} style={{
-                        background:`${mc}11`,border:`1px solid ${mc}33`,borderRadius:"4px",color:mc,fontSize:"10px",cursor:"pointer",padding:"1px 4px",lineHeight:1,
-                      }}>⧉</button>
-                      <button onMouseDown={e=>{e.stopPropagation();e.preventDefault();}} onClick={e=>{e.stopPropagation();delScene(s.id);}} style={{
-                        background:"#f8717108",border:"1px solid #f8717118",borderRadius:"4px",color:"#f87171",fontSize:"11px",cursor:"pointer",padding:"1px 4px",lineHeight:1,
-                      }}><svg width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="#f87171" strokeWidth="1.5" strokeLinecap="round"><line x1="1" y1="1" x2="7" y2="7"/><line x1="7" y1="1" x2="1" y2="7"/></svg></button>
-                    </div>
-                  )}
-                </div>
-                {s.cast && s.kind !== "act" && (
-                  <div style={{color:T3, fontSize:"10px", paddingLeft:"20px", marginTop:"2px",
-                    whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis"}}>
-                    {s.cast}
+                      boxShadow: scenes.filter(ss=>ss.kind==="scene"&&ss.actNum===s.actNum).every(ss=>selectedScenes.has(ss.id))&&scenes.filter(ss=>ss.kind==="scene"&&ss.actNum===s.actNum).length>0 ? `0 0 0 1px ${mc}22` : "none",
+                      transition:"all .15s",
+                    }}>{scenes.filter(ss=>ss.kind==="scene"&&ss.actNum===s.actNum).every(ss=>selectedScenes.has(ss.id))&&scenes.filter(ss=>ss.kind==="scene"&&ss.actNum===s.actNum).length>0&&<span style={{color:"#000",fontSize:"10px",fontWeight:"bold",lineHeight:1}}>✓</span>}</div>
+                    {mode!=="film" && <span style={{color: activeSceneId===s.id ? (getSceneCardMetaById(s.id).color || mc) : T3, fontSize:"10px", minWidth:"16px", flexShrink:0}}>{s.num}.</span>}
+                    <span style={{
+                      color: (getSceneCardMetaById(s.id).color || mc),
+                      fontSize:"10px",
+                      fontWeight:"bold",
+                      letterSpacing:"1px",
+                      lineHeight:"1.4",
+                      whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis",
+                      flex:1, minWidth:0,
+                    }}>{s.text || "—"}</span>
                   </div>
-                )}
+                ) : (()=>{
+                  const cardMeta = getDesktopSceneCardMeta(s);
+                  return (
+                    <div style={{display:"flex", alignItems:"flex-start"}}>
+                      <div onClick={e=>{if(_dragSceneId.current||_dragJustEnded.current)return;e.stopPropagation();toggleSceneSelect(s.id);}} style={{
+                        width:"18px",height:"18px",borderRadius:"6px",flexShrink:0,cursor:"pointer",marginRight:"8px",marginTop:"0px",
+                        border:`1px solid ${selectedScenes.has(s.id)?mc:T3+"55"}`,
+                        background:selectedScenes.has(s.id)?mc:T3+"14",
+                        display:"flex",alignItems:"center",justifyContent:"center",
+                        boxShadow:selectedScenes.has(s.id)?`0 0 0 1px ${mc}22`:"none",
+                        transition:"all .15s",
+                      }}>{selectedScenes.has(s.id)&&<span style={{color:"#000",fontSize:"10px",fontWeight:"bold",lineHeight:1}}>✓</span>}</div>
+
+                      <div style={{flex:1, minWidth:0}}>
+                        <div style={{display:"flex", alignItems:"baseline", minWidth:0}}>
+                          <span style={{color: activeSceneId===s.id ? (cardMeta.cardMeta?.color || mc) : T3, fontSize:"10px", minWidth:"18px", flexShrink:0, lineHeight:"1.22"}}>{s.num}.</span>
+                          <span style={{
+                            color: activeSceneId===s.id ? T1 : T2,
+                            fontSize:"11px",
+                            lineHeight:"1.22",
+                            whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis",
+                            flex:1, minWidth:0,
+                          }}>{s.text || "—"}</span>
+                        </div>
+
+                        {cardMeta.castText && (
+                          <div style={{
+                            color:T3,
+                            fontSize:"10px",
+                            paddingLeft:"18px",
+                            marginTop:"2px",
+                            lineHeight:"1.12",
+                            whiteSpace:"nowrap",
+                            overflow:"hidden",
+                            textOverflow:"ellipsis"
+                          }}>
+                            {cardMeta.castText}
+                          </div>
+                        )}
+
+                        {cardMeta.previewText && (
+                          <div style={{
+                            color: activeSceneId===s.id ? T2 : T3,
+                            fontSize:"10px",
+                            paddingLeft:"18px",
+                            marginTop: cardMeta.castText ? "1px" : "2px",
+                            lineHeight:"1.12",
+                            display:"-webkit-box",
+                            WebkitBoxOrient:"vertical",
+                            WebkitLineClamp: cardMeta.previewLines,
+                            overflow:"hidden",
+                            textOverflow:"ellipsis",
+                            wordBreak:"break-word",
+                            maxHeight: cardMeta.previewLines===2 ? "2.24em" : "1.12em"
+                          }}>
+                            {cardMeta.previewText}
+                          </div>
+                        )}
+                      </div>
+
+                      <div style={{display:"flex", flexShrink:0, marginLeft:"6px"}}>
+                        <button onMouseDown={e=>{e.stopPropagation();e.preventDefault();}} onClick={e=>{e.stopPropagation();dupScene(s.id);}} style={{
+                          background:`${mc}11`,border:`1px solid ${mc}33`,borderRadius:"4px",color:mc,fontSize:"10px",cursor:"pointer",padding:"1px 4px",lineHeight:1,
+                        }}>⧉</button>
+                        <button onMouseDown={e=>{e.stopPropagation();e.preventDefault();}} onClick={e=>{e.stopPropagation();delScene(s.id);}} style={{
+                          background:"#f8717108",border:"1px solid #f8717118",borderRadius:"4px",color:"#f87171",fontSize:"11px",cursor:"pointer",padding:"1px 4px",lineHeight:1,
+                        }}><svg width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="#f87171" strokeWidth="1.5" strokeLinecap="round"><line x1="1" y1="1" x2="7" y2="7"/><line x1="7" y1="1" x2="1" y2="7"/></svg></button>
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
           ))}
@@ -5004,16 +8752,56 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
           })()}
         </div>
 
-        {/* New scene */}
+        {/* Film mobile: scene/act buttons. Other modes keep the single add button. */}
         <div style={{padding:"8px 10px"}}>
-          <button onClick={()=>{ const last=blocks[blocks.length-1]; if(last) addAfter(last.id,"scene"); }} style={{
-            width:"100%", padding:"10px",
-            background: BG, boxShadow: SH_SM,
-            border:"none", borderRadius:"14px",
-            color: T2, fontSize:"10px", cursor:"pointer",
-            fontFamily:"inherit", letterSpacing:"2px",
-            transition:"all .22s",
-          }}>+ НОВАЯ СЦЕНА</button>
+          {mode === "film" ? (
+            <div style={{display:"flex", gap:"8px"}}>
+              <button onClick={()=>{ const last=blocks[blocks.length-1]; if(last) addAfter(last.id,"scene"); }} style={{
+                flex:1, padding:"10px",
+                background: BG, boxShadow: SH_SM,
+                border:"none", borderRadius:"14px",
+                color: T2, fontSize:"10px", cursor:"pointer",
+                fontFamily:"inherit", letterSpacing:"2px",
+                transition:"all .22s",
+              }}>СЦЕНА</button>
+              <button onClick={()=>{ insertFilmAct(); }} style={{
+                flex:1, padding:"10px",
+                background: BG, boxShadow: SH_SM,
+                border:"none", borderRadius:"14px",
+                color: T2, fontSize:"10px", cursor:"pointer",
+                fontFamily:"inherit", letterSpacing:"2px",
+                transition:"all .22s",
+              }}>АКТ</button>
+            </div>
+          ) : mode === "play" ? (
+            <div style={{display:"flex", gap:"8px"}}>
+              <button onClick={()=>{ const last=blocks[blocks.length-1]; if(last) addAfter(last.id,"scene"); }} style={{
+                flex:1, padding:"10px",
+                background: BG, boxShadow: SH_SM,
+                border:"none", borderRadius:"14px",
+                color: T2, fontSize:"10px", cursor:"pointer",
+                fontFamily:"inherit", letterSpacing:"2px",
+                transition:"all .22s",
+              }}>+ СЦЕНА</button>
+              <button onClick={()=>{ insertPlayAct(); }} style={{
+                flex:1, padding:"10px",
+                background: BG, boxShadow: SH_SM,
+                border:"none", borderRadius:"14px",
+                color: T2, fontSize:"10px", cursor:"pointer",
+                fontFamily:"inherit", letterSpacing:"2px",
+                transition:"all .22s",
+              }}>+ АКТ</button>
+            </div>
+          ) : (
+            <button onClick={()=>{ const last=blocks[blocks.length-1]; if(last) addAfter(last.id,"scene"); }} style={{
+              width:"100%", padding:"10px",
+              background: BG, boxShadow: SH_SM,
+              border:"none", borderRadius:"14px",
+              color: T2, fontSize:"10px", cursor:"pointer",
+              fontFamily:"inherit", letterSpacing:"2px",
+              transition:"all .22s",
+            }}>+ НОВАЯ СЦЕНА</button>
+          )}
         </div>
 
         {/* Credits */}
@@ -5052,22 +8840,42 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
           </div>
         </div>
       </div>
-
+      ) : (
+        <div style={{
+          width:`${leftSidebarW}px`, minWidth:`${leftSidebarW}px`, maxWidth:`${leftSidebarW}px`,
+          background: SURF,
+          boxShadow: "4px 0 20px rgba(0,0,0,0.4)",
+          display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center",
+          overflow:"hidden", position:"relative", flexShrink:0,
+          transition:"width .22s ease, min-width .22s ease, max-width .22s ease",
+        }}>
+          <button onMouseDown={e=>e.preventDefault()} onClick={()=>setLeftPanelOpen(true)} title="Развернуть левое меню" style={{
+            ...sideToggleBase,
+            right:"-12px",
+            borderRadius:"0 14px 14px 0",
+            color:mc,
+            clipPath:SIDE_TAB_CLIP_RIGHT,
+          }}><SideChevron dir="right"/></button>
+          <div style={sideRailLabelStyle}>МЕНЮ</div>
+        </div>
+      )}
       {/* ══ DRAG HANDLE: LEFT ══ */}
-      <div
-        onMouseDown={e=>{
-          e.preventDefault();
-          const startX=e.clientX, startW=leftW;
-          const onMove=ev=>setLeftW(Math.max(160,Math.min(360,startW+(ev.clientX-startX))));
-          const onUp=()=>{window.removeEventListener("mousemove",onMove);window.removeEventListener("mouseup",onUp);};
-          window.addEventListener("mousemove",onMove);
-          window.addEventListener("mouseup",onUp);
-        }}
-        style={{width:"4px",cursor:"ew-resize",background:"transparent",flexShrink:0,zIndex:10,
-          transition:"background .15s"}}
-        onMouseEnter={e=>e.currentTarget.style.background=`${ACCENT}55`}
-        onMouseLeave={e=>e.currentTarget.style.background="transparent"}
-      />
+      {leftPanelOpen && (
+        <div
+          onMouseDown={e=>{
+            e.preventDefault();
+            const startX=e.clientX, startW=leftW;
+            const onMove=ev=>setLeftW(Math.max(160,Math.min(360,startW+(ev.clientX-startX))));
+            const onUp=()=>{window.removeEventListener("mousemove",onMove);window.removeEventListener("mouseup",onUp);};
+            window.addEventListener("mousemove",onMove);
+            window.addEventListener("mouseup",onUp);
+          }}
+          style={{width:"4px",cursor:"ew-resize",background:"transparent",flexShrink:0,zIndex:10,
+            transition:"background .15s"}}
+          onMouseEnter={e=>e.currentTarget.style.background=`${ACCENT}55`}
+          onMouseLeave={e=>e.currentTarget.style.background="transparent"}
+        />
+      )}
 
       {/* ══ EDITOR AREA ══ */}
       <div style={{flex:1, display:"flex", flexDirection:"column", overflow:"hidden"}}>
@@ -5103,19 +8911,31 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
               }}/>
               <span style={{fontSize:"9px", color:T3, letterSpacing:"1px", whiteSpace:"nowrap"}}>{saved?"СОХР.":"СОХР..."}</span>
             </div>
-            <button onMouseDown={e=>e.preventDefault()} onClick={()=>setSpellOn(v=>!v)}
-              title={spellOn?"Выключить проверку орфографии":"Включить проверку орфографии"}
+            <button onMouseDown={e=>e.preventDefault()} onClick={()=>setSheetOn(v=>!v)}
+              title={sheetOn?"Скрыть лист":"Показать лист"}
               style={{
                 padding:"4px 10px", position:"relative", marginRight:"6px",
-                background: spellOn ? mc+"33" : BG,
-                boxShadow: spellOn ? SH_IN : SH_SM,
+                background: sheetOn ? mc+"33" : BG,
+                boxShadow: sheetOn ? SH_IN : SH_SM,
                 border:"none", borderRadius:"8px",
-                color: spellOn ? mc : T3,
+                color: sheetOn ? mc : T3,
                 fontSize:"10px", cursor:"pointer",
                 fontFamily:"inherit", letterSpacing:"1px",
                 transition:"all .2s", whiteSpace:"nowrap",
                 WebkitAppearance:"none",
-              }}>АБВ</button>
+              }}>ЛИСТ</button>
+            <div style={{display:"flex",alignItems:"center"}}>
+              <button onMouseDown={e=>e.preventDefault()} onClick={undo} style={{
+                background:"transparent",border:"none",color:T3,
+                cursor:"pointer",padding:"4px 6px",
+                display:"flex",alignItems:"center",justifyContent:"center",
+              }}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 7v6h6"/><path d="M3 13C5 7 11 4 17 6s9 8 7 14"/></svg></button>
+              <button onMouseDown={e=>e.preventDefault()} onClick={redo} style={{
+                background:"transparent",border:"none",color:T3,
+                cursor:"pointer",padding:"4px 6px",
+                display:"flex",alignItems:"center",justifyContent:"center",
+              }}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 7v6h-6"/><path d="M21 13C19 7 13 4 7 6S-2 14 0 20"/></svg></button>
+            </div>
             <div style={{display:"flex",alignItems:"center", marginRight:"6px"}}>
               <button onMouseDown={e=>e.preventDefault()} onClick={()=>setZoom(z=>Math.max(50,z-10))}
                 style={{width:"22px",height:"22px",background:BG,boxShadow:SH_SM,border:"none",borderRadius:"6px",color:T2,fontSize:"14px",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",lineHeight:1,WebkitAppearance:"none"}}>−</button>
@@ -5256,7 +9076,8 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
                     {noteToolbar.slice(0,4).map((t,i)=> t.sep
                       ? <div key={i} style={{width:"1px",height:"18px",background:T3+"33",marginRight:"6px"}}/>
                       : <button key={i}
-                          title={t.title}
+                          {...(t.cmd==="removeFormat" ? getTooltipAnchorProps("Сбросить формат") : {})}
+                          title={t.cmd==="removeFormat" ? undefined : t.title}
                           onMouseDown={e=>{
                             e.preventDefault();
                             const editor = noteEditorRef.current;
@@ -5282,7 +9103,7 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
                     )}
                     <div style={{position:"relative",marginRight:"3px"}}>
                       <button
-                        title="Цвет текста"
+                        {...getTooltipAnchorProps("Цвет текста")}
                         onMouseDown={e=>{e.preventDefault(); e.stopPropagation(); saveNoteSelection(); setNoteColorOpen(v=>!v);}}
                         style={{
                           width:"26px",height:"26px",borderRadius:"6px",
@@ -5430,7 +9251,7 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
                       backgroundAttachment:"local",
                     }}
                   />
-                  <style>{`[contenteditable]:empty:before{content:attr(data-placeholder);color:${T3};pointer-events:none;}`}</style>
+                  <style>{`[contenteditable]:empty:before{content:attr(data-placeholder);color:${T3};pointer-events:none;}::highlight(ow-note-search){background:rgba(250,204,21,0.32);}`}</style>
                 </div>
               );
             })()}
@@ -5440,41 +9261,555 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
                 items={playHeader} setItems={setPlayHeader}
                 focKey={playHeaderFoc} setFocKey={setPlayHeaderFoc}
                 T1={T1} T2={T2} T3={T3} SURF={SURF} BG={BG} mc={mc} SH_SM={SH_SM} docFont={docFont}
+                searchScope="play"
+                renderSearchOverlay={renderSearchOverlay}
               />
             )}
             {mode!=="note" && (()=>{
-              // А4 при 96dpi = 1123px, минус паддинги 48+48 = 1027px рабочей зоны
-              const A4_H = 931; // рабочая высота A4 за вычетом отступов (1123-96-96)
+              // А4 при 96dpi = 1123px, минус вертикальные паддинги 48+48 = 1027px рабочей зоны
+              const A4_H = 1027; // рабочая высота A4 за вычетом вертикальных отступов (1123-48-48)
               const FILM_PAGE_SPLIT_TYPES = ["action","paren","note"];
+              const PLAY_PAGE_SPLIT_TYPES = ["stage","line","note","cast"];
               const pageBreaks = new Map(); // bi -> charSplit (-1 = целый блок на новую стр)
-              let runH = 0;
-              const getBlockMetrics = (block, text, continued=false) => {
-                const def = defs.find(d=>d.type===block.type)||defs[0];
-                const basePt = parseInt(def.st?.paddingTop) || 0;
-                const pt  = continued ? 0 : basePt;
-                const pb  = parseInt(def.st?.paddingBottom)|| 0;
-                const fs  = parseFloat(def.st?.fontSize)  || (mode==="play" ? 15 : 14);
-                const lh  = parseFloat(def.st?.lineHeight) || (mode==="play" ? 1.7 : 1.85);
-                let colW;
-                if (mode==="film") {
-                  if (block.type==="dialogue") colW = 340;
-                  else if (block.type==="paren") colW = 300;
-                  else if (block.type==="char") colW = 300;
-                  else colW = 566;
-                } else { colW = 670; }
-                const charsPerLine = Math.max(20, Math.round(colW / (fs * 0.6)));
-                const safeText = (text && text.length) ? text : " ";
-                const totalLines = Math.max(1, Math.ceil(safeText.length / charsPerLine));
-                const lineH = fs * lh;
-                const blockH = pt + pb + totalLines * lineH + 10;
-                return { def, pt, pb, fs, lh, colW, charsPerLine, lineH, blockH };
+              const estimateDesktopTitleEditorH = () => {
+                const items = mode === "media" ? mediaHeader : mode === "short" ? contentHeader : [];
+                if (!items.length || (mode !== "media" && mode !== "short")) return 0;
+                const rowsH = items.reduce((sum, item) => {
+                  if (item.type === "spacer") return sum + Math.max(34, (item.size || 24) + 16);
+                  const text = String(item.text || item.label || "");
+                  const lines = Math.max(1, text.split(/\n+/).length);
+                  return sum + 58 + Math.max(0, lines - 1) * 22;
+                }, 0);
+                const logoH = mode === "short" ? 96 : 0;
+                const focusExtra = mode === "media"
+                  ? (mediaHeaderFoc ? 48 : 0)
+                  : (contentHeaderFoc ? 48 : 0);
+                return Math.min(A4_H - 140, rowsH + logoH + 92 + focusExtra);
               };
+              const desktopTitleEditorH = estimateDesktopTitleEditorH();
+
+              let runH = desktopTitleEditorH;
+
+              const PAGE_TEXT_W = 670;
+
+              const getFilmMeasureEl = () => {
+
+                if (typeof document === "undefined") return null;
+
+                let el = document.getElementById("ow-film-measure");
+
+                if (!el) {
+
+                  el = document.createElement("textarea");
+
+                  el.id = "ow-film-measure";
+
+                  el.setAttribute("aria-hidden", "true");
+
+                  el.tabIndex = -1;
+
+                  Object.assign(el.style, {
+
+                    position:"absolute",
+
+                    left:"-99999px",
+
+                    top:"0",
+
+                    width:PAGE_TEXT_W + "px",
+
+                    minHeight:"0",
+
+                    height:"0",
+
+                    visibility:"hidden",
+
+                    pointerEvents:"none",
+
+                    resize:"none",
+
+                    overflow:"hidden",
+
+                    whiteSpace:"pre-wrap",
+
+                    boxSizing:"border-box",
+
+                    border:"none",
+
+                    outline:"none",
+
+                    margin:"0",
+
+                    background:"transparent",
+
+                    zIndex:"-1",
+
+                  });
+
+                  document.body.appendChild(el);
+
+                }
+
+                return el;
+
+              };
+
+              const getPlayMeasureEl = () => {
+
+                if (typeof document === "undefined") return null;
+
+                let el = document.getElementById("ow-play-measure");
+
+                if (!el) {
+
+                  el = document.createElement("textarea");
+
+                  el.id = "ow-play-measure";
+
+                  el.setAttribute("aria-hidden", "true");
+
+                  el.tabIndex = -1;
+
+                  Object.assign(el.style, {
+
+                    position:"absolute",
+
+                    left:"-99999px",
+
+                    top:"0",
+
+                    width:PAGE_TEXT_W + "px",
+
+                    minHeight:"0",
+
+                    height:"0",
+
+                    visibility:"hidden",
+
+                    pointerEvents:"none",
+
+                    resize:"none",
+
+                    overflow:"hidden",
+
+                    whiteSpace:"pre-wrap",
+
+                    boxSizing:"border-box",
+
+                    border:"none",
+
+                    outline:"none",
+
+                    margin:"0",
+
+                    background:"transparent",
+
+                    zIndex:"-1",
+
+                  });
+
+                  document.body.appendChild(el);
+
+                }
+
+                return el;
+
+              };
+
+              const getPlayLineMeasureEl = () => {
+
+                if (typeof document === "undefined") return null;
+
+                let root = document.getElementById("ow-play-line-measure");
+
+                if (!root) {
+
+                  root = document.createElement("div");
+
+                  root.id = "ow-play-line-measure";
+
+                  root.setAttribute("aria-hidden", "true");
+
+                  Object.assign(root.style, {
+
+                    position:"absolute",
+
+                    left:"-99999px",
+
+                    top:"0",
+
+                    width:PAGE_TEXT_W + "px",
+
+                    visibility:"hidden",
+
+                    pointerEvents:"none",
+
+                    boxSizing:"border-box",
+
+                    margin:"0",
+
+                    background:"transparent",
+
+                    zIndex:"-1",
+
+                  });
+
+                  const row = document.createElement("div");
+                  row.className = "ow-play-line-measure-row";
+                  Object.assign(row.style, {
+                    display:"flex",
+                    alignItems:"flex-start",
+                    width:"100%",
+                    boxSizing:"border-box",
+                    fontFamily:"'Times New Roman',Times,serif",
+                    fontSize:"15px",
+                    lineHeight:"1.7",
+                  });
+
+                  const name = document.createElement("span");
+                  name.className = "ow-play-line-measure-name";
+                  Object.assign(name.style, {
+                    fontWeight:"700",
+                    flexShrink:"0",
+                    padding:"0",
+                    margin:"0",
+                    minWidth:"30px",
+                    whiteSpace:"pre",
+                  });
+
+                  const dot = document.createElement("span");
+                  dot.className = "ow-play-line-measure-dot";
+                  dot.textContent = ".";
+                  Object.assign(dot.style, {
+                    fontWeight:"700",
+                    marginRight:"7px",
+                    flexShrink:"0",
+                    whiteSpace:"pre",
+                  });
+
+                  const body = document.createElement("div");
+                  body.className = "ow-play-line-measure-body";
+                  Object.assign(body.style, {
+                    flex:"1 1 auto",
+                    minWidth:"0",
+                    whiteSpace:"pre-wrap",
+                    overflowWrap:"break-word",
+                    wordBreak:"normal",
+                    padding:"0",
+                    margin:"0",
+                    boxSizing:"border-box",
+                  });
+
+                  row.appendChild(name);
+                  row.appendChild(dot);
+                  row.appendChild(body);
+                  root.appendChild(row);
+                  document.body.appendChild(root);
+
+                }
+
+                return root;
+
+              };
+
+              const getBlockMetrics = (block, text, continued=false) => {
+
+                const def = defs.find(d=>d.type===block.type)||defs[0];
+
+                const basePt = parseInt(def.st?.paddingTop) || 0;
+
+                const pt  = continued ? 0 : basePt;
+
+                const pb  = parseInt(def.st?.paddingBottom)|| 0;
+
+                const fs  = parseFloat(def.st?.fontSize)  || (mode==="play" ? 15 : 14);
+
+                const lh  = parseFloat(def.st?.lineHeight) || (mode==="play" ? 1.7 : 1.85);
+
+                let colW;
+
+                if (mode==="film") {
+
+                  if (block.type==="dialogue") colW = 340;
+
+                  else if (block.type==="paren") colW = 300;
+
+                  else if (block.type==="char") colW = 300;
+
+                  else colW = 566;
+
+                } else { colW = 670; }
+
+                const charsPerLine = Math.max(20, Math.round(colW / (fs * 0.6)));
+
+                const safeText = (text && text.length) ? text : " ";
+
+                const lineH = fs * lh;
+
+
+                if (mode === "film") {
+
+                  const el = getFilmMeasureEl();
+
+                  if (el) {
+
+                    const padL = parseInt(def.st?.paddingLeft) || 0;
+
+                    const padR = parseInt(def.st?.paddingRight) || 0;
+
+                    el.value = safeText;
+
+                    el.rows = 1;
+
+                    el.style.width = PAGE_TEXT_W + "px";
+
+                    el.style.fontFamily = "'Courier New',Courier,monospace";
+
+                    el.style.fontSize = fs + "px";
+
+                    el.style.lineHeight = String(lh);
+
+                    el.style.paddingTop = pt + "px";
+
+                    el.style.paddingBottom = pb + "px";
+
+                    el.style.paddingLeft = padL + "px";
+
+                    el.style.paddingRight = padR + "px";
+
+                    el.style.fontStyle = block.italic ? "italic" : (def.st?.fontStyle || "normal");
+
+                    el.style.fontWeight = block.bold ? "bold" : block.semibold ? "600" : (def.st?.fontWeight || "400");
+
+                    el.style.textTransform = def.st?.textTransform || "none";
+
+                    el.style.textAlign = def.st?.textAlign || "left";
+
+                    el.style.letterSpacing = def.st?.letterSpacing || "normal";
+
+                    el.style.borderLeft = def.st?.borderLeft || "none";
+
+                    el.style.borderRight = "none";
+
+                    el.style.borderTop = "none";
+
+                    el.style.borderBottom = "none";
+
+                    el.style.height = "0px";
+
+                    const blockH = el.scrollHeight + 10;
+
+                    return { def, pt, pb, fs, lh, colW, charsPerLine, lineH, blockH };
+
+                  }
+
+                }
+
+                if (mode === "play") {
+
+                  if (block.type === "line") {
+
+                    const root = getPlayLineMeasureEl();
+
+                    if (root) {
+
+                      const row = root.firstChild;
+                      const nameEl = row && row.childNodes ? row.childNodes[0] : null;
+                      const dotEl = row && row.childNodes ? row.childNodes[1] : null;
+                      const bodyEl = row && row.childNodes ? row.childNodes[2] : null;
+
+                      root.style.width = PAGE_TEXT_W + "px";
+                      root.style.paddingTop = pt + "px";
+                      root.style.paddingBottom = pb + "px";
+
+                      if (row) {
+                        row.style.paddingTop = "0px";
+                        row.style.paddingBottom = "0px";
+                        row.style.fontSize = fs + "px";
+                        row.style.lineHeight = String(lh);
+                      }
+                      if (nameEl) {
+                        nameEl.textContent = block.name || "";
+                        nameEl.style.fontSize = fs + "px";
+                        nameEl.style.lineHeight = String(lh);
+                        nameEl.style.fontStyle = block.italic ? "italic" : "normal";
+                      }
+                      if (dotEl) {
+                        dotEl.style.fontSize = fs + "px";
+                        dotEl.style.lineHeight = String(lh);
+                        dotEl.style.fontStyle = block.italic ? "italic" : "normal";
+                      }
+                      if (bodyEl) {
+                        bodyEl.textContent = safeText;
+                        bodyEl.style.fontSize = fs + "px";
+                        bodyEl.style.lineHeight = String(lh);
+                        bodyEl.style.fontStyle = block.italic ? "italic" : "normal";
+                        bodyEl.style.fontWeight = block.bold ? "bold" : block.semibold ? "600" : "400";
+                      }
+
+                      const blockH = root.scrollHeight + 10;
+
+                      return { def, pt, pb, fs, lh, colW, charsPerLine, lineH, blockH };
+
+                    }
+
+                  } else {
+
+                    const el = getPlayMeasureEl();
+
+                    if (el) {
+
+                      const padL = parseInt(def.st?.paddingLeft) || 0;
+
+                      const padR = parseInt(def.st?.paddingRight) || 0;
+
+                      el.value = safeText;
+
+                      el.rows = 1;
+
+                      el.style.width = PAGE_TEXT_W + "px";
+
+                      el.style.fontFamily = "'Times New Roman',Times,serif";
+
+                      el.style.fontSize = fs + "px";
+
+                      el.style.lineHeight = String(lh);
+
+                      el.style.paddingTop = pt + "px";
+
+                      el.style.paddingBottom = pb + "px";
+
+                      el.style.paddingLeft = padL + "px";
+
+                      el.style.paddingRight = padR + "px";
+
+                      el.style.fontStyle = block.italic ? "italic" : (def.st?.fontStyle || "normal");
+
+                      el.style.fontWeight = block.bold ? "bold" : block.semibold ? "600" : (def.st?.fontWeight || "400");
+
+                      el.style.textTransform = def.st?.textTransform || "none";
+
+                      el.style.textAlign = def.st?.textAlign || "left";
+
+                      el.style.letterSpacing = def.st?.letterSpacing || "normal";
+
+                      el.style.borderLeft = def.st?.borderLeft || "none";
+
+                      el.style.borderRight = "none";
+
+                      el.style.borderTop = "none";
+
+                      el.style.borderBottom = "none";
+
+                      el.style.height = "0px";
+
+                      const blockH = el.scrollHeight + 10;
+
+                      return { def, pt, pb, fs, lh, colW, charsPerLine, lineH, blockH };
+
+                    }
+
+                  }
+
+                }
+
+
+                const totalLines = Math.max(1, Math.ceil(safeText.length / charsPerLine));
+
+                const blockH = pt + pb + totalLines * lineH + 10;
+
+                return { def, pt, pb, fs, lh, colW, charsPerLine, lineH, blockH };
+
+              };
+
               const findWordSplit = (text, approx) => {
+
                 if (!text || text.length < 2) return -1;
+
                 let splitAt = Math.min(text.length - 1, Math.max(1, approx));
+
                 while (splitAt > 0 && text[splitAt] !== ' ' && text[splitAt] !== '\n') splitAt--;
+
                 if (splitAt <= 0) splitAt = Math.min(text.length - 1, Math.max(1, approx));
+
                 return splitAt > 0 && splitAt < text.length ? splitAt : -1;
+
+              };
+
+              const findFilmSplitByMeasure = (block, text, remaining, continued=false) => {
+
+                if (!text || text.length < 2 || remaining <= 0) return -1;
+
+                let lo = 1;
+
+                let hi = text.length - 1;
+
+                let best = -1;
+
+                while (lo <= hi) {
+
+                  const mid = Math.floor((lo + hi) / 2);
+
+                  const midH = getBlockMetrics(block, text.substring(0, mid), continued).blockH;
+
+                  if (midH <= remaining) {
+
+                    best = mid;
+
+                    lo = mid + 1;
+
+                  } else {
+
+                    hi = mid - 1;
+
+                  }
+
+                }
+
+                if (best <= 0 || best >= text.length) return -1;
+
+                const wordSplit = findWordSplit(text, best);
+
+                return (wordSplit > 0 && wordSplit < text.length) ? wordSplit : best;
+
+              };
+
+              const findPlaySplitByMeasure = (block, text, remaining, continued=false) => {
+
+                if (!text || text.length < 2 || remaining <= 0) return -1;
+
+                let lo = 1;
+
+                let hi = text.length - 1;
+
+                let best = -1;
+
+                while (lo <= hi) {
+
+                  const mid = Math.floor((lo + hi) / 2);
+
+                  const midH = getBlockMetrics(block, text.substring(0, mid), continued).blockH;
+
+                  if (midH <= remaining) {
+
+                    best = mid;
+
+                    lo = mid + 1;
+
+                  } else {
+
+                    hi = mid - 1;
+
+                  }
+
+                }
+
+                if (best <= 0 || best >= text.length) return -1;
+
+                const wordSplit = findWordSplit(text, best);
+
+                return (wordSplit > 0 && wordSplit < text.length) ? wordSplit : best;
+
               };
               const pageRemaining = () => {
                 const used = runH % A4_H;
@@ -5487,23 +9822,13 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
               };
 
               blocks.forEach((block, bi) => {
-                const def = defs.find(d=>d.type===block.type)||defs[0];
-                const pt  = parseInt(def.st?.paddingTop)  || 0;
-                const pb  = parseInt(def.st?.paddingBottom)|| 0;
-                const fs  = parseFloat(def.st?.fontSize)  || (mode==="play" ? 15 : 14);
-                const lh  = parseFloat(def.st?.lineHeight) || (mode==="play" ? 1.7 : 1.85);
-                let colW;
-                if (mode==="film") {
-                  if (block.type==="dialogue") colW = 340;
-                  else if (block.type==="paren") colW = 300;
-                  else if (block.type==="char") colW = 300;
-                  else colW = 566;
-                } else { colW = 670; }
-                const charsPerLine = Math.max(20, Math.round(colW / (fs * 0.6)));
+                if (mode === "film" && block.type === "act") return;
+                const metrics = getBlockMetrics(block, block.text || "", false);
                 const text = block.text || " ";
-                const totalLines = Math.max(1, Math.ceil(text.length / charsPerLine));
-                const lineH = fs * lh;
-                const blockH = pt + pb + totalLines * lineH + 10;
+                const pt = metrics.pt;
+                const lineH = metrics.lineH;
+                const charsPerLine = metrics.charsPerLine;
+                const blockH = metrics.blockH;
                 const pageStart = Math.floor(runH / A4_H);
                 const pageEnd = Math.floor((runH + blockH) / A4_H);
                 if (bi > 0 && pageEnd > pageStart) {
@@ -5540,9 +9865,10 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
               // Строим страницы; для action/paren/note в Film режем продолжение по страницам как у dialogue, но без маркеров
               const pages = [];
               let curPage = [];
-              runH = 0;
+              runH = desktopTitleEditorH;
 
               blocks.forEach((block, bi) => {
+                if (mode === "film" && block.type === "act") return;
                 if (mode === "film" && FILM_PAGE_SPLIT_TYPES.includes(block.type)) {
                   const fullText = block.text || "";
                   const firstMetrics = getBlockMetrics(block, fullText, false);
@@ -5569,18 +9895,7 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
                       break;
                     }
 
-                    const linesFit = Math.floor(Math.max(0, remaining - metrics.pt) / metrics.lineH);
-
-                    if (linesFit <= 0) {
-                      pushPage();
-                      continued = start > 0;
-                      continue;
-                    }
-
-                    let splitLocal = findWordSplit(rest, linesFit * metrics.charsPerLine);
-                    if ((splitLocal <= 0 || splitLocal >= rest.length) && curPage.length === 0) {
-                      splitLocal = Math.min(rest.length - 1, Math.max(1, linesFit * metrics.charsPerLine));
-                    }
+                    let splitLocal = findFilmSplitByMeasure(block, rest, remaining, continued);
 
                     if (splitLocal <= 0 || splitLocal >= rest.length) {
                       pushPage();
@@ -5590,6 +9905,53 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
 
                     const firstPartText = rest.substring(0, splitLocal);
                     curPage.push({bi, part:'filmSlice', start, end:start + splitLocal, continued, editable:true, sliceIx});
+                    runH += getBlockMetrics(block, firstPartText, continued).blockH;
+                    pushPage();
+
+                    const rawRest = rest.substring(splitLocal);
+                    rest = rawRest.replace(/^\s+/, "");
+                    start = fullText.length - rest.length;
+                    continued = true;
+                    sliceIx += 1;
+                  }
+                  return;
+                }
+
+                if (mode === "play" && PLAY_PAGE_SPLIT_TYPES.includes(block.type)) {
+                  const fullText = block.text || "";
+                  const firstMetrics = getBlockMetrics(block, fullText, false);
+
+                  if (firstMetrics.blockH <= pageRemaining()) {
+                    curPage.push({bi, part:'full', split:-1});
+                    runH += firstMetrics.blockH;
+                    return;
+                  }
+
+                  let rest = fullText;
+                  let start = 0;
+                  let continued = false;
+                  let sliceIx = 0;
+
+                  while (true) {
+                    const metrics = getBlockMetrics(block, rest, continued);
+                    const remaining = pageRemaining();
+
+                    if (metrics.blockH <= remaining) {
+                      curPage.push({bi, part:'playSlice', start, end:fullText.length, continued, editable:true, sliceIx});
+                      runH += metrics.blockH;
+                      break;
+                    }
+
+                    let splitLocal = findPlaySplitByMeasure(block, rest, remaining, continued);
+
+                    if (splitLocal <= 0 || splitLocal >= rest.length) {
+                      pushPage();
+                      continued = start > 0;
+                      continue;
+                    }
+
+                    const firstPartText = rest.substring(0, splitLocal);
+                    curPage.push({bi, part:'playSlice', start, end:start + splitLocal, continued, editable:true, sliceIx});
                     runH += getBlockMetrics(block, firstPartText, continued).blockH;
                     pushPage();
 
@@ -5634,13 +9996,14 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
                 if (!isFirstPage) pageNum++;
                 const currentPageNum = pageNum;
 
+                const showDesktopInlineTitle = isFirstPage && (mode === "media" || mode === "short");
                 return (
                   <React.Fragment key={pageIdx}>
                   {/* Страница */}
                   <div style={{
-                    background:BG,
-                    boxShadow:"8px 8px 24px rgba(0,0,0,0.16)",
-                    marginBottom:"24px",
+                    background: sheetOn ? BG : "transparent",
+                    boxShadow: sheetOn ? "8px 8px 24px rgba(0,0,0,0.16)" : "none",
+                    marginBottom: sheetOn ? "24px" : "0",
                     position:"relative",
                     minHeight:"1123px",
                     padding: pagePad,
@@ -5654,26 +10017,76 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
                       color:T2,
                     }}>{currentPageNum}.</div>
                   )}
+                  {showDesktopInlineTitle && (
+                    <div style={{maxWidth:"670px", width:"100%", marginBottom:"28px"}}>
+                      {mode === "media" && (
+                        <PlayHeaderEditor
+                          items={mediaHeader} setItems={setMediaHeader}
+                          focKey={mediaHeaderFoc} setFocKey={setMediaHeaderFoc}
+                          T1={T1} T2={T2} T3={T3} SURF={SURF} BG={BG} mc={mc} SH_SM={SH_SM} docFont="Arial"
+                          arrowOffsetX={-18}
+                          searchScope="media"
+                          renderSearchOverlay={renderSearchOverlay}
+                        />
+                      )}
+                      {mode === "short" && (
+                        <div>
+                          <div style={{display:"flex",alignItems:"center",marginBottom:"12px"}}>
+                            <div onClick={()=>document.getElementById("logo-upload-desktop").click()} style={{
+                              width:"56px",height:"56px",borderRadius:"12px",background:SURF,
+                              boxShadow:SH_SM,cursor:"pointer",overflow:"hidden",flexShrink:0,
+                              display:"flex",alignItems:"center",justifyContent:"center",border:`1px dashed ${T3}55`,
+                            }}>
+                              {contentLogo
+                                ? <img src={contentLogo} style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+                                : <span style={{color:T3,fontSize:"20px"}}>+</span>
+                              }
+                            </div>
+                            <div style={{marginLeft:"12px"}}>
+                              <div style={{color:T2,fontSize:"11px",letterSpacing:"1px"}}>ЛОГОТИП</div>
+                              <div style={{color:T3,fontSize:"10px"}}>56×56 · квадратный</div>
+                              {contentLogo && <button onClick={()=>setContentLogo(null)} style={{background:"transparent",border:"none",color:"#f472b6",fontSize:"10px",cursor:"pointer",padding:"0",marginTop:"2px"}}>удалить</button>}
+                            </div>
+                            <input id="logo-upload-desktop" type="file" accept="image/*" style={{display:"none"}} onChange={e=>{
+                              const file=e.target.files[0]; if(!file) return;
+                              const r=new FileReader(); r.onload=ev=>setContentLogo(ev.target.result); r.readAsDataURL(file);
+                            }}/>
+                          </div>
+                          <PlayHeaderEditor
+                            items={contentHeader} setItems={setContentHeader}
+                            focKey={contentHeaderFoc} setFocKey={setContentHeaderFoc}
+                            T1={T1} T2={T2} T3={T3} SURF={SURF} BG={BG} mc={mc} SH_SM={SH_SM} docFont="Arial"
+                            arrowOffsetX={-18}
+                            searchScope="short"
+                            renderSearchOverlay={renderSearchOverlay}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
                   {pageBlocks.map((entry) => {
               const { bi, part, split, start=0, end=null, continued=false, editable=true, sliceIx=0 } = entry;
               const block = blocks[bi];
               const isFilmSlice = part === 'filmSlice';
+              const isPlaySlice = part === 'playSlice';
+              const isMeasuredSlice = isFilmSlice || isPlaySlice;
               const blockText = block.text || "";
               const secondRawText = part==='second' ? blockText.substring(split) : "";
               const secondTrimLead = part==='second' ? (secondRawText.length - secondRawText.replace(/^\s+/, "").length) : 0;
-              const sliceStartAbs = isFilmSlice
+              const sliceStartAbs = isMeasuredSlice
                                 ? start
                                 : part==='first' ? 0
                                 : part==='second' ? (split + secondTrimLead)
                                 : 0;
-              const sliceEndAbs = isFilmSlice
+              const sliceEndAbs = isMeasuredSlice
                                 ? (end ?? blockText.length)
                                 : part==='first' ? split
                                 : part==='second' ? blockText.length
                                 : blockText.length;
-              const canEditFilmSlice = mode === "film" && (isFilmSlice || part==='first' || part==='second');
+              const canEditSlicedText = (mode === "film" && (isFilmSlice || part==='first' || part==='second'))
+                                     || (mode === "play" && isPlaySlice);
               // Текст с учётом разбивки
-              const displayText = isFilmSlice
+              const displayText = isMeasuredSlice
                                 ? blockText.substring(start, end ?? blockText.length)
                                 : part==='first' ? blockText.substring(0, split)
                                 : part==='second' ? secondRawText.trimStart()
@@ -5683,13 +10096,18 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
               const isAct   = block.type === "act";
               const isScene = block.type === "scene";
               const isCast  = block.type === "cast";
-              const isHead  = isAct || isScene;
+              const isHead  = isScene || (mode!=="film" && isAct);
+              const headScene = isHead ? scenes.find(s => s.id === block.id) : null;
+              const playActSelected = mode === "play" && isAct && headScene && headScene.kind === "act"
+                ? scenes.filter(s => s.kind === "scene" && s.actNum === headScene.actNum).length > 0 && scenes.filter(s => s.kind === "scene" && s.actNum === headScene.actNum).every(s => selectedScenes.has(s.id))
+                : false;
+              const headChecked = mode === "play" && isAct ? playActSelected : selectedScenes.has(block.id);
               const num = isHead ? sceneNum(block.id) : null;
               const isPageBreak = false;
               const charSplit = -1;
-              const isFirstPart = isFilmSlice ? !editable : part==='first';
-              const textareaReadOnly = canEditFilmSlice ? false : isFirstPart;
-              const isContinuedFilmSlice = isFilmSlice && continued;
+              const isFirstPart = isMeasuredSlice ? !editable : part==='first';
+              const textareaReadOnly = canEditSlicedText ? false : isFirstPart;
+              const isContinuedMeasuredSlice = isMeasuredSlice && continued;
 
               // Определяем контекст для разрыва страницы
               const prevBlock = bi > 0 ? blocks[bi-1] : null;
@@ -5704,13 +10122,13 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
               }
 
               return (
-                <React.Fragment key={isFilmSlice ? `${block.id}-filmSlice-${sliceIx}` : `${block.id}-${part}`}>
+                <React.Fragment key={isMeasuredSlice ? `${block.id}-${part}-${sliceIx}` : `${block.id}-${part}`}>
                 {/* page break divider removed - handled by page containers */}
                 {mode === "film" && block.type === "dialogue" && part === "second" && charName && (
                   <div style={{
                     fontFamily:"'Courier New',Courier,monospace",
                     fontSize:"14px", lineHeight:"1.5",
-                    color:"#e8e4d8",
+                    color:T2,
                     textTransform:"uppercase",
                     paddingLeft:"211px",
                     paddingTop:"18px",
@@ -5724,9 +10142,9 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
 
                   {/* Left gutter */}
                   <div style={{
-                    position:"absolute", left:"-148px", top: (()=>{
+                    position:"absolute", left:"-228px", top: (()=>{
                     let pt = 5;
-                    if (isContinuedFilmSlice) pt = 0;
+                    if (isContinuedMeasuredSlice) pt = 0;
                     else if(def.st?.paddingTop !== undefined) pt = parseInt(def.st.paddingTop)||0;
                     else if(def.st?.padding !== undefined) pt = parseInt(def.st.padding)||0;
                     const mt = parseInt(def.st?.marginTop)||0;
@@ -5734,7 +10152,7 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
                     const lh = parseFloat(def.st?.lineHeight)||(mode==="play"?1.7:1.85);
                     return `${mt + pt + Math.round(fs*lh/2)}px`;
                   })(), transform:"translateY(-50%)",
-                    width:"140px", display:"flex", alignItems:"center",
+                    width:"155px", display:"flex", alignItems:"center",
                     justifyContent:"flex-end",
                     opacity: focused ? 1 : (isHead||(block.type==="video"||block.type==="segment") ? 0.6 :
                       (mode==="media"&&["anchor","sync","vtr","offscreen","lower3","question","note"].includes(block.type)) ||
@@ -5749,20 +10167,26 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
                         {/* Чекбокс — всегда виден для scene/act */}
                         <div
                           onMouseDown={e=>e.preventDefault()}
-                          onClick={()=>setSelectedScenes(prev=>{const next=new Set(prev);next.has(block.id)?next.delete(block.id):next.add(block.id);return next;})}
+                          onClick={()=>{
+                            if (mode === "play" && isAct && headScene?.actNum) {
+                              toggleActSelect(headScene.actNum);
+                              return;
+                            }
+                            setSelectedScenes(prev=>{const next=new Set(prev);next.has(block.id)?next.delete(block.id):next.add(block.id);return next;});
+                          }}
                           style={{
-                            width:"16px",height:"16px",borderRadius:"5px",flexShrink:0,
-                            border:`2px solid ${selectedScenes.has(block.id)?mc:T3+"99"}`,
-                            background:selectedScenes.has(block.id)?mc:T3+"22",
-                            cursor:"pointer",marginRight:"4px",
+                            width:"20px",height:"20px",borderRadius:"6px",flexShrink:0,
+                            border:`1px solid ${headChecked?mc+"66":T3+"55"}`,
+                            background:headChecked?`${mc}15`:"transparent",
+                            cursor:"pointer",marginRight:"3px",
                             display:"flex",alignItems:"center",justifyContent:"center",
                             transition:"all .08s",
                           }}>
-                          {selectedScenes.has(block.id)&&<span style={{color:"#000",fontSize:"9px",fontWeight:"bold",lineHeight:1}}>✓</span>}
+                          {headChecked&&<span style={{color:mc,fontSize:"10px",fontWeight:"bold",lineHeight:1}}>✓</span>}
                         </div>
-                        <span style={{color: isAct ? ACCENT : mc, fontSize:"12px", fontWeight:"bold", marginRight:"5px"}}>{num}.</span>
                         <button onMouseDown={e=>{e.preventDefault(); dupScene(block.id);}} style={{width:"20px",height:"20px",borderRadius:"6px",background:`${mc}15`,border:`1px solid ${mc}44`,color:mc,fontSize:"11px",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,marginRight:"3px"}}>⧉</button>
                         <button onMouseDown={e=>{e.preventDefault(); delScene(block.id);}} style={{width:"20px",height:"20px",borderRadius:"6px",background:"#f8717115",border:"1px solid #f8717140",color:"#f87171",fontSize:"11px",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><svg width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="#f87171" strokeWidth="1.5" strokeLinecap="round"><line x1="1" y1="1" x2="7" y2="7"/><line x1="7" y1="1" x2="1" y2="7"/></svg></button>
+                        <span style={{position:"absolute",right:"-47px",top:"50%",transform:"translateY(-50%)",width:"20px",textAlign:"center",color:T2,fontSize:"16px",fontWeight:"700",fontFamily:"'Courier New',Courier,monospace",lineHeight:1,pointerEvents:"none",whiteSpace:"nowrap"}}>{num}.</span>
                       </>
                     )}
                     {/* Чекбокс для video/segment (не isHead но selectables) */}
@@ -5819,7 +10243,11 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
                     }}>
                       <div style={{fontSize:"9px",color:T3,letterSpacing:"2px",padding:"4px 8px 8px"}}>ИЗМЕНИТЬ ТИП</div>
                       {defs.filter(d=>d.type!=="scene"&&d.type!=="cast"&&d.type!=="act").map(d=>(
-                        <button key={d.type} onMouseDown={e=>{e.preventDefault();chType(block.id,d.type);}} style={{
+                        <button key={d.type} onMouseDown={e=>{
+                          e.preventDefault();
+                          if (mode === "film" && changeFilmBlockTypeFromActiveLine(block.id, d.type)) return;
+                          chType(block.id,d.type);
+                        }} style={{
                           display:"flex", alignItems:"center", width:"100%",
                           padding:"6px 10px",
                           background: block.type===d.type ? BG : "transparent",
@@ -5855,7 +10283,7 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
                   {/* Divider before act/scene */}
                   {isHead && (
                     <div style={{
-                      position:"absolute", top:"-16px", left:"-160px", right:"0",
+                      position:"absolute", top:"-16px", left:"-192px", right:"0",
                       height:"1px", opacity:0.001,
                       background:`linear-gradient(to right, transparent, ${T3}44, transparent)`,
                     }}/>
@@ -5893,101 +10321,287 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
                         fontFamily:"'Times New Roman',Times,serif",
                         fontSize:"15px", marginRight:"7px", flexShrink:0, lineHeight:"1.7",
                       }}>.</span>
-                      <textarea
-                        ref={el=>{ if (!textareaReadOnly) blockRefs.current[block.id]=el; if(el) { el.dataset.sliceStart = String(sliceStartAbs); el.dataset.blockId = String(block.id); autoH(el); } }}
-                        value={displayText}
-                        onChange={e=>{if(!textareaReadOnly){
-                          if (canEditFilmSlice) {
-                            filmEditStateRef.current = {
-                              blockId: block.id,
-                              absStart: sliceStartAbs + (e.target.selectionStart ?? e.target.value.length),
-                              absEnd: sliceStartAbs + (e.target.selectionEnd ?? e.target.value.length),
-                              scrollTop: scrollRef.current ? scrollRef.current.scrollTop : null,
-                              sliceStart: sliceStartAbs,
-                            };
-                            const prefix = blockText.substring(0, sliceStartAbs);
-                            const suffix = sliceEndAbs != null ? blockText.substring(sliceEndAbs) : "";
-                            updBlock(block.id, prefix + e.target.value + suffix);
-                            autoH(e.target);
-                            return;
+                      <div style={{position:"relative", flex:1}}>
+                        {renderSearchOverlay({
+                          scope:"block",
+                          blockId:block.id,
+                          sliceStart:sliceStartAbs,
+                          text:displayText,
+                          overlayStyle:{
+                            boxSizing:"border-box",
+                            padding:"0",
+                            margin:"0",
+                            fontFamily:"'Times New Roman',Times,serif",
+                            fontSize:"15px",
+                            lineHeight:"1.7",
                           }
-                          const prefix = part==='second' ? block.text.substring(0, split) : '';
-                          updBlock(block.id, prefix + e.target.value);
-                          autoH(e.target);
-                        }}}
-                        readOnly={textareaReadOnly}
-                        onFocus={e=>{ if(!textareaReadOnly) { blockRefs.current[block.id] = e.target; setFocId(block.id); } }}
-                        onBlur={()=>setTimeout(()=>setFocId(f=>f===block.id?null:f),250)}
-                        onKeyDown={e=>{ if(!textareaReadOnly) onKey(e,block,{ part, isFilmSlice, continued, sliceStartAbs, sliceEndAbs }); }}
-                        placeholder="текст реплики..."
-                        spellCheck={spellOn} rows={1}
-                        style={{
-                          flex:1, background:"transparent", border:"none", outline:"none",
-                          resize:"none", overflow:"hidden",
-                          color:block.color || T1, fontSize:"15px", lineHeight:"1.7",
-                          fontFamily:"'Times New Roman',Times,serif",
-                          boxSizing:"border-box", padding:"0", margin:"0",
-                        }}
-                      />
+                        })}
+                        {renderMarkerOverlay({
+                          scope:"block",
+                          blockId:block.id,
+                          sliceStart:sliceStartAbs,
+                          text:displayText,
+                          overlayStyle:{
+                            boxSizing:"border-box",
+                            padding:"0",
+                            margin:"0",
+                            fontFamily:"'Times New Roman',Times,serif",
+                            fontSize:"15px",
+                            lineHeight:"1.7",
+                          }
+                        })}
+                        <textarea
+                          ref={el=>{ if (!textareaReadOnly) blockRefs.current[block.id]=el; if(el) { el.dataset.sliceStart = String(sliceStartAbs); el.dataset.blockId = String(block.id); autoH(el); } }}
+                          value={displayText}
+                          onChange={e=>{if(!textareaReadOnly){
+                            if (canEditSlicedText) {
+                              filmEditStateRef.current = {
+                                blockId: block.id,
+                                absStart: sliceStartAbs + (e.target.selectionStart ?? e.target.value.length),
+                                absEnd: sliceStartAbs + (e.target.selectionEnd ?? e.target.value.length),
+                                scrollTop: scrollRef.current ? scrollRef.current.scrollTop : null,
+                                sliceStart: sliceStartAbs,
+                              };
+                              const prefix = blockText.substring(0, sliceStartAbs);
+                              const suffix = sliceEndAbs != null ? blockText.substring(sliceEndAbs) : "";
+                              updBlock(block.id, prefix + e.target.value + suffix);
+                              autoH(e.target);
+                              return;
+                            }
+                            const prefix = part==='second' ? block.text.substring(0, split) : '';
+                            updBlock(block.id, prefix + e.target.value);
+                            autoH(e.target);
+                          }}}
+                          readOnly={textareaReadOnly}
+                          onFocus={e=>{ if(!textareaReadOnly) { blockRefs.current[block.id] = e.target; setFocId(block.id); } }}
+                          onBlur={()=>setTimeout(()=>setFocId(f=>f===block.id?null:f),250)}
+                          onKeyDown={e=>{ if(!textareaReadOnly) onKey(e,block,{ part, isFilmSlice, continued, sliceStartAbs, sliceEndAbs }); }}
+                          onContextMenu={e=>handleMarkerContextMenu(e, block.id, sliceStartAbs)}
+                          placeholder="текст реплики..."
+                          spellCheck={spellOn} rows={1}
+                          style={{
+                            width:"100%", display:"block", position:"relative", zIndex:1,
+                            background:"transparent", border:"none", outline:"none",
+                            resize:"none", overflow:"hidden",
+                            color:block.color || T1, fontSize:"15px", lineHeight:"1.7",
+                            fontFamily:"'Times New Roman',Times,serif",
+                            boxSizing:"border-box", padding:"0", margin:"0",
+                          }}
+                        />
+                      </div>
                     </div>
                   ) : (
                   /* STANDARD BLOCK */
-                  <textarea
-                    ref={el=>{
-                      if (!textareaReadOnly) blockRefs.current[block.id]=el;
-                      if (el) { el.dataset.sliceStart = String(sliceStartAbs); el.dataset.blockId = String(block.id); autoH(el); }
-                    }}
-                    value={displayText}
-                    onChange={e=>{
-                      if (canEditFilmSlice) {
-                        filmEditStateRef.current = {
-                          blockId: block.id,
-                          absStart: sliceStartAbs + (e.target.selectionStart ?? e.target.value.length),
-                          absEnd: sliceStartAbs + (e.target.selectionEnd ?? e.target.value.length),
-                          scrollTop: scrollRef.current ? scrollRef.current.scrollTop : null,
-                          sliceStart: sliceStartAbs,
+                  <div style={{position:"relative", flex:1}}>
+                    {renderSearchOverlay({
+                      scope:"block",
+                      blockId:block.id,
+                      sliceStart:sliceStartAbs,
+                      text:displayText,
+                      overlayStyle:{
+                        boxSizing:"border-box",
+                        fontSize: mode==="play" ? "15px" : "14px",
+                        lineHeight: mode==="play" ? "1.7" : "1.85",
+                        fontFamily: mode==="play"
+                          ? "'Times New Roman',Times,serif"
+                          : "'Courier New',Courier,monospace",
+                        ...def.st,
+                        ...(isContinuedMeasuredSlice ? { paddingTop:"0" } : {}),
+                        fontWeight: block.bold ? "bold" : block.semibold ? "600" : (def.st?.fontWeight),
+                        fontStyle: block.italic ? "italic" : (def.st?.fontStyle),
+                        textDecoration: block.underline ? "underline" : (def.st?.textDecoration),
+                        textAlign: def.st?.textAlign,
+                      }
+                    })}
+                    {renderMarkerOverlay({
+                      scope:"block",
+                      blockId:block.id,
+                      sliceStart:sliceStartAbs,
+                      text:displayText,
+                      overlayStyle:{
+                        boxSizing:"border-box",
+                        fontSize: mode==="play" ? "15px" : "14px",
+                        lineHeight: mode==="play" ? "1.7" : "1.85",
+                        fontFamily: mode==="play"
+                          ? "'Times New Roman',Times,serif"
+                          : "'Courier New',Courier,monospace",
+                        ...def.st,
+                        ...(isContinuedMeasuredSlice ? { paddingTop:"0" } : {}),
+                        fontWeight: block.bold ? "bold" : block.semibold ? "600" : (def.st?.fontWeight),
+                        fontStyle: block.italic ? "italic" : (def.st?.fontStyle),
+                        textDecoration: block.underline ? "underline" : (def.st?.textDecoration),
+                        textAlign: def.st?.textAlign,
+                      }
+                    })}
+                    <textarea
+                      ref={el=>{
+                        if (!textareaReadOnly) blockRefs.current[block.id]=el;
+                        if (el) { el.dataset.sliceStart = String(sliceStartAbs); el.dataset.blockId = String(block.id); autoH(el); }
+                      }}
+                      value={displayText}
+                      onChange={e=>{
+                        if (canEditSlicedText) {
+                          filmEditStateRef.current = {
+                            blockId: block.id,
+                            absStart: sliceStartAbs + (e.target.selectionStart ?? e.target.value.length),
+                            absEnd: sliceStartAbs + (e.target.selectionEnd ?? e.target.value.length),
+                            scrollTop: scrollRef.current ? scrollRef.current.scrollTop : null,
+                            sliceStart: sliceStartAbs,
+                          };
+                          const prefix = blockText.substring(0, sliceStartAbs);
+                          const suffix = sliceEndAbs != null ? blockText.substring(sliceEndAbs) : "";
+                          updBlock(block.id, prefix + e.target.value + suffix);
+                          autoH(e.target);
+                          return;
+                        }
+                        if(!textareaReadOnly){
+                          const prefix = part==='second' ? blockText.substring(0, split) : '';
+                          updBlock(block.id, prefix + e.target.value);
+                          autoH(e.target);
+                        }
+                      }}
+                      readOnly={textareaReadOnly}
+                      onFocus={e=>{ if(!textareaReadOnly) { blockRefs.current[block.id] = e.target; setFocId(block.id); } }}
+                      onBlur={()=>setTimeout(()=>setFocId(f=>f===block.id?null:f),250)}
+                      onKeyDown={e=>{ if(!textareaReadOnly) onKey(e,block,{ part, isFilmSlice, continued, sliceStartAbs, sliceEndAbs }); }}
+                      onContextMenu={e=>handleMarkerContextMenu(e, block.id, sliceStartAbs)}
+                      onPaste={e=>{
+                        // — play / short / media: многострочная вставка → отдельные блоки —
+                        if (!textareaReadOnly && (mode === "play" || mode === "short" || mode === "media")) {
+                          const text = e.clipboardData.getData('text/plain');
+                          const lines = text.split('\n');
+                          if (lines.length <= 1) return;
+                          e.preventDefault();
+                          const el = e.target;
+                          const selStart = el.selectionStart ?? 0;
+                          const selEnd   = el.selectionEnd   ?? 0;
+                          const absStart = sliceStartAbs + selStart;
+                          const absEnd   = sliceStartAbs + selEnd;
+                          const before   = blockText.substring(0, absStart);
+                          const after    = blockText.substring(absEnd);
+                          const baseType = block.type !== 'spacer' ? block.type
+                            : (mode === 'play' ? 'line' : mode === 'short' ? 'action' : 'anchor');
+                          const lineType = (l) => l.trim() === '' ? 'spacer' : baseType;
+                          const firstText = before + lines[0];
+                          const firstType = lineType(lines[0]) === 'spacer' && before ? baseType : lineType(lines[0]);
+                          const lastId   = uid();
+                          const lastText = lines[lines.length - 1] + after;
+                          const lastType = lineType(lines[lines.length - 1]);
+                          const middle   = lines.slice(1, -1);
+                          setBlocks(bs => {
+                            const i = bs.findIndex(b => b.id === block.id);
+                            if (i === -1) return bs;
+                            const next = [...bs];
+                            const replacement = [
+                              { ...block, type: firstType, text: firstText },
+                              ...middle.map(l => ({ id: uid(), type: lineType(l), text: l })),
+                              { id: lastId, type: lastType, text: lastText },
+                            ];
+                            next.splice(i, 1, ...replacement);
+                            return next;
+                          });
+                          markDirty();
+                          setTimeout(() => {
+                            const lastEl = blockRefs.current[lastId];
+                            if (!lastEl) return;
+                            try { lastEl.focus(); } catch(err) {}
+                            try { lastEl.setSelectionRange(lastText.length, lastText.length); } catch(err) {}
+                            autoH(lastEl);
+                          }, 60);
+                          return;
+                        }
+                        // — film —
+                        if (mode !== "film" || textareaReadOnly) return;
+                        const text = e.clipboardData.getData('text/plain');
+                        const lines = text.split('\n');
+                        if (lines.length <= 1) return;
+                        e.preventDefault();
+                        const el = e.target;
+                        const selStart = el.selectionStart ?? 0;
+                        const selEnd = el.selectionEnd ?? 0;
+                        const absStart = sliceStartAbs + selStart;
+                        const absEnd = sliceStartAbs + selEnd;
+                        const before = blockText.substring(0, absStart);
+                        const after = blockText.substring(absEnd);
+                        const detectFilmType = (line) => {
+                          const t = line.trim();
+                          if (!t) return 'spacer';
+                          if (/^(?:\d+[\.\s]+)?(?:ИНТ|INT)[\.\s]/i.test(t)) return 'scene';
+                          if (/^(?:\d+[\.\s]+)?(?:НАТ|NAT|EXT)[\.\s]/i.test(t)) return 'scene';
+                          if (/^\(\s*.+\s*\)$/.test(t)) return 'paren';
+                          if (/^(?:CUT TO|FADE|СМЕНА)/i.test(t)) return 'trans';
+                          if (t === t.toUpperCase() && t.length <= 40 && /[A-ZА-ЯЁ]/.test(t)) return 'char';
+                          return 'action';
                         };
-                        const prefix = blockText.substring(0, sliceStartAbs);
-                        const suffix = sliceEndAbs != null ? blockText.substring(sliceEndAbs) : "";
-                        updBlock(block.id, prefix + e.target.value + suffix);
-                        autoH(e.target);
-                        return;
-                      }
-                      if(!textareaReadOnly){
-                        const prefix = part==='second' ? blockText.substring(0, split) : '';
-                        updBlock(block.id, prefix + e.target.value);
-                        autoH(e.target);
-                      }
-                    }}
-                    readOnly={textareaReadOnly}
-                    onFocus={e=>{ if(!textareaReadOnly) { blockRefs.current[block.id] = e.target; setFocId(block.id); } }}
-                    onBlur={()=>setTimeout(()=>setFocId(f=>f===block.id?null:f),250)}
-                    onKeyDown={e=>{ if(!textareaReadOnly) onKey(e,block,{ part, isFilmSlice, continued, sliceStartAbs, sliceEndAbs }); }}
-                    placeholder={def.ph}
-                    spellCheck={spellOn && def.spell} rows={1}
-                    style={{
-                      flex:1, background:"transparent", border:"none", outline:"none",
-                      resize:"none", overflow:"hidden",
-                      fontSize: mode==="play" ? "15px" : "14px",
-                      lineHeight: mode==="play" ? "1.7" : "1.85",
-                      fontFamily: mode==="play"
-                        ? "'Times New Roman',Times,serif"
-                        : "'Courier New',Courier,monospace",
-                      ...def.st,
-                      ...(isContinuedFilmSlice ? { paddingTop:"0" } : {}),
-                      fontWeight: block.bold ? "bold" : block.semibold ? "600" : (def.st?.fontWeight),
-                      fontStyle: block.italic ? "italic" : (def.st?.fontStyle),
-                      textDecoration: block.underline ? "underline" : (def.st?.textDecoration),
-                      color: block.color || def.st?.color || "#e8e4d8",
-                    }}
-                  />
+                        const firstType = before.trim() ? block.type : detectFilmType(lines[0]);
+                        const firstText = before + lines[0];
+                        const lastLineType = detectFilmType(lines[lines.length - 1]);
+                        const lastText = lines[lines.length - 1] + after;
+                        const middleLines = lines.slice(1, -1);
+                        const lastId = uid();
+                        setBlocks(bs => {
+                          const i = bs.findIndex(b => b.id === block.id);
+                          if (i === -1) return bs;
+                          const next = [...bs];
+                          const replacement = [
+                            { ...block, type: firstType, text: firstText },
+                            ...middleLines.map(l => ({ id: uid(), type: detectFilmType(l), text: l })),
+                            { id: lastId, type: lastLineType, text: lastText },
+                          ];
+                          next.splice(i, 1, ...replacement);
+                          return next;
+                        });
+                        markDirty();
+                        setTimeout(() => {
+                          const lastEl = blockRefs.current[lastId];
+                          if (!lastEl) return;
+                          try { lastEl.focus({ preventScroll: true }); } catch(err) { lastEl.focus(); }
+                          const pos = lines[lines.length - 1].length;
+                          try { lastEl.setSelectionRange(pos, pos); } catch(err) {}
+                          autoH(lastEl);
+                        }, 0);
+                      }}
+                      placeholder={def.ph}
+                      spellCheck={spellOn && def.spell} rows={1}
+                      style={{
+                        width:"100%", display:"block", position:"relative", zIndex:1,
+                        background:"transparent", border:"none", outline:"none",
+                        resize:"none", overflow:"hidden",
+                        fontSize: mode==="play" ? "15px" : "14px",
+                        lineHeight: mode==="play" ? "1.7" : "1.85",
+                        fontFamily: mode==="play"
+                          ? "'Times New Roman',Times,serif"
+                          : "'Courier New',Courier,monospace",
+                        ...def.st,
+                        ...(isHead && num && mode!=="play" && mode!=="media" ? {
+                        } : {}),
+                        ...(mode==="short" && block.type==="scene" ? {
+                          backgroundImage: displayText ? "none" : SHORT_SCENE_ICON,
+                          backgroundRepeat:"no-repeat",
+                          backgroundPosition:"0 50%",
+                          backgroundSize:"11px 11px",
+                        } : {}),
+                        ...(mode==="short" && block.type==="cast" ? {
+                          backgroundImage: displayText ? "none" : SHORT_CAST_ICON,
+                          backgroundRepeat:"no-repeat",
+                          backgroundPosition:"0 50%",
+                          backgroundSize:"11px 11px",
+                        } : {}),
+                        ...(isContinuedMeasuredSlice ? { paddingTop:"0" } : {}),
+                        fontWeight: block.bold ? "bold" : block.semibold ? "600" : (def.st?.fontWeight),
+                        fontStyle: block.italic ? "italic" : (def.st?.fontStyle),
+                        textDecoration: block.underline ? "underline" : (def.st?.textDecoration),
+                        color: block.color || def.st?.color || "#e8e4d8",
+                      }}
+                    />
+                  </div>
                   )}
                 </div>
                 {mode === "film" && block.type === "dialogue" && part === "first" && (
                   <div style={{
                     fontFamily:"'Courier New',Courier,monospace",
                     fontSize:"14px", lineHeight:"1.5",
-                    color:"#e8e4d8",
+                    color:T2,
                     paddingLeft:"211px",
                     paddingTop:"4px",
                   }}>(ДАЛЬШЕ)</div>
@@ -6019,14 +10633,7 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
               const actDef = defs.find(d=>d.type==="act");
               if (!actDef) return null;
               return (
-                <button key={actDef.type} onMouseDown={e=>e.preventDefault()} onClick={()=>{
-                  if (focId) {
-                    addAfter(focId, actDef.type);
-                  } else {
-                    const last=blocks[blocks.length-1];
-                    if(last) addAfter(last.id,actDef.type);
-                  }
-                }} style={{
+                <button key={actDef.type} onMouseDown={e=>e.preventDefault()} onClick={()=>{ insertPlayAct(); }} style={{
                   padding:"6px 14px",
                   background: SURF, boxShadow: SH_SM,
                   border:"none", borderRadius:"14px",
@@ -6039,11 +10646,32 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
                 </button>
               );
             })()}
+            {mode==="film" && (()=>{
+              const actDef = defs.find(d=>d.type==="act");
+              if (!actDef) return null;
+              return (
+                <button key={`film-${actDef.type}`} onMouseDown={e=>e.preventDefault()} onClick={()=>insertFilmAct()} style={{
+                  padding:"6px 14px",
+                  background: SURF, boxShadow: SH_SM,
+                  border:"none", borderRadius:"14px",
+                  color:T2, fontSize:"10px", cursor:"pointer",
+                  fontFamily:"inherit", letterSpacing:"1px",
+                  transition:"all .2s",
+                  whiteSpace:"nowrap",
+                }}>
+                  АКТ
+                </button>
+              );
+            })()}
             {defs.filter(d=>d.type!=="act").map(d=>(
               <button key={d.type} onMouseDown={e=>e.preventDefault()} onClick={()=>{
                 if (focId) {
                   const cur = blocks.find(b=>b.id===focId);
-                  if (cur && !["scene","act"].includes(cur.type)) { chType(focId, d.type); return; }
+                  if (cur && !["scene","act"].includes(cur.type)) {
+                    if (mode === "film" && changeFilmBlockTypeFromActiveLine(focId, d.type)) return;
+                    chType(focId, d.type);
+                    return;
+                  }
                   addAfter(focId, d.type);
                 } else {
                   const last=blocks[blocks.length-1];
@@ -6073,6 +10701,14 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
         }}>
           <span style={{fontSize:"9px",color:T3,letterSpacing:"1px",flexShrink:1,overflow:"hidden",whiteSpace:"nowrap",minWidth:0,marginRight:"12px"}}>TAB — тип</span>
           <span style={{fontSize:"9px",color:T3,letterSpacing:"1px",flexShrink:1,overflow:"hidden",whiteSpace:"nowrap",minWidth:0}}>ENTER — блок</span>
+          <button onMouseDown={e=>e.preventDefault()} onClick={()=>setUiTooltipsOn(v=>!v)}
+            style={{padding:"4px 10px",background:BG,boxShadow:SH_SM,
+              border:`1px solid ${uiTooltipsOn?mc+"44":T3+"33"}`,borderRadius:"8px",
+              color:uiTooltipsOn?mc:T2,fontSize:"10px",cursor:"pointer",
+              fontFamily:"inherit",letterSpacing:"1px",flexShrink:0,
+              marginLeft:"12px",WebkitAppearance:"none"}}>
+            ПОДСКАЗКИ
+          </button>
           <div style={{flex:1, minWidth:"4px"}}/>
           {(mode==="film"||mode==="play"||mode==="media"||mode==="short") && (
             <div style={{display:"flex", alignItems:"center", flexShrink:0, marginRight:"6px"}}>
@@ -6108,7 +10744,7 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
                   <div style={{display:"flex", alignItems:"center", marginRight:"6px"}}>
                     {fmtCfg.bold && <button onMouseDown={e=>e.preventDefault()} onClick={()=>toggle("bold")}
                       style={{...btnStyle(curBlock?.bold), fontWeight:"bold", fontFamily:"serif"}}>Ж</button>}
-                    <button onMouseDown={e=>e.preventDefault()} onClick={()=>{if(!activeId)return;setBlocks(bs=>bs.map(b=>b.id===activeId?{...b,bold:false,italic:false,underline:false,semibold:false,color:null,_colorOpen:false}:b));markDirty();}}
+                    <button onMouseDown={e=>e.preventDefault()} onClick={()=>{if(!activeId)return;setBlocks(bs=>bs.map(b=>b.id===activeId?{...b,bold:false,italic:false,underline:false,semibold:false,color:null,_colorOpen:false}:b));markDirty();}} {...getTooltipAnchorProps("Сбросить формат")}
                       style={{...btnStyle(false)}}>Н</button>
                     {fmtCfg.italic && <button onMouseDown={e=>e.preventDefault()} onClick={()=>toggle("italic")}
                       style={{...btnStyle(curBlock?.italic), fontStyle:"italic", fontFamily:"serif"}}>К</button>}
@@ -6116,7 +10752,7 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
                       style={{...btnStyle(curBlock?.underline), textDecoration:"underline"}}>Ч</button>}
                     {/* Цвет */}
                     <div style={{position:"relative"}}>
-                      <button onMouseDown={e=>e.preventDefault()} onClick={()=>{ if(!activeId) return; setBlocks(bs=>bs.map(b=>b.id===activeId?{...b,_colorOpen:!b._colorOpen}:b)); }}
+                      <button onMouseDown={e=>e.preventDefault()} onClick={()=>{ if(!activeId) return; setBlocks(bs=>bs.map(b=>b.id===activeId?{...b,_colorOpen:!b._colorOpen}:b)); }} {...getTooltipAnchorProps("Цвет текста")}
                         style={{...btnStyle(false), background: curBlock?.color && curBlock.color!=="inherit" ? curBlock.color+"22" : BG, border:`2px solid ${curBlock?.color||mc+"33"}`, marginRight:0}}>
                         <div style={{width:"10px",height:"10px",borderRadius:"50%",background:curBlock?.color||T2}}/>
                       </button>
@@ -6144,7 +10780,7 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
               })()}
               {/* Аа — шрифт */}
               <div style={{position:"relative"}}>
-                <button onMouseDown={e=>e.preventDefault()} onClick={()=>setDocFontOpen(o=>!o)}
+                <button onMouseDown={e=>e.preventDefault()} onClick={()=>setDocFontOpen(o=>!o)} {...getTooltipAnchorProps("Шрифт")}
                   style={{padding:"4px 10px",background:BG,boxShadow:SH_SM,border:`1px solid ${mc}44`,borderRadius:"8px",
                     color:mc,fontSize:"10px",cursor:"pointer",fontFamily:"inherit",letterSpacing:"1px",WebkitAppearance:"none"}}>Аа</button>
                 {docFontOpen && (
@@ -6166,7 +10802,7 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
               </div>
             </div>
           )}
-          <button onMouseDown={e=>e.preventDefault()} onClick={()=>setSpellOn(v=>!v)}
+          <button onMouseDown={e=>e.preventDefault()} onClick={()=>setSpellOn(v=>!v)} {...getTooltipAnchorProps("Орфография")}
             style={{padding:"4px 10px",background:spellOn?`${mc}22`:BG,boxShadow:SH_SM,
               border:`1px solid ${spellOn?mc:mc+"44"}`,borderRadius:"8px",
               color:spellOn?mc:mc+"77",fontSize:"10px",cursor:"pointer",
@@ -6186,28 +10822,40 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
       </div>
 
       {/* ══ DRAG HANDLE: RIGHT ══ */}
-      <div
-        onMouseDown={e=>{
-          e.preventDefault();
-          const startX=e.clientX, startW=rightW;
-          const onMove=ev=>setRightW(Math.max(130,Math.min(300,startW-(ev.clientX-startX))));
-          const onUp=()=>{window.removeEventListener("mousemove",onMove);window.removeEventListener("mouseup",onUp);};
-          window.addEventListener("mousemove",onMove);
-          window.addEventListener("mouseup",onUp);
-        }}
-        style={{width:"4px",cursor:"ew-resize",background:"transparent",flexShrink:0,zIndex:10,
-          transition:"background .15s"}}
-        onMouseEnter={e=>e.currentTarget.style.background=`${ACCENT}55`}
-        onMouseLeave={e=>e.currentTarget.style.background="transparent"}
-      />
+      {rightPanelOpen && (
+        <div
+          onMouseDown={e=>{
+            e.preventDefault();
+            const startX=e.clientX, startW=rightW;
+            const onMove=ev=>setRightW(Math.max(130,Math.min(300,startW-(ev.clientX-startX))));
+            const onUp=()=>{window.removeEventListener("mousemove",onMove);window.removeEventListener("mouseup",onUp);};
+            window.addEventListener("mousemove",onMove);
+            window.addEventListener("mouseup",onUp);
+          }}
+          style={{width:"4px",cursor:"ew-resize",background:"transparent",flexShrink:0,zIndex:10,
+            transition:"background .15s"}}
+          onMouseEnter={e=>e.currentTarget.style.background=`${ACCENT}55`}
+          onMouseLeave={e=>e.currentTarget.style.background="transparent"}
+        />
+      )}
 
       {/* ══ RIGHT PANEL ══ */}
+      {rightPanelOpen ? (
       <div style={{
-        width:`${rightW}px`, minWidth:`${rightW}px`,
+        width:`${rightSidebarW}px`, minWidth:`${rightSidebarW}px`, maxWidth:`${rightSidebarW}px`,
         background: SURF,
         boxShadow: "-4px 0 20px rgba(0,0,0,0.4)",
         display:"flex", flexDirection:"column", overflow:"hidden", flexShrink:0,
+        position:"relative",
+        transition:"width .22s ease, min-width .22s ease, max-width .22s ease",
       }}>
+
+        <button onMouseDown={e=>e.preventDefault()} onClick={()=>setRightPanelOpen(false)} title="Свернуть панель блоков" style={{
+          ...sideToggleBase,
+          left:"-12px",
+          borderRadius:"14px 0 0 14px",
+          clipPath:SIDE_TAB_CLIP_LEFT,
+        }}><SideChevron dir="right"/></button>
 
         {/* Prev */}
         <button onClick={()=>{
@@ -6246,7 +10894,10 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
                     return;
                   }
                   if (curType === d.type) { addAfter(focId, d.type); }
-                  else if (!PROTECTED.includes(curType)) { chType(focId, d.type); }
+                  else if (!PROTECTED.includes(curType)) {
+                    if (mode === "film" && changeFilmBlockTypeFromActiveLine(focId, d.type)) return;
+                    chType(focId, d.type);
+                  }
                 }} style={{
                   display:"flex", alignItems:"center",
                   width:"100%", padding:"9px 10px", marginBottom:"4px",
@@ -6285,9 +10936,27 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
           <span style={{color:T3}}>↓</span> Следующий
         </button>
       </div>
-
+      ) : (
+        <div style={{
+          width:`${rightSidebarW}px`, minWidth:`${rightSidebarW}px`, maxWidth:`${rightSidebarW}px`,
+          background: SURF,
+          boxShadow: "-4px 0 20px rgba(0,0,0,0.4)",
+          display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center",
+          overflow:"hidden", position:"relative", flexShrink:0,
+          transition:"width .22s ease, min-width .22s ease, max-width .22s ease",
+        }}>
+          <button onMouseDown={e=>e.preventDefault()} onClick={()=>setRightPanelOpen(true)} title="Развернуть панель блоков" style={{
+            ...sideToggleBase,
+            left:"-12px",
+            borderRadius:"14px 0 0 14px",
+            color:mc,
+            clipPath:SIDE_TAB_CLIP_LEFT,
+          }}><SideChevron dir="left"/></button>
+          <div style={sideRailLabelStyle}>БЛОКИ</div>
+        </div>
+      )}
       {/* ══ AI PANEL ══ */}
-      {aiOpen && (
+      {aiOpen ? (
         <>
         <div
           onMouseDown={e=>{
@@ -6304,43 +10973,65 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
           onMouseLeave={e=>e.currentTarget.style.background="transparent"}
         />
         <div style={{
-          width:`${aiW}px`, minWidth:`${aiW}px`,
+          width:`${aiSidebarW}px`, minWidth:`${aiSidebarW}px`, maxWidth:`${aiSidebarW}px`,
           background: SURF,
           boxShadow: "-4px 0 20px rgba(0,0,0,0.4)",
-          display:"flex", flexDirection:"column", overflow:"hidden",
+          display:"flex", flexDirection:"column", overflow:"hidden", minHeight:0,
+          position:"relative",
+          transition:"width .22s ease, min-width .22s ease, max-width .22s ease",
         }}>
 
+          <button onMouseDown={e=>e.preventDefault()} onClick={()=>setAiOpen(false)} title="Свернуть ИИ-панель" style={{
+            ...sideToggleBase,
+            left:"-12px",
+            borderRadius:"14px 0 0 14px",
+            clipPath:SIDE_TAB_CLIP_LEFT,
+          }}><SideChevron dir="right"/></button>
+
           {/* Model selector */}
-          <div style={{padding:"12px 10px 10px", borderBottom:`1px solid ${T3}22`, flexShrink:0}}>
+          <div ref={aiModelMenuRootRef} style={{padding:"12px 10px 10px", borderBottom:`1px solid ${T3}22`, flexShrink:0}}>
             <div style={{fontSize:"9px",color:T3,letterSpacing:"2px",marginBottom:"10px"}}>ИИ МОДЕЛИ</div>
-            {AIM.map(m=>(
-              <button key={m.id} onClick={()=>setAiMod(m.id)} style={{
-                display:"flex", alignItems:"center", justifyContent:"space-between",
-                width:"100%", padding:"7px 10px", marginBottom:"4px",
-                background: aiMod===m.id ? BG : "transparent",
-                boxShadow: aiMod===m.id ? SH_IN : "none",
-                border:"none", borderRadius:"10px",
-                cursor:"pointer", fontFamily:"inherit",
-                transition:"all .08s",
-              }}>
-                <div style={{display:"flex", alignItems:"center"}}>
-                  <div style={{
-                    width:"6px", height:"6px", borderRadius:"50%",
-                    background:m.color,
-                    boxShadow: aiMod===m.id ? `0 0 8px ${m.color}` : "none",
-                    opacity: aiMod===m.id ? 1 : 0.25,
-                    marginRight:"8px", flexShrink:0,
-                  }}/>
-                  <span style={{color:aiMod===m.id?T1:T2, fontSize:"11px", marginRight:"6px"}}>{m.label}</span>
-                  <span style={{color:aiMod===m.id?m.color+"88":T3, fontSize:"10px"}}>{m.role}</span>
+            {AIM.map(m=>{
+              const expanded = aiMod===m.id && aiModelMenuOpen;
+              const activeVariant = getAiVariant(m.id, aiMod===m.id ? aiModelVariant : undefined);
+              return (
+                <div key={m.id} style={{marginBottom:"6px"}}>
+                  <button onClick={()=>selectAiProvider(m.id)} style={{
+                    display:"flex", alignItems:"center", justifyContent:"space-between",
+                    width:"100%", padding:"7px 10px",
+                    background: aiMod===m.id ? BG : "transparent",
+                    boxShadow: aiMod===m.id ? SH_IN : "none",
+                    border:"none", borderRadius:"10px",
+                    cursor:"pointer", fontFamily:"inherit",
+                    transition:"all .08s",
+                  }}>
+                    <div style={{display:"flex", alignItems:"center", minWidth:0}}>
+                      <div style={{
+                        width:"6px", height:"6px", borderRadius:"50%",
+                        background:m.color,
+                        boxShadow: aiMod===m.id ? `0 0 8px ${m.color}` : "none",
+                        opacity: aiMod===m.id ? 1 : 0.25,
+                        marginRight:"8px", flexShrink:0,
+                      }}/>
+                      <span style={{color:aiMod===m.id?T1:T2, fontSize:"11px", marginRight:"6px"}}>{m.label}</span>
+                      <span style={{color:aiMod===m.id?m.color+"88":T3, fontSize:"10px"}}>{m.role}</span>
+                    </div>
+                    <div style={{display:"flex", alignItems:"center", gap:"8px", minWidth:0, marginLeft:"10px"}}>
+                      {aiMod===m.id && activeVariant?.label && (
+                        <span style={{color:m.color+"aa", fontSize:"9px", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", maxWidth:"110px"}}>{activeVariant.label}</span>
+                      )}
+                      {m.free && !expanded && <span style={{fontSize:"8px",color:"#4ade8066",border:`1px solid #4ade8022`,borderRadius:"4px",padding:"1px 5px",letterSpacing:"1px"}}>FREE</span>}
+                      <span style={{color:aiMod===m.id?m.color:T3,fontSize:"11px",lineHeight:"1",transform:expanded?"rotate(180deg)":"rotate(0deg)",transition:"transform .12s"}}>▾</span>
+                    </div>
+                  </button>
+                  {expanded && renderAiVariantPicker(m.id)}
                 </div>
-                {m.free && <span style={{fontSize:"8px",color:"#4ade8066",border:`1px solid #4ade8022`,borderRadius:"4px",padding:"1px 5px",letterSpacing:"1px"}}>FREE</span>}
-              </button>
-            ))}
+              );
+            })}
           </div>
 
           {/* Messages */}
-          <div style={{flex:1, overflow:"auto", padding:"10px", display:"flex", flexDirection:"column"}}>
+          <div style={{flex:1, minHeight:0, overflow:"auto", padding:"10px", display:"flex", flexDirection:"column"}}>
             {msgs.map((m,i)=>(
               <div key={i} style={{display:"flex", justifyContent:m.role==="user"?"flex-end":"flex-start", marginBottom:"12px"}}>
                 <div style={{
@@ -6348,7 +11039,7 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
                   background: m.role==="user" ? BG : SURF,
                   boxShadow: SH_SM,
                   borderRadius:m.role==="user"?"12px 12px 2px 12px":"12px 12px 12px 2px",
-                  borderLeft: m.role==="ai" ? `2px solid ${AIM.find(x=>x.id===m.model)?.color||T3}` : "none",
+                  borderLeft: m.role==="ai" ? `2px solid ${getAiProvider(m.model).color||T3}` : "none",
                   fontSize:"11px", lineHeight:"1.7",
                   color:m.role==="user"?T2:T1,
                 }}>
@@ -6399,55 +11090,226 @@ function EditorScreen({ onLogout, profile, isGuest, onLogin }) {
                 boxShadow:"0 0 0 1px rgba(255,255,255,0.02)",
               }}/>
             </div>
-            <div style={{
-              display:"flex", alignItems:"flex-end", gap:"8px",
-              height:`${aiComposerH}px`, minHeight:"56px", maxHeight:"50vh",
-              background: BG, boxShadow: SH_IN,
-              borderRadius:"12px", padding:"8px 12px",
-            }}>
-              <textarea
-                value={aiIn}
-                onChange={e=>setAiIn(e.target.value)}
-                onKeyDown={e=>{
-                  if(e.key==="Enter" && !e.shiftKey){
-                    e.preventDefault();
-                    send();
-                  }
-                }}
-                rows={1}
-                placeholder={`${AIM.find(m=>m.id===aiMod)?.label}...`}
+            <div ref={aiHistoryLayerRef} style={{position:"relative"}}>
+              {renderAiHistoryDropdown()}
+              <div
+                onDragEnter={handleAiDragEnter}
+                onDragOver={handleAiDragOver}
+                onDragLeave={handleAiDragLeave}
+                onDrop={handleAiDrop}
                 style={{
-                  flex:1,
-                  height:"100%",
-                  minHeight:0,
-                  background:"transparent",
-                  border:"none",
-                  outline:"none",
-                  color:T1,
-                  fontSize:"11px",
-                  lineHeight:"1.5",
-                  fontFamily:"inherit",
-                  resize:"none",
-                  overflowY:"auto",
-                  boxSizing:"border-box",
-                  cursor:"text",
+                  position:"relative",
+                  display:"flex", alignItems:"flex-end", gap:"8px",
+                  height:`${aiComposerH}px`, minHeight:"56px", maxHeight:"50vh",
+                  background: BG, boxShadow: aiDropActive ? `0 0 0 1px ${mc}28, 0 0 18px ${mc}20, ${SH_IN}` : SH_IN,
+                  borderRadius:"12px", padding:"8px 12px",
+                  outline: aiDropActive ? `1px solid ${mc}55` : "none",
                 }}
-              />
-              <button onClick={send} style={{
-                padding:"4px 10px",
-                background: SURF, boxShadow: SH_SM,
-                border:"none", borderRadius:"8px",
-                color: mc, fontSize:"13px", cursor:"pointer",
-                fontFamily:"inherit", transition:"all .08s",
-                flexShrink:0,
-              }}>→</button>
+              >
+                <input id="ai-file-import-desk" type="file" multiple accept={AI_FILE_ACCEPT} onChange={importAiFiles} style={{display:"none"}}/>
+                {aiDropActive && (
+                  <div style={{position:"absolute",inset:0,borderRadius:"12px",background:`${mc}12`,display:"flex",alignItems:"center",justifyContent:"center",pointerEvents:"none",zIndex:2}}>
+                    <div style={{width:"34px",height:"34px",borderRadius:"12px",background:SURF,boxShadow:SH_SM,display:"flex",alignItems:"center",justifyContent:"center",color:mc,fontSize:"22px",lineHeight:"1"}}>+</div>
+                  </div>
+                )}
+                <div style={{display:"flex", gap:"10px", alignSelf:"flex-end", flexShrink:0, marginRight:"2px", position:"relative", zIndex:3}}>
+                  <button onClick={startNewAiChat} aria-label="Новый чат" {...getTooltipAnchorProps("Новый чат")} style={{
+                    width:"28px",height:"28px",padding:0,
+                    display:"flex",alignItems:"center",justifyContent:"center",
+                    background:SURF,
+                    boxShadow:`0 0 0 1px ${mc}14, 0 0 16px ${mc}16, ${SH_SM}`,
+                    border:`1px solid ${mc}18`, borderRadius:"8px",
+                    color:mc, cursor:"pointer",
+                    fontFamily:"inherit", transition:"all .08s",
+                    flexShrink:0, alignSelf:"flex-end",
+                  }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M12 5v14"/>
+                      <path d="M5 12h14"/>
+                    </svg>
+                  </button>
+                  <button onClick={()=>{setAiHistoryOpen(v=>!v); setAiPreviewChat(null);}} aria-label="Просмотреть историю" {...getTooltipAnchorProps("История чатов")} style={{
+                    width:"28px",height:"28px",padding:0,
+                    display:"flex",alignItems:"center",justifyContent:"center",
+                    background:SURF,
+                    boxShadow: aiHistoryOpen
+                      ? `0 0 0 1px ${mc}28, 0 0 18px ${mc}28, ${SH_SM}`
+                      : `0 0 0 1px ${mc}14, 0 0 16px ${mc}16, ${SH_SM}`,
+                    border: aiHistoryOpen ? `1px solid ${mc}30` : `1px solid ${mc}18`,
+                    borderRadius:"8px",
+                    color: aiHistoryOpen ? T1 : mc, cursor:"pointer",
+                    fontFamily:"inherit", transition:"all .08s",
+                    flexShrink:0, alignSelf:"flex-end",
+                  }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M6 7h12"/>
+                      <path d="M6 12h12"/>
+                      <path d="M6 17h12"/>
+                    </svg>
+                  </button>
+                </div>
+                <div style={{flex:1, minWidth:0, height:"100%", minHeight:0, display:"flex", flexDirection:"column", justifyContent:"flex-end", position:"relative", zIndex:3}}>
+                  {aiPendingFiles.length>0 && (
+                    <div style={{display:"flex", flexWrap:"wrap", gap:"6px", marginBottom:"8px"}}>
+                      {aiPendingFiles.map(file => (
+                        <div key={file.id} style={{display:"inline-flex", alignItems:"center", maxWidth:"100%", gap:"6px", padding:"4px 8px", borderRadius:"999px", background:SURF, boxShadow:SH_SM, color:T2, fontSize:"10px"}}>
+                          <span style={{whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", maxWidth:"240px"}}>📎 {file.name}</span>
+                          <button onClick={()=>removeAiAttachment(file.id)} title="Убрать файл" style={{border:"none", background:"transparent", color:mc, cursor:"pointer", padding:0, fontSize:"11px", lineHeight:"1"}}>×</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <textarea
+                    value={aiIn}
+                    onChange={e=>setAiIn(e.target.value)}
+                    onKeyDown={e=>{
+                      if(e.key==="Enter" && !e.shiftKey){
+                        e.preventDefault();
+                        send();
+                      }
+                    }}
+                    onMouseDown={e=>e.stopPropagation()}
+                    onPointerDown={e=>e.stopPropagation()}
+                    onWheel={e=>e.stopPropagation()}
+                    onTouchStart={e=>e.stopPropagation()}
+                    onTouchMove={e=>e.stopPropagation()}
+                    data-ai-scrollable="true"
+                    rows={1}
+                    placeholder={aiPendingFiles.length ? "Файл добавлен. Напишите сообщение или отправьте." : `${getAiModelDisplayLabel(aiMod, aiModelVariant, { withProvider:false })}...`}
+                    style={{
+                      flex:1,
+                      minHeight:0,
+                      background:"transparent",
+                      border:"none",
+                      outline:"none",
+                      color:T1,
+                      fontSize:"11px",
+                      lineHeight:"1.5",
+                      fontFamily:"inherit",
+                      resize:"none",
+                      overflowY:"auto",
+                      boxSizing:"border-box",
+                      cursor:"text",
+                    }}
+                  />
+                </div>
+                <button onClick={()=>openAiFilePicker("ai-file-import-desk")} title="Добавить файл" style={{
+                  width:"28px",height:"28px",padding:0,
+                  display:"flex",alignItems:"center",justifyContent:"center",
+                  background: SURF, boxShadow: SH_SM,
+                  border:"none", borderRadius:"8px",
+                  color: mc, cursor:"pointer",
+                  fontFamily:"inherit", transition:"all .08s",
+                  flexShrink:0, alignSelf:"flex-end", position:"relative", zIndex:3,
+                }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M21.44 11.05l-8.49 8.49a6 6 0 0 1-8.49-8.49l8.49-8.48a4 4 0 0 1 5.66 5.65l-8.5 8.49a2 2 0 0 1-2.82-2.83l7.78-7.78"/>
+                  </svg>
+                </button>
+                <button onClick={send} style={{
+                  width:"28px",height:"28px",padding:0,
+                  display:"flex",alignItems:"center",justifyContent:"center",
+                  background: SURF, boxShadow: SH_SM,
+                  border:"none", borderRadius:"8px",
+                  color: mc, fontSize:"14px", lineHeight:"1", cursor:"pointer",
+                  fontFamily:"inherit", transition:"all .08s",
+                  flexShrink:0, alignSelf:"flex-end", position:"relative", zIndex:3,
+                }}>→</button>
+              </div>
             </div>
             <div style={{marginTop:"5px",fontSize:"9px",color:T3,textAlign:"center",letterSpacing:"1px"}}>
-              {AIM.find(m=>m.id===aiMod)?.free?"БЕСПЛАТНО":"≈ 12 КРЕДИТОВ"}
+              {getAiProvider(aiMod).free?"БЕСПЛАТНО":"≈ 12 КРЕДИТОВ"}
             </div>
           </div>
+          {renderAiPreviewOverlay()}
+          <TooltipBubble tooltip={uiTooltip}/>
+          {markerCtxMenu && (
+            <div
+              onMouseDown={e=>e.stopPropagation()}
+              onClick={e=>e.stopPropagation()}
+              style={{
+                position:"fixed",
+                left: Math.min(markerCtxMenu.x, window.innerWidth - 210),
+                top: Math.min(markerCtxMenu.y, window.innerHeight - 180),
+                zIndex: 9999,
+                background: "#1e2340",
+                border: `1px solid ${mc}44`,
+                borderRadius: "12px",
+                padding: "10px",
+                boxShadow: "0 8px 32px rgba(0,0,0,0.55)",
+                minWidth: "200px",
+              }}>
+              <div style={{fontSize:"8px", letterSpacing:"2px", color:"rgba(255,255,255,0.35)", marginBottom:"8px"}}>ЦВЕТ МАРКЕРА</div>
+              <div style={{display:"grid", gridTemplateColumns:"repeat(5, 1fr)", gap:"5px", marginBottom:"10px"}}>
+                {MARKER_COLORS.map((col, i) => (
+                  <button
+                    key={i}
+                    onClick={()=>applyMarkerColor(col)}
+                    title={col === null ? "Стереть" : col}
+                    style={{
+                      width:"30px", height:"30px", borderRadius:"8px", cursor:"pointer",
+                      background: col === null ? "transparent" : col+"99",
+                      border: col === null ? "1.5px dashed rgba(255,255,255,0.35)" : `1.5px solid ${col}`,
+                      display:"flex", alignItems:"center", justifyContent:"center",
+                      WebkitAppearance:"none",
+                    }}>
+                    {col === null && (
+                      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="rgba(255,255,255,0.5)" strokeWidth="1.5" strokeLinecap="round">
+                        <path d="M2 2l8 8M10 2l-8 8"/>
+                      </svg>
+                    )}
+                  </button>
+                ))}
+              </div>
+              <div style={{display:"flex", gap:"5px"}}>
+                {[["Копировать", ()=>{document.execCommand("copy"); setMarkerCtxMenu(null);}],
+                  ["Вырезать",   ()=>{document.execCommand("cut");  setMarkerCtxMenu(null);}],
+                  ["Вставить",   ()=>{document.execCommand("paste");setMarkerCtxMenu(null);}]
+                ].map(([label, action]) => (
+                  <button key={label} onClick={action} style={{
+                    flex:1, padding:"5px 0", fontSize:"9px", letterSpacing:"1px",
+                    background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.12)",
+                    borderRadius:"7px", color:"rgba(255,255,255,0.65)", cursor:"pointer",
+                    fontFamily:"inherit", WebkitAppearance:"none",
+                  }}>{label}</button>
+                ))}
+              </div>
+              <button
+                onClick={()=>setMarkerCtxMenu(null)}
+                style={{
+                  position:"absolute", top:"6px", right:"8px",
+                  background:"transparent", border:"none", color:"rgba(255,255,255,0.3)",
+                  cursor:"pointer", fontSize:"14px", lineHeight:"1", padding:"0",
+                  WebkitAppearance:"none",
+                }}>×</button>
+            </div>
+          )}
+          {markerCtxMenu && (
+            <div
+              style={{position:"fixed",inset:0,zIndex:9998}}
+              onMouseDown={()=>setMarkerCtxMenu(null)}
+            />
+          )}
         </div>
         </>
+      ) : (
+        <div style={{
+          width:`${aiSidebarW}px`, minWidth:`${aiSidebarW}px`, maxWidth:`${aiSidebarW}px`,
+          background: SURF,
+          boxShadow: "-4px 0 20px rgba(0,0,0,0.4)",
+          display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center",
+          overflow:"hidden", minHeight:0, position:"relative", flexShrink:0,
+          transition:"width .22s ease, min-width .22s ease, max-width .22s ease",
+        }}>
+          <button onMouseDown={e=>e.preventDefault()} onClick={()=>setAiOpen(true)} title="Развернуть ИИ-панель" style={{
+            ...sideToggleBase,
+            left:"-12px",
+            borderRadius:"14px 0 0 14px",
+            color:mc,
+            clipPath:SIDE_TAB_CLIP_LEFT,
+          }}><SideChevron dir="left"/></button>
+          <div style={sideRailLabelStyle}>ИИ</div>
+        </div>
       )}
     </div>
   );

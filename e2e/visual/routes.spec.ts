@@ -149,7 +149,7 @@ test.describe("visual / routes", () => {
       }, mode);
       await installApiMocks(page, { me: mockRegular });
       await page.goto("/editor", { waitUntil: "load", timeout: 90_000 });
-      await expect(page.getByText("МОИ ПРОЕКТЫ")).toBeVisible({ timeout: 30_000 });
+      await expect(page.getByText("ПОПОЛНИТЬ").first()).toBeVisible({ timeout: 30_000 });
       await page.waitForLoadState("networkidle").catch(() => undefined);
       await expect(page).toHaveScreenshot(`editor-${mode}.png`, shot);
     });

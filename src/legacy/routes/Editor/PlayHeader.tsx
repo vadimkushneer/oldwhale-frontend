@@ -1,13 +1,17 @@
 // @ts-nocheck
 /**
- * PlayHeaderEditor - extracted verbatim from legacyUiBundle.tsx:385-563.
- * All design tokens (T1/T2/T3/SURF/BG/mc/SH_SM/docFont) arrive via props
- * from EditorScreen so this component does not need to import from
- * src/legacy/ui/tokens directly.
+ * PlayHeaderEditor - extracted verbatim from reference.html MODULE:
+ * PlayHeaderEditor. All design tokens (T1/T2/T3/SURF/BG/mc/SH_SM/docFont)
+ * arrive via props from EditorScreen, matching the reference signature, so
+ * this component does not need to import from src/legacy/ui/tokens directly.
+ *
+ * The new reference adds `arrowOffsetX`, `searchScope`, and
+ * `renderSearchOverlay` props to thread editor-search highlights through the
+ * header rows; all still optional so existing callers keep working.
  */
 import React from "react";
 
-export function PlayHeaderEditor({ items, setItems, focKey, setFocKey, T1, T2, T3, SURF, BG, mc, SH_SM, docFont }) {
+export function PlayHeaderEditor({ items, setItems, focKey, setFocKey, T1, T2, T3, SURF, BG, mc, SH_SM, docFont, arrowOffsetX=0, searchScope=null, renderSearchOverlay=null }) {
   const onChange = (key, field, val) =>
     setItems(ph => ph.map(item => item.key===key ? {...item,[field]:val} : item));
 
@@ -53,7 +57,7 @@ export function PlayHeaderEditor({ items, setItems, focKey, setFocKey, T1, T2, T
     <div style={{marginBottom:"32px", paddingBottom:"24px", borderBottom:`1px solid ${T3}22`}}>
       {items.map((item, idx) => (
         item.type==="spacer" ? (
-          <div key={item.key} style={{display:"flex",alignItems:"center",padding:"2px 6px",marginBottom:"4px"}}>
+          <div key={item.key} style={{display:"flex",alignItems:"center",padding:"2px 6px",marginBottom:"4px",marginLeft:`${arrowOffsetX}px`}}>
             <div style={{flex:1,height:`${item.size||24}px`,borderRadius:"4px",background:T3+"18",
               display:"flex",alignItems:"center",justifyContent:"center"}}>
               <span style={{color:T3,fontSize:"9px",letterSpacing:"2px"}}>ОТСТУП</span>
@@ -72,7 +76,7 @@ export function PlayHeaderEditor({ items, setItems, focKey, setFocKey, T1, T2, T
           background: focKey===item.key ? `${mc}08` : "transparent", transition:"background .15s"}}>
           <div style={{display:"flex", alignItems:"flex-start", padding:"4px 6px"}}>
             {/* Up/Down */}
-            <div style={{display:"flex",flexDirection:"column",paddingTop:"4px",flexShrink:0}}>
+            <div style={{display:"flex",flexDirection:"column",paddingTop:"4px",flexShrink:0,marginLeft:`${arrowOffsetX}px`}}>
               <button onMouseDown={e=>e.preventDefault()} onClick={()=>moveItem(item.key,-1)}
                 disabled={idx===0}
                 style={{background:"transparent",border:"none",color:idx===0?T3+"44":T3,
@@ -83,26 +87,48 @@ export function PlayHeaderEditor({ items, setItems, focKey, setFocKey, T1, T2, T
                   fontSize:"11px",cursor:idx===items.length-1?"default":"pointer",padding:"1px 3px",lineHeight:1}}>▼</button>
             </div>
             {/* Textarea */}
-            <textarea
-              value={item.text}
-              placeholder={item.label}
-              onFocus={()=>setFocKey(item.key)}
-              onChange={e=>onChange(item.key,"text",e.target.value)}
-              rows={1}
-              onInput={e=>{ e.target.style.height="auto"; e.target.style.height=e.target.scrollHeight+"px"; }}
-              style={{
-                flex:1, background:"transparent", border:"none",
-                borderBottom: focKey===item.key ? `1px solid ${mc}66` : `1px solid ${T3}22`,
-                outline:"none", resize:"none", overflow:"hidden",
-                fontFamily: docFont||"Times New Roman",
-                fontSize:item.size+"px",
-                fontWeight: item.bold ? "bold" : "normal",
-                fontStyle: item.italic ? "italic" : "normal",
-                textDecoration: item.underline ? "underline" : "none",
-                textAlign:item.align, color:T1,
-                padding:"4px 0", lineHeight:"1.5", transition:"border .15s",
-              }}
-            />
+            <div style={{position:"relative", flex:1}}>
+              {typeof renderSearchOverlay === "function" && renderSearchOverlay({
+                scope:"header",
+                headerScope:searchScope,
+                headerKey:item.key,
+                text:item.text,
+                overlayStyle:{
+                  boxSizing:"border-box",
+                  padding:"4px 0",
+                  fontFamily:docFont||"Times New Roman",
+                  fontSize:item.size+"px",
+                  fontWeight:item.bold ? "bold" : "normal",
+                  fontStyle:item.italic ? "italic" : "normal",
+                  textDecoration:item.underline ? "underline" : "none",
+                  textAlign:item.align,
+                  lineHeight:"1.5",
+                }
+              })}
+              <textarea
+                value={item.text}
+                placeholder={item.label}
+                data-header-scope={searchScope||undefined}
+                data-header-key={item.key}
+                onFocus={()=>setFocKey(item.key)}
+                onChange={e=>onChange(item.key,"text",e.target.value)}
+                rows={1}
+                onInput={e=>{ e.target.style.height="auto"; e.target.style.height=e.target.scrollHeight+"px"; }}
+                style={{
+                  width:"100%", display:"block", position:"relative", zIndex:1,
+                  background:"transparent", border:"none",
+                  borderBottom: focKey===item.key ? `1px solid ${mc}66` : `1px solid ${T3}22`,
+                  outline:"none", resize:"none", overflow:"hidden",
+                  fontFamily: docFont||"Times New Roman",
+                  fontSize:item.size+"px",
+                  fontWeight: item.bold ? "bold" : "normal",
+                  fontStyle: item.italic ? "italic" : "normal",
+                  textDecoration: item.underline ? "underline" : "none",
+                  textAlign:item.align, color:T1,
+                  padding:"4px 0", lineHeight:"1.5", transition:"border .15s",
+                }}
+              />
+            </div>
             {/* Duplicate + Delete */}
             <div style={{display:"flex",flexShrink:0,marginTop:"2px"}}>
               <button onMouseDown={e=>e.preventDefault()} onClick={()=>setItems(ph=>{

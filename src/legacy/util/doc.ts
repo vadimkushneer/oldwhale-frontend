@@ -1,14 +1,84 @@
 // @ts-nocheck
 /**
- * Document helpers extracted from legacyUiBundle.tsx: textarea auto-grow,
- * scene/act enumeration per mode, and word/character/page-count stats for
- * structured (blocks) vs free-form (note HTML) content.
+ * Document helpers extracted verbatim from reference.html MODULE: doc-utils.
+ *
+ * Covers: Russian play-act ordinal dictionaries + title helpers, scene/act
+ * enumeration per mode, word/character/page-count stats for structured
+ * (blocks) vs free-form (note HTML) content, and the textarea auto-grow
+ * helper (kept here for backwards compatibility; originated in MODULE:
+ * helpers).
  */
 
 export function autoH(el) {
   if (!el) return;
   el.style.height = "auto";
   el.style.height = el.scrollHeight + "px";
+}
+
+export const PLAY_ACT_ORDINAL_1_TO_19 = {
+  1: "ПЕРВЫЙ",
+  2: "ВТОРОЙ",
+  3: "ТРЕТИЙ",
+  4: "ЧЕТВЁРТЫЙ",
+  5: "ПЯТЫЙ",
+  6: "ШЕСТОЙ",
+  7: "СЕДЬМОЙ",
+  8: "ВОСЬМОЙ",
+  9: "ДЕВЯТЫЙ",
+  10: "ДЕСЯТЫЙ",
+  11: "ОДИННАДЦАТЫЙ",
+  12: "ДВЕНАДЦАТЫЙ",
+  13: "ТРИНАДЦАТЫЙ",
+  14: "ЧЕТЫРНАДЦАТЫЙ",
+  15: "ПЯТНАДЦАТЫЙ",
+  16: "ШЕСТНАДЦАТЫЙ",
+  17: "СЕМНАДЦАТЫЙ",
+  18: "ВОСЕМНАДЦАТЫЙ",
+  19: "ДЕВЯТНАДЦАТЫЙ"
+};
+export const PLAY_ACT_TENS_CARDINAL = {
+  20: "ДВАДЦАТЬ",
+  30: "ТРИДЦАТЬ",
+  40: "СОРОК",
+  50: "ПЯТЬДЕСЯТ",
+  60: "ШЕСТЬДЕСЯТ",
+  70: "СЕМЬДЕСЯТ",
+  80: "ВОСЕМЬДЕСЯТ",
+  90: "ДЕВЯНОСТО"
+};
+export const PLAY_ACT_TENS_ORDINAL = {
+  20: "ДВАДЦАТЫЙ",
+  30: "ТРИДЦАТЫЙ",
+  40: "СОРОКОВОЙ",
+  50: "ПЯТИДЕСЯТЫЙ",
+  60: "ШЕСТИДЕСЯТЫЙ",
+  70: "СЕМИДЕСЯТЫЙ",
+  80: "ВОСЬМИДЕСЯТЫЙ",
+  90: "ДЕВЯНОСТЫЙ"
+};
+export function getPlayActOrdinalWord(n) {
+  const num = Number(n);
+  if (!Number.isFinite(num) || num <= 0) return "";
+  if (PLAY_ACT_ORDINAL_1_TO_19[num]) return PLAY_ACT_ORDINAL_1_TO_19[num];
+  if (PLAY_ACT_TENS_ORDINAL[num]) return PLAY_ACT_TENS_ORDINAL[num];
+  const tens = Math.floor(num / 10) * 10;
+  const ones = num % 10;
+  if (PLAY_ACT_TENS_CARDINAL[tens] && PLAY_ACT_ORDINAL_1_TO_19[ones]) {
+    return PLAY_ACT_TENS_CARDINAL[tens] + " " + PLAY_ACT_ORDINAL_1_TO_19[ones];
+  }
+  return String(num);
+}
+export function getPlayActTitle(n) {
+  const word = getPlayActOrdinalWord(n);
+  return word ? ("АКТ " + word) : "АКТ";
+}
+export function isPlayAutoActTitle(text) {
+  const value = String(text || "").trim();
+  return !value || /^АКТ\s+\d+$/i.test(value);
+}
+export function getPlayActDisplayText(text, actNum) {
+  const value = String(text || "").trim();
+  return isPlayAutoActTitle(value) ? getPlayActTitle(actNum) : value;
 }
 
 export function getScenes(blocks, mode) {
@@ -21,7 +91,7 @@ export function getScenes(blocks, mode) {
       if (b.type === "act") {
         actNum++;
         sceneInAct = 0;
-        scenes.push({ id: b.id, actNum, num: actNum, text: b.text, cast: "", index: i, kind: "act" });
+        scenes.push({ id: b.id, actNum, num: actNum, text: getPlayActDisplayText(b.text, actNum), cast: "", index: i, kind: "act" });
       } else if (b.type === "scene") {
         sceneNum++;
         sceneInAct++;
@@ -39,6 +109,17 @@ export function getScenes(blocks, mode) {
         sceneInAct++;
         scenes.push({ id: b.id, actNum, subNum: sceneInAct, num: sceneNum, text: b.text||b.type, cast: "", index: i, kind: "scene" });
       }
+    } else if (mode === "film") {
+      if (b.type === "act") {
+        actNum++;
+        sceneInAct = 0;
+        scenes.push({ id: b.id, actNum, num: null, text: b.text || ("АКТ " + actNum), cast: "", index: i, kind: "act" });
+      } else if (b.type === "scene") {
+        sceneNum++;
+        sceneInAct++;
+        const cast = blocks[i+1]?.type === "cast" ? blocks[i+1].text : "";
+        scenes.push({ id: b.id, actNum, subNum: sceneInAct, num: sceneNum, text: b.text, cast, index: i, kind: "scene" });
+      }
     } else {
       if (b.type === "scene") {
         sceneNum++;
@@ -47,7 +128,7 @@ export function getScenes(blocks, mode) {
       } else if (b.type === "video") {
         actNum++;
         sceneInAct = 0;
-        scenes.push({ id: b.id, actNum, num: actNum, text: b.text||("Видео "+actNum), cast: "", index: i, kind: "act" });
+        scenes.push({ id: b.id, actNum, num: actNum, text: b.text||("ВИДЕО "+actNum), cast: "", index: i, kind: "act" });
       } else if (["hook","body","cta"].includes(b.type)) {
         sceneNum++;
         sceneInAct++;

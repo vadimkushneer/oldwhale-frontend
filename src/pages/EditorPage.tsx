@@ -6,6 +6,9 @@ import { clearAuth } from "../features/auth/authSlice";
 
 type Profile = { mode?: string; id?: string; label?: string; color?: string; desc?: string; num?: string };
 
+/** When JWT + user are valid but onboarding profile was never stored (or was cleared), editor still loads. */
+const FALLBACK_AUTH_PROFILE: Profile = { mode: "film" };
+
 function readProfile(): Profile | null {
   try {
     const raw = localStorage.getItem("ow_profile");
@@ -23,7 +26,11 @@ export function EditorPage() {
   const user = useAppSelector((s) => s.auth.user);
   const restoreStatus = useAppSelector((s) => s.auth.restoreStatus);
 
-  const profile = useMemo(() => readProfile(), []);
+  const storedProfile = useMemo(() => readProfile(), []);
+
+  const profile: Profile | null =
+    storedProfile ??
+    (token && user && restoreStatus === "ready" ? FALLBACK_AUTH_PROFILE : null);
 
   const needsAuth = profile?.mode !== "note";
   const isGuest = profile?.mode === "note" && !token;
@@ -43,7 +50,50 @@ export function EditorPage() {
   }, [navigate]);
 
   if (!profile) {
-    return <Navigate to="/" replace />;
+    if (token && restoreStatus !== "ready") {
+      return (
+        <div
+          style={{
+            width: "100vw",
+            height: "100vh",
+            background: "#1a1b2e",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            color: "#5a587a",
+            fontFamily: "'Courier New',monospace",
+            letterSpacing: "2px",
+            fontSize: "11px",
+          }}
+        >
+          ВОССТАНОВЛЕНИЕ СЕССИИ…
+        </div>
+      );
+    }
+    if (token && restoreStatus === "ready" && !user) {
+      return <Navigate to="/login" replace state={{ from: { pathname: "/editor", search: "" } }} />;
+    }
+    if (!token && restoreStatus === "ready") {
+      return <Navigate to="/" replace />;
+    }
+    return (
+      <div
+        style={{
+          width: "100vw",
+          height: "100vh",
+          background: "#1a1b2e",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          color: "#5a587a",
+          fontFamily: "'Courier New',monospace",
+          letterSpacing: "2px",
+          fontSize: "11px",
+        }}
+      >
+        ВОССТАНОВЛЕНИЕ СЕССИИ…
+      </div>
+    );
   }
 
   if (needsAuth && !token && restoreStatus === "ready") {

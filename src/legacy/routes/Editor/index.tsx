@@ -5142,7 +5142,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin }) {
     const UPPER = ["cast","char","scene"];
     const textareaStyle = {
       width:"100%",background:"transparent",border:"none",outline:"none",
-      resize:"none",overflow:"hidden",color:T2,
+      resize:"none",overflow:"hidden",
       fontSize:"16px",
       lineHeight:mode==="play"?"1.7":"1.85",
       fontFamily:mode==="play"?`${docFont||'Times New Roman'},serif`:"'Courier New',monospace",
@@ -6796,7 +6796,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin }) {
                     onDrop={handleAiDrop}
                     style={{
                       position:"relative",
-                      display:"flex",alignItems:"flex-end",background:BG,boxShadow:SH_IN,borderRadius:"14px",padding:"10px 12px",gap:"8px",
+                      display:"flex",alignItems:"flex-end",background:BG,borderRadius:"14px",padding:"10px 12px",gap:"8px",
                       outline: aiDropActive ? `1px solid ${mc}55` : "none",
                       boxShadow: aiDropActive ? `0 0 0 1px ${mc}28, 0 0 18px ${mc}20, ${SH_IN}` : SH_IN,
                     }}

@@ -14,11 +14,12 @@ import { BG, SURF, SH_OUT, SH_IN, SH_SM, T1, T2, T3 } from "../../ui/tokens";
 import { Whale } from "../../ui/Whale";
 
 const WHEEL_ITEMS = [
-  { num:"01", id:"note",    label:"Блокнот",      desc:"Мысли набегу. Без структуры, без правил — просто пишешь.",                     color:"#f472b6", mode:"note"  },
+  { num:"01", id:"note",    label:"Notebook",      desc:"Мысли набегу. Без структуры, без правил — просто пишешь.",                     color:"#f472b6", mode:"note"  },
   { num:"02", id:"film",    label:"Сценарий",  desc:"Сценарий по голливудскому стандарту. ИИ рядом — подсказывает, не мешает.",  color:"#34d399", mode:"film"  },
   { num:"03", id:"play",    label:"Пьеса",     desc:"Диалог как действие. Редактор думает вместе с драматургом.",                   color:"#7c6af7", mode:"play"  },
   { num:"04", id:"content", label:"Видео",     desc:"Быстрые идеи, чёткая структура. Фокус на смысл, а не на оформление.",         color:"#fbbf24", mode:"short" },
   { num:"05", id:"media",   label:"Медиа",        desc:"Rundown для ТВ, шоу, интервью. Сегменты, синхроны, ВТР — всё на месте.",      color:"#60a5fa", mode:"media" },
+  { num:"06", id:"tiktok",  label:"ТИКТОК-ролик", desc:"Короткий вертикальный формат: зацепка, смысл, финал — текст под монтаж и озвучку.", color:"#fe2c55", mode:"short" },
 ];
 
 export function Onboarding({ onSelect }) {

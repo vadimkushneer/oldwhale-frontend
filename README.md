@@ -80,9 +80,9 @@ If you instead keep this folder inside a **monorepo** and push from the parent r
 
 - **[User flow: registration](./USER_FLOW_REGISTRATION.md)** — entry points, validation, API, navigation, and QA scenarios for self-service registration.
 - **[User flow: login](./USER_FLOW_LOGIN.md)** — form login, session restore (`/api/me`), guards, and failure paths for authenticated vs unauthenticated users.
-- **[E2E and visual testing](./e2e/README.md)** — how to run and update Playwright visual regression tests and behavioral E2E specs.
+- **[Testing infrastructure](./TESTING.md)** — Playwright E2E flows, route-by-route visual regression (screenshot baselines), CI, and how to run or update tests.
 
-**Russian (parallel docs):** [README.ru.md](./README.ru.md) · [USER_FLOW_REGISTRATION.ru.md](./USER_FLOW_REGISTRATION.ru.md) · [USER_FLOW_LOGIN.ru.md](./USER_FLOW_LOGIN.ru.md) · [e2e/README.ru.md](./e2e/README.ru.md)
+**Russian (parallel docs):** [README.ru.md](./README.ru.md) · [USER_FLOW_REGISTRATION.ru.md](./USER_FLOW_REGISTRATION.ru.md) · [USER_FLOW_LOGIN.ru.md](./USER_FLOW_LOGIN.ru.md) · [TESTING.ru.md](./TESTING.ru.md)
 
 ## Admin
 
@@ -125,7 +125,7 @@ oldwhale-frontend/
 | `npm run build` | `tsc -b` + `vite build`. |
 | `npm run build:gh-pages` | Same as `build` (CI entry point). |
 | `npm run preview` | Preview production build. |
-| `npm run test:e2e` | Run Playwright visual + behavioral suites. |
+| `npm run test:e2e` | Run Playwright visual + behavioral suites (see [TESTING.md](./TESTING.md)). |
 | `npm run test:e2e:update` | Update Playwright snapshots from the current React render. |
 | `npm run test:e2e:capture-reference` | Regenerate visual baselines directly from `reference.html`. |
 

@@ -82,9 +82,9 @@ VITE_BASE_PATH="/<repository-name>/" VITE_API_URL="https://your-api.example" npm
 
 - **[Пользовательский сценарий: регистрация](./USER_FLOW_REGISTRATION.ru.md)** — точки входа, валидация, API, навигация и сценарии QA для самостоятельной регистрации.
 - **[Пользовательский сценарий: вход](./USER_FLOW_LOGIN.ru.md)** — вход по форме, восстановление сессии (`/api/me`), защита маршрутов и ошибки для зарегистрированных и неаутентифицированных пользователей.
-- **[E2E и визуальное тестирование](./e2e/README.ru.md)** — запуск и обновление визуальных регрессионных тестов Playwright и поведенческих E2E.
+- **[Инфраструктура тестирования](./TESTING.ru.md)** — Playwright E2E, визуальная регрессия по маршрутам (эталонные скриншоты), CI, запуск и обновление тестов.
 
-Английские версии тех же документов: [USER_FLOW_REGISTRATION.md](./USER_FLOW_REGISTRATION.md), [USER_FLOW_LOGIN.md](./USER_FLOW_LOGIN.md), [e2e/README.md](./e2e/README.md).
+Английские версии тех же документов: [USER_FLOW_REGISTRATION.md](./USER_FLOW_REGISTRATION.md), [USER_FLOW_LOGIN.md](./USER_FLOW_LOGIN.md), [TESTING.md](./TESTING.md).
 
 ## Админка
 
@@ -127,7 +127,7 @@ oldwhale-frontend/
 | `npm run build` | `tsc -b` + `vite build`. |
 | `npm run build:gh-pages` | То же, что `build` (точка входа CI). |
 | `npm run preview` | Просмотр production-сборки. |
-| `npm run test:e2e` | Playwright (см. [e2e/README.ru.md](./e2e/README.ru.md)). |
+| `npm run test:e2e` | Playwright (см. [TESTING.ru.md](./TESTING.ru.md)). |
 | `npm run test:e2e:update` | Обновить snapshot-ы Playwright из текущего React-рендера. |
 | `npm run test:e2e:capture-reference` | Пересобрать визуальные эталоны напрямую из `reference.html`. |
 

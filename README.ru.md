@@ -90,6 +90,22 @@ VITE_BASE_PATH="/<repository-name>/" VITE_API_URL="https://your-api.example" npm
 
 Минимальный UI `/admin` (список, создание, PATCH роли/disabled, удаление). Тёмная нейроморфная палитра. **Самоудаление** и **самоотключение** в UI заблокированы. **DELETE** обрабатывает HTTP **204** с пустым телом как успех (RTK Query `fetchBaseQuery`).
 
+## PWA
+
+Production-сборка — устанавливаемое Progressive Web App через [`vite-plugin-pwa`](https://vite-pwa-org.netlify.app/) (под капотом — Workbox):
+
+- **Manifest:** выкладывается в `${BASE_URL}manifest.webmanifest`, тёмная тема (`#1a1b2e`), `display: standalone`. `scope` и `start_url` берутся из `VITE_BASE_PATH`, поэтому установка работает и под кастомным путём GitHub Pages.
+- **Иконки:** однократно генерируются из [`src/assets/logo-whale-main.png`](./src/assets/logo-whale-main.png) скриптом [`scripts/generate-icons.mjs`](./scripts/generate-icons.mjs) и коммитятся в [`public/icons/`](./public/icons/) (192/512, maskable 512, apple-touch 180, многоразмерный `favicon.ico`).
+- **Service worker:** регистрируется из [`src/main.tsx`](./src/main.tsx) через `virtual:pwa-register` **только в PROD**. `registerType: "autoUpdate"` + `skipWaiting` + `clientsClaim` → новые деплои применяются **тихо при следующей навигации**, без промпта пользователю.
+- **Политика кеширования:**
+  - App shell (JS/CSS/HTML/иконки/шрифты/manifest) — **precache** при сборке.
+  - Same-origin картинки и шрифты: `CacheFirst` (TTL 30 дней).
+  - Всё под `VITE_API_URL` (авторизация, `/api/me`, админка): `NetworkOnly` — токены и данные пользователя не кешируются.
+  - SPA-навигация уходит на `${BASE_URL}index.html`; `/^\/api\//` — в denylist.
+- **Что работает офлайн:** редактор, локальные проекты (`ow_proj_*`, `ow_index`), черновик заметки, стор AI-чата, состояние тултипов — всё уже лежит в `localStorage` (см. [`src/legacy/routes/Editor/index.tsx`](./src/legacy/routes/Editor/index.tsx)).
+- **Что офлайн не работает:** вход, регистрация, валидация сессии через `/api/me`, админ-CRUD. Форма входа и экран админа показывают явные офлайн-сообщения; редактор пропускает восстановление сессии при старте без сети и повторно валидирует токен, когда связь появится (см. `SessionInit` в [`src/app/App.tsx`](./src/app/App.tsx)).
+- **Аварийный тумблер:** переменная `VITE_PWA_DISABLED=1` при сборке полностью отключает плагин — ни service worker, ни manifest не эмитятся. Этот флаг выставлен в `npm run e2e:serve`, чтобы визуальные эталоны Playwright никогда не видели SW.
+
 ## Структура проекта
 
 ```
@@ -103,6 +119,9 @@ oldwhale-frontend/
   reference.html          # Эталон по пикселям и поведению (standalone HTML)
   public/
     reference.html        # Копия, которую раздаёт Vite preview для capture-спеки
+    icons/                # PWA-иконки из логотипа Whale (см. scripts/generate-icons.mjs)
+  scripts/
+    generate-icons.mjs    # Разовая генерация PWA-иконок (в `build` не включена)
   src/
     app/App.tsx           # Роутер + инициализация сессии
     pages/                # Тонкие обёртки React Router (Onboarding, Login, Editor, Admin)

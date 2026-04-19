@@ -7,6 +7,7 @@ import {
   usePatchUserMutation,
 } from "../features/admin/adminApi";
 import { useAppSelector } from "../hooks";
+import { useOnlineStatus } from "../hooks/useOnlineStatus";
 import type { User, UserRole } from "../api/types";
 import {
   ACCENT,
@@ -31,6 +32,7 @@ export function AdminPage() {
   const user = useAppSelector((s) => s.auth.user);
   const token = useAppSelector((s) => s.auth.token);
   const restoreStatus = useAppSelector((s) => s.auth.restoreStatus);
+  const online = useOnlineStatus();
   const { data: users, isLoading, refetch } = useListUsersQuery(undefined, {
     skip: !token || user?.role !== "admin",
   });
@@ -147,6 +149,22 @@ export function AdminPage() {
       }}
     >
       <div style={{ maxWidth: 960, margin: "0 auto" }}>
+        {!online ? (
+          <div
+            style={{
+              background: SURF,
+              boxShadow: SH_OUT,
+              borderRadius: 12,
+              padding: "10px 14px",
+              color: "#f472b6",
+              fontSize: 11,
+              letterSpacing: 1,
+              marginBottom: 16,
+            }}
+          >
+            НЕТ ПОДКЛЮЧЕНИЯ — АДМИН-ОПЕРАЦИИ НЕДОСТУПНЫ
+          </div>
+        ) : null}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
           <div style={{ letterSpacing: 4, fontSize: 12 }}>АДМИН · ПОЛЬЗОВАТЕЛИ</div>
           <Link to="/editor" style={{ color: ACCENT, fontSize: 10, letterSpacing: 2, textDecoration: "none" }}>

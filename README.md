@@ -88,6 +88,22 @@ If you instead keep this folder inside a **monorepo** and push from the parent r
 
 Minimal `/admin` UI (list, create, patch role/disabled, delete). Matches the dark neumorphic palette. **Self-delete** and self-disable are blocked in the UI. **DELETE** treats HTTP **204** with an empty body as success (handled by RTK Query `fetchBaseQuery`).
 
+## PWA
+
+The production build is an installable Progressive Web App powered by [`vite-plugin-pwa`](https://vite-pwa-org.netlify.app/) (Workbox under the hood):
+
+- **Manifest:** emitted at `${BASE_URL}manifest.webmanifest` with dark theme (`#1a1b2e`), `display: standalone`, `scope`/`start_url` derived from `VITE_BASE_PATH` so installs work under custom GitHub Pages paths.
+- **Icons:** generated once from [`src/assets/logo-whale-main.png`](./src/assets/logo-whale-main.png) via [`scripts/generate-icons.mjs`](./scripts/generate-icons.mjs) and committed under [`public/icons/`](./public/icons/) (192/512, maskable 512, Apple-touch 180, multi-size `favicon.ico`).
+- **Service worker:** registered from [`src/main.tsx`](./src/main.tsx) via `virtual:pwa-register` in **PROD only**. `registerType: "autoUpdate"` + `skipWaiting` + `clientsClaim` → new deploys apply **silently on next navigation**, no user prompt.
+- **Caching policy:**
+  - App shell (JS/CSS/HTML/icons/fonts/manifest) is **precached** at build time.
+  - Same-origin images and fonts: `CacheFirst` (30-day TTL).
+  - Everything under `VITE_API_URL` (auth, `/api/me`, admin): `NetworkOnly` — auth tokens and user data are never cached.
+  - SPA navigation fallback → `${BASE_URL}index.html`, with `/^\/api\//` denylisted.
+- **What works offline:** the editor, local projects (`ow_proj_*`, `ow_index`), note drafts, AI chat store, tooltip state — everything already persisted in `localStorage` by [`src/legacy/routes/Editor/index.tsx`](./src/legacy/routes/Editor/index.tsx).
+- **What doesn't work offline:** login, registration, session validation via `/api/me`, admin CRUD. The login form and admin screen show explicit offline messages; the editor skips session-restore on offline boot and re-validates once connectivity returns (see [`src/app/App.tsx`](./src/app/App.tsx) `SessionInit`).
+- **Escape hatch:** set `VITE_PWA_DISABLED=1` at build time to disable the plugin entirely — no service worker, no manifest. Used by `npm run e2e:serve` so Playwright visual baselines never observe an SW.
+
 ## Project layout
 
 ```
@@ -101,6 +117,9 @@ oldwhale-frontend/
   reference.html          # Pixel/behavior source of truth (standalone HTML)
   public/
     reference.html        # Copy served by Vite preview for the capture spec
+    icons/                # PWA icons generated from the Whale logo (see scripts/generate-icons.mjs)
+  scripts/
+    generate-icons.mjs    # One-off PWA icon generator (not wired into `build`)
   src/
     app/App.tsx           # Router + session bootstrap
     pages/                # Thin React Router page wrappers (Onboarding, Login, Editor, Admin)

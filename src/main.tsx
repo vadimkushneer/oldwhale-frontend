@@ -5,9 +5,14 @@ import { jsPDF } from "jspdf";
 import * as mammoth from "mammoth";
 import * as docx from "docx";
 import { Provider } from "react-redux";
+import { registerSW } from "virtual:pwa-register";
 import { store } from "./store";
 import App from "./app/App";
 import "./legacy/global.css";
+
+if (import.meta.env.PROD) {
+  registerSW({ immediate: true });
+}
 
 declare global {
   interface Window {

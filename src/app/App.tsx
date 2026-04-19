@@ -11,8 +11,24 @@ function SessionInit() {
   const dispatch = useAppDispatch();
   const token = useAppSelector((s) => s.auth.token);
   useEffect(() => {
-    if (!token) dispatch(markRestoreSkipped());
-    else void dispatch(restoreSession());
+    if (!token) {
+      dispatch(markRestoreSkipped());
+      return;
+    }
+    /*
+     * When offline at boot there's no point holding the editor on
+     * "ВОССТАНОВЛЕНИЕ СЕССИИ…" — mark ready immediately and re-validate the
+     * JWT via /api/me once the browser regains connectivity.
+     */
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      dispatch(markRestoreSkipped());
+      const onOnline = () => {
+        void dispatch(restoreSession());
+      };
+      window.addEventListener("online", onOnline, { once: true });
+      return () => window.removeEventListener("online", onOnline);
+    }
+    void dispatch(restoreSession());
   }, [dispatch, token]);
   return null;
 }

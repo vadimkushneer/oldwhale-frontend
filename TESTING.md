@@ -120,3 +120,4 @@ Regenerate snapshots on the **same OS** you care about, or in **Linux CI** (e.g.
 - **Port 4173 in use:** stop other preview servers or change the port consistently in `playwright.config.ts` and `package.json` (advanced).
 - **First run is slow:** `e2e:serve` runs a full `npm run build` before preview.
 - **Stale dependencies:** run `npm ci` in clean/CI-like environments before tests.
+- **Service worker / PWA:** `npm run e2e:serve` builds with `VITE_PWA_DISABLED=1`, so no service worker is registered and no `manifest.webmanifest` is emitted during tests — visual baselines are never affected by PWA assets or update prompts. If you need to verify the PWA itself, build without that flag and serve `dist/` with any static server (e.g. `npx serve dist -p 4173`).

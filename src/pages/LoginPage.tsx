@@ -3,6 +3,9 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { Login } from "../legacy/routes/Login";
 import { useAppDispatch, useAppSelector } from "../hooks";
 import { clearFormError, loginThunk, registerThunk } from "../features/auth/authSlice";
+import { useOnlineStatus } from "../hooks/useOnlineStatus";
+
+const OFFLINE_MESSAGE = "Нет подключения к сети — вход и регистрация недоступны.";
 
 function ensureEditorProfileIfMissing() {
   try {
@@ -22,6 +25,8 @@ export function LoginPage() {
   const token = useAppSelector((s) => s.auth.token);
   const user = useAppSelector((s) => s.auth.user);
   const restoreStatus = useAppSelector((s) => s.auth.restoreStatus);
+  const online = useOnlineStatus();
+  const displayError = online ? lastError : OFFLINE_MESSAGE;
 
   const from = location.state?.from;
   const target = from?.pathname ? `${from.pathname}${from.search || ""}` : "/editor";
@@ -66,11 +71,13 @@ export function LoginPage() {
 
   return (
     <Login
-      authError={lastError}
+      authError={displayError}
       submitLogin={async (login, password) => {
+        if (!navigator.onLine) throw new Error(OFFLINE_MESSAGE);
         await dispatch(loginThunk({ login, password })).unwrap();
       }}
       submitRegister={async (login, email, password) => {
+        if (!navigator.onLine) throw new Error(OFFLINE_MESSAGE);
         await dispatch(registerThunk({ login, email, password })).unwrap();
       }}
       onLogin={() => {

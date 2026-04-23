@@ -90,6 +90,7 @@ import {
   getPlayActDisplayText,
 } from "../../util/doc";
 import { PlayHeaderEditor } from "./PlayHeader";
+import { AiComposer } from "./AiComposer";
 
 function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin }) {
   const goHome = onGoHome || onLogout;
@@ -11091,133 +11092,33 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin }) {
                 boxShadow:"0 0 0 1px rgba(255,255,255,0.02)",
               }}/>
             </div>
-            <div ref={aiHistoryLayerRef} style={{position:"relative"}}>
-              {renderAiHistoryDropdown()}
-              <div
-                onDragEnter={handleAiDragEnter}
-                onDragOver={handleAiDragOver}
-                onDragLeave={handleAiDragLeave}
-                onDrop={handleAiDrop}
-                style={{
-                  position:"relative",
-                  display:"flex", alignItems:"flex-end", gap:"8px",
-                  height:`${aiComposerH}px`, minHeight:"56px", maxHeight:"50vh",
-                  background: BG, boxShadow: aiDropActive ? `0 0 0 1px ${mc}28, 0 0 18px ${mc}20, ${SH_IN}` : SH_IN,
-                  borderRadius:"12px", padding:"8px 12px",
-                  outline: aiDropActive ? `1px solid ${mc}55` : "none",
-                }}
-              >
-                <input id="ai-file-import-desk" type="file" multiple accept={AI_FILE_ACCEPT} onChange={importAiFiles} style={{display:"none"}}/>
-                {aiDropActive && (
-                  <div style={{position:"absolute",inset:0,borderRadius:"12px",background:`${mc}12`,display:"flex",alignItems:"center",justifyContent:"center",pointerEvents:"none",zIndex:2}}>
-                    <div style={{width:"34px",height:"34px",borderRadius:"12px",background:SURF,boxShadow:SH_SM,display:"flex",alignItems:"center",justifyContent:"center",color:mc,fontSize:"22px",lineHeight:"1"}}>+</div>
-                  </div>
-                )}
-                <div style={{display:"flex", gap:"10px", alignSelf:"flex-end", flexShrink:0, marginRight:"2px", position:"relative", zIndex:3}}>
-                  <button onClick={startNewAiChat} aria-label="Новый чат" {...getTooltipAnchorProps("Новый чат")} style={{
-                    width:"28px",height:"28px",padding:0,
-                    display:"flex",alignItems:"center",justifyContent:"center",
-                    background:SURF,
-                    boxShadow:`0 0 0 1px ${mc}14, 0 0 16px ${mc}16, ${SH_SM}`,
-                    border:`1px solid ${mc}18`, borderRadius:"8px",
-                    color:mc, cursor:"pointer",
-                    fontFamily:"inherit", transition:"all .08s",
-                    flexShrink:0, alignSelf:"flex-end",
-                  }}>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                      <path d="M12 5v14"/>
-                      <path d="M5 12h14"/>
-                    </svg>
-                  </button>
-                  <button onClick={()=>{setAiHistoryOpen(v=>!v); setAiPreviewChat(null);}} aria-label="Просмотреть историю" {...getTooltipAnchorProps("История чатов")} style={{
-                    width:"28px",height:"28px",padding:0,
-                    display:"flex",alignItems:"center",justifyContent:"center",
-                    background:SURF,
-                    boxShadow: aiHistoryOpen
-                      ? `0 0 0 1px ${mc}28, 0 0 18px ${mc}28, ${SH_SM}`
-                      : `0 0 0 1px ${mc}14, 0 0 16px ${mc}16, ${SH_SM}`,
-                    border: aiHistoryOpen ? `1px solid ${mc}30` : `1px solid ${mc}18`,
-                    borderRadius:"8px",
-                    color: aiHistoryOpen ? T1 : mc, cursor:"pointer",
-                    fontFamily:"inherit", transition:"all .08s",
-                    flexShrink:0, alignSelf:"flex-end",
-                  }}>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                      <path d="M6 7h12"/>
-                      <path d="M6 12h12"/>
-                      <path d="M6 17h12"/>
-                    </svg>
-                  </button>
-                </div>
-                <div style={{flex:1, minWidth:0, height:"100%", minHeight:0, display:"flex", flexDirection:"column", justifyContent:"flex-end", position:"relative", zIndex:3}}>
-                  {aiPendingFiles.length>0 && (
-                    <div style={{display:"flex", flexWrap:"wrap", gap:"6px", marginBottom:"8px"}}>
-                      {aiPendingFiles.map(file => (
-                        <div key={file.id} style={{display:"inline-flex", alignItems:"center", maxWidth:"100%", gap:"6px", padding:"4px 8px", borderRadius:"999px", background:SURF, boxShadow:SH_SM, color:T2, fontSize:"10px"}}>
-                          <span style={{whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", maxWidth:"240px"}}>📎 {file.name}</span>
-                          <button onClick={()=>removeAiAttachment(file.id)} title="Убрать файл" style={{border:"none", background:"transparent", color:mc, cursor:"pointer", padding:0, fontSize:"11px", lineHeight:"1"}}>×</button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  <textarea
-                    value={aiIn}
-                    onChange={e=>setAiIn(e.target.value)}
-                    onKeyDown={e=>{
-                      if(e.key==="Enter" && !e.shiftKey){
-                        e.preventDefault();
-                        send();
-                      }
-                    }}
-                    onMouseDown={e=>e.stopPropagation()}
-                    onPointerDown={e=>e.stopPropagation()}
-                    onWheel={e=>e.stopPropagation()}
-                    onTouchStart={e=>e.stopPropagation()}
-                    onTouchMove={e=>e.stopPropagation()}
-                    data-ai-scrollable="true"
-                    rows={1}
-                    placeholder={aiPendingFiles.length ? "Файл добавлен. Напишите сообщение или отправьте." : `${getAiModelDisplayLabel(aiMod, aiModelVariant, { withProvider:false })}...`}
-                    style={{
-                      flex:1,
-                      minHeight:0,
-                      background:"transparent",
-                      border:"none",
-                      outline:"none",
-                      color:T1,
-                      fontSize:"11px",
-                      lineHeight:"1.5",
-                      fontFamily:"inherit",
-                      resize:"none",
-                      overflowY:"auto",
-                      boxSizing:"border-box",
-                      cursor:"text",
-                    }}
-                  />
-                </div>
-                <button onClick={()=>openAiFilePicker("ai-file-import-desk")} title="Добавить файл" style={{
-                  width:"28px",height:"28px",padding:0,
-                  display:"flex",alignItems:"center",justifyContent:"center",
-                  background: SURF, boxShadow: SH_SM,
-                  border:"none", borderRadius:"8px",
-                  color: mc, cursor:"pointer",
-                  fontFamily:"inherit", transition:"all .08s",
-                  flexShrink:0, alignSelf:"flex-end", position:"relative", zIndex:3,
-                }}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                    <path d="M21.44 11.05l-8.49 8.49a6 6 0 0 1-8.49-8.49l8.49-8.48a4 4 0 0 1 5.66 5.65l-8.5 8.49a2 2 0 0 1-2.82-2.83l7.78-7.78"/>
-                  </svg>
-                </button>
-                <button onClick={send} style={{
-                  width:"28px",height:"28px",padding:0,
-                  display:"flex",alignItems:"center",justifyContent:"center",
-                  background: SURF, boxShadow: SH_SM,
-                  border:"none", borderRadius:"8px",
-                  color: mc, fontSize:"14px", lineHeight:"1", cursor:"pointer",
-                  fontFamily:"inherit", transition:"all .08s",
-                  flexShrink:0, alignSelf:"flex-end", position:"relative", zIndex:3,
-                }}>→</button>
-              </div>
-            </div>
+            <AiComposer
+              layerRef={aiHistoryLayerRef}
+              composerH={aiComposerH}
+              dropActive={aiDropActive}
+              historyOpen={aiHistoryOpen}
+              pendingFiles={aiPendingFiles}
+              input={aiIn}
+              placeholder={aiPendingFiles.length
+                ? "Файл добавлен. Напишите сообщение или отправьте."
+                : `${getAiModelDisplayLabel(aiMod, aiModelVariant, { withProvider:false })}...`}
+              fileInputId="ai-file-import-desk"
+              fileAccept={AI_FILE_ACCEPT}
+              mc={mc}
+              renderHistoryDropdown={renderAiHistoryDropdown}
+              getTooltipAnchorProps={getTooltipAnchorProps}
+              onInputChange={setAiIn}
+              onSend={send}
+              onStartNewChat={startNewAiChat}
+              onToggleHistory={()=>{ setAiHistoryOpen(v=>!v); setAiPreviewChat(null); }}
+              onRemoveAttachment={removeAiAttachment}
+              onImportFiles={importAiFiles}
+              onOpenFilePicker={openAiFilePicker}
+              onDragEnter={handleAiDragEnter}
+              onDragOver={handleAiDragOver}
+              onDragLeave={handleAiDragLeave}
+              onDrop={handleAiDrop}
+            />
             <div style={{marginTop:"5px",fontSize:"9px",color:T3,textAlign:"center",letterSpacing:"1px"}}>
               {getAiProvider(aiMod).free?"БЕСПЛАТНО":"≈ 12 КРЕДИТОВ"}
             </div>

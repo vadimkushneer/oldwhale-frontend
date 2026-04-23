@@ -1,0 +1,156 @@
+/*
+ * AiComposer — BEM block styles.
+ *
+ * Class taxonomy (block / element / modifier):
+ *   ai-composer                      → root wrapper
+ *   ai-composer__panel               → the drop-target box
+ *   ai-composer__panel--drop-active  → while a file is being dragged
+ *   ai-composer__file-input          → hidden <input type=file>
+ *   ai-composer__drop-overlay        → full-panel dim overlay
+ *   ai-composer__drop-badge          → the "+" badge inside the overlay
+ *   ai-composer__side-buttons        → left-side button cluster
+ *   ai-composer__side-button         → new-chat / history buttons
+ *   ai-composer__side-button--open   → history button when its panel is open
+ *   ai-composer__center              → flexible middle column
+ *   ai-composer__chips               → attached-file chip row
+ *   ai-composer__chip                → one chip
+ *   ai-composer__chip-name           → chip label (📎 filename)
+ *   ai-composer__chip-remove         → × button on the chip
+ *   ai-composer__textarea            → prompt textarea
+ *   ai-composer__flat-button         → right-side attach / send buttons
+ *   ai-composer__flat-button--send   → the send "→" button
+ *
+ * CSS custom properties consumed here come from the component root (inline
+ * style on .ai-composer): --ai-bg / --ai-surf / --ai-sh-in / --ai-sh-sm /
+ * --ai-t1 / --ai-t2 are the static design tokens copied from ui/tokens.ts,
+ * --ai-mc (+ --ai-mc-12..55) is the current model's accent color and its
+ * pre-composed alpha tints, and --ai-h is the user-resizable composer
+ * height. Everything else leans on Tailwind via @apply.
+ */
+
+.ai-composer {
+  @apply relative;
+
+  &__panel {
+    @apply relative flex items-end gap-2 rounded-xl px-3 py-2;
+    height: var(--ai-h);
+    min-height: 56px;
+    max-height: 50vh;
+    background: var(--ai-bg);
+    box-shadow: var(--ai-sh-in);
+    outline: none;
+
+    &--drop-active {
+      outline: 1px solid var(--ai-mc-55);
+      box-shadow:
+        0 0 0 1px var(--ai-mc-28),
+        0 0 18px var(--ai-mc-20),
+        var(--ai-sh-in);
+    }
+  }
+
+  &__file-input {
+    @apply hidden;
+  }
+
+  &__drop-overlay {
+    @apply absolute inset-0 flex items-center justify-center rounded-xl pointer-events-none;
+    z-index: 2;
+    background: var(--ai-mc-12);
+  }
+
+  &__drop-badge {
+    @apply flex items-center justify-center rounded-xl;
+    width: 34px;
+    height: 34px;
+    font-size: 22px;
+    line-height: 1;
+    background: var(--ai-surf);
+    box-shadow: var(--ai-sh-sm);
+    color: var(--ai-mc);
+  }
+
+  &__side-buttons {
+    @apply relative flex items-end self-end shrink-0 gap-2.5;
+    margin-right: 2px;
+    z-index: 3;
+  }
+
+  &__side-button {
+    @apply flex items-center justify-center self-end shrink-0 w-7 h-7 p-0 rounded-lg cursor-pointer;
+    font-family: inherit;
+    background: var(--ai-surf);
+    border: 1px solid var(--ai-mc-18);
+    color: var(--ai-mc);
+    box-shadow:
+      0 0 0 1px var(--ai-mc-14),
+      0 0 16px var(--ai-mc-16),
+      var(--ai-sh-sm);
+    transition: all 0.08s;
+
+    &--open {
+      color: var(--ai-t1);
+      border-color: var(--ai-mc-30);
+      box-shadow:
+        0 0 0 1px var(--ai-mc-28),
+        0 0 18px var(--ai-mc-28),
+        var(--ai-sh-sm);
+    }
+  }
+
+  &__center {
+    @apply relative flex flex-col justify-end flex-1 min-w-0 h-full min-h-0;
+    z-index: 3;
+  }
+
+  &__chips {
+    @apply flex flex-wrap gap-1.5 mb-2;
+  }
+
+  &__chip {
+    @apply inline-flex items-center gap-1.5 max-w-full rounded-full px-2 py-1;
+    font-size: 10px;
+    background: var(--ai-surf);
+    box-shadow: var(--ai-sh-sm);
+    color: var(--ai-t2);
+  }
+
+  &__chip-name {
+    @apply overflow-hidden whitespace-nowrap text-ellipsis;
+    max-width: 240px;
+  }
+
+  &__chip-remove {
+    @apply p-0 bg-transparent cursor-pointer;
+    border: none;
+    font-size: 11px;
+    line-height: 1;
+    color: var(--ai-mc);
+  }
+
+  &__textarea {
+    @apply flex-1 min-h-0 bg-transparent resize-none overflow-y-auto box-border cursor-text;
+    border: none;
+    outline: none;
+    font-family: inherit;
+    font-size: 11px;
+    line-height: 1.5;
+    color: var(--ai-t1);
+  }
+
+  &__flat-button {
+    @apply relative flex items-center justify-center self-end shrink-0 w-7 h-7 p-0 rounded-lg cursor-pointer;
+    z-index: 3;
+    font-family: inherit;
+    background: var(--ai-surf);
+    box-shadow: var(--ai-sh-sm);
+    border: none;
+    color: var(--ai-mc);
+    transition: all 0.08s;
+
+    &--send {
+      font-size: 14px;
+      line-height: 1;
+    }
+  }
+}

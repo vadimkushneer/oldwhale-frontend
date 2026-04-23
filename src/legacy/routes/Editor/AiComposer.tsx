@@ -1,27 +1,29 @@
 // @ts-nocheck
 /**
  * AiComposer - desktop AI chat composer extracted verbatim from EditorScreen
- * (previously the JSX block that rendered the drag-and-drop composer plus the
- * "new chat" / "history" toggles and the attach/send buttons).
+ * (originally the JSX block that rendered the drag-and-drop composer plus
+ * the "new chat" / "history" toggles and the attach/send buttons).
  *
- * Layout & visuals live in AiComposer.module.css; this file only wires
- * callbacks, props and the small handful of values that genuinely need to
- * cross the CSS boundary at runtime:
- *   - mc:          the current AI-model accent color (passed as --ai-mc
- *                  plus the pre-composed alpha tints --ai-mc-12..55 so the
- *                  CSS doesn't have to know about color-mix())
- *   - composerH:   the user-resizable composer height, projected into --ai-h
- *   - dropActive / historyOpen: surfaced as data- attributes on the nodes
- *                  that change appearance, so CSS expresses the variants
- *                  declaratively instead of branching in JS
- *
- * The rest of the data (history dropdown, file picker handlers, send,
- * tooltip props, …) stays owned by EditorScreen and is threaded through
- * props, mirroring how PlayHeaderEditor does it in this folder.
+ * The component owns nothing but JSX + callback wiring. All visuals live
+ * in AiComposer.scss under the `ai-composer` BEM block (__element, --modifier).
+ * The only things that cross the CSS boundary at runtime come through the
+ * inline `cssVars` on the root so they can be read from nested selectors
+ * without prop drilling:
+ *   --ai-bg / --ai-surf / --ai-sh-in / --ai-sh-sm / --ai-t1 / --ai-t2
+ *       static design tokens copied from ui/tokens.ts so this component
+ *       stays self-contained and drop-in-ready.
+ *   --ai-mc + --ai-mc-12..55
+ *       the current AI model's accent color plus pre-composed alpha tints
+ *       (so SCSS doesn't have to call color-mix).
+ *   --ai-h
+ *       the user-resizable composer height, projected so resizing doesn't
+ *       force a component re-render of the SCSS rules.
  */
 import React, { useMemo } from "react";
 import { BG, SURF, SH_IN, SH_SM, T1, T2 } from "../../ui/tokens";
-import styles from "./AiComposer.module.css";
+import "./AiComposer.scss";
+
+const cn = (...parts) => parts.filter(Boolean).join(" ");
 
 export function AiComposer({
   layerRef,
@@ -70,11 +72,10 @@ export function AiComposer({
   const stopPropagation = e => e.stopPropagation();
 
   return (
-    <div ref={layerRef} className={styles.root} style={cssVars}>
+    <div ref={layerRef} className="ai-composer" style={cssVars}>
       {renderHistoryDropdown?.()}
       <div
-        className={styles.box}
-        data-drop-active={dropActive || undefined}
+        className={cn("ai-composer__panel", dropActive && "ai-composer__panel--drop-active")}
         onDragEnter={onDragEnter}
         onDragOver={onDragOver}
         onDragLeave={onDragLeave}
@@ -86,17 +87,16 @@ export function AiComposer({
           multiple
           accept={fileAccept}
           onChange={onImportFiles}
-          className={styles.hiddenFileInput}
+          className="ai-composer__file-input"
         />
         {dropActive && (
-          <div className={styles.dropOverlay}>
-            <div className={styles.dropBadge}>+</div>
+          <div className="ai-composer__drop-overlay">
+            <div className="ai-composer__drop-badge">+</div>
           </div>
         )}
-        
-        <div className={styles.sideButtons}>
+        <div className="ai-composer__side-buttons">
           <button
-            className={styles.sideButton}
+            className="ai-composer__side-button"
             onClick={onStartNewChat}
             aria-label="Новый чат"
             {...getTooltipAnchorProps("Новый чат")}
@@ -107,8 +107,7 @@ export function AiComposer({
             </svg>
           </button>
           <button
-            className={styles.sideButton}
-            data-open={historyOpen || undefined}
+            className={cn("ai-composer__side-button", historyOpen && "ai-composer__side-button--open")}
             onClick={onToggleHistory}
             aria-label="Просмотреть историю"
             {...getTooltipAnchorProps("История чатов")}
@@ -120,23 +119,23 @@ export function AiComposer({
             </svg>
           </button>
         </div>
-        <div className={styles.center}>
+        <div className="ai-composer__center">
           {pendingFiles.length > 0 && (
-            <div className={styles.chips}>
+            <div className="ai-composer__chips">
               {pendingFiles.map(file => (
-                <div key={file.id} className={styles.chip}>
-                  <span className={styles.chipName}>📎 {file.name}</span>
+                <div key={file.id} className="ai-composer__chip">
+                  <span className="ai-composer__chip-name">📎 {file.name}</span>
                   <button
                     onClick={() => onRemoveAttachment(file.id)}
                     title="Убрать файл"
-                    className={styles.chipRemove}
+                    className="ai-composer__chip-remove"
                   >×</button>
                 </div>
               ))}
             </div>
           )}
           <textarea
-            className={`${styles.textarea} ai-input`}
+            className="ai-composer__textarea ai-input"
             value={input}
             onChange={e => onInputChange(e.target.value)}
             onKeyDown={e => {
@@ -156,7 +155,7 @@ export function AiComposer({
           />
         </div>
         <button
-          className={styles.flatButton}
+          className="ai-composer__flat-button"
           onClick={() => onOpenFilePicker(fileInputId)}
           title="Добавить файл"
         >
@@ -165,7 +164,7 @@ export function AiComposer({
           </svg>
         </button>
         <button
-          className={`${styles.flatButton} ${styles.sendButton}`}
+          className="ai-composer__flat-button ai-composer__flat-button--send"
           onClick={onSend}
         >→</button>
       </div>

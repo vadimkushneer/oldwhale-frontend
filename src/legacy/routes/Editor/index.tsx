@@ -6652,6 +6652,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin }) {
                     </div>
                     {/* Editor */}
                     <div
+                      className="ow-note-editor"
                       key={projectId}
                       ref={noteEditorRef}
                       contentEditable
@@ -6681,7 +6682,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin }) {
 
           {mobileTab==="editor" && mode!=="note" && (
             <div style={{height:"100%",display:"flex",flexDirection:"column"}}>
-              <div ref={scrollRef} onScroll={onScroll} style={{flex:1,overflow:"auto"}}>
+              <div className="ow-editor-scroll" ref={scrollRef} onScroll={onScroll} style={{flex:1,overflow:"auto"}}>
                 <div style={{minWidth: zoom > 100 ? `${zoom}%` : undefined}}>
                 <div style={{
                   padding:"24px 18px 20px",
@@ -8960,7 +8961,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin }) {
         </div>
 
         {/* Document */}
-        <div ref={scrollRef} onScroll={onScroll}
+        <div className="ow-editor-scroll" ref={scrollRef} onScroll={onScroll}
           onMouseDown={e=>{
             if(e.button!==1) return;
             e.preventDefault();
@@ -9233,6 +9234,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin }) {
                   </div>
                   {/* Editor */}
                   <div
+                    className="ow-note-editor"
                     key={projectId}
                     ref={noteEditorRef}
                     contentEditable

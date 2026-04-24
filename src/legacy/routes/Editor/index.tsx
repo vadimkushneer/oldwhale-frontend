@@ -91,6 +91,8 @@ import {
 } from "../../util/doc";
 import { PlayHeaderEditor } from "./PlayHeader";
 import { AiComposer } from "./AiComposer";
+import { AiPanel } from "./AiPanel";
+import { MarkerContextMenu } from "./MarkerContextMenu";
 
 function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin }) {
   const goHome = onGoHome || onLogout;
@@ -10962,138 +10964,28 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin }) {
       {/* ══ AI PANEL ══ */}
       {aiOpen ? (
         <>
-        <div
-          onMouseDown={e=>{
-            e.preventDefault();
-            const startX=e.clientX, startW=aiW;
-            const onMove=ev=>setAiW(Math.max(200,Math.min(590,startW-(ev.clientX-startX))));
-            const onUp=()=>{window.removeEventListener("mousemove",onMove);window.removeEventListener("mouseup",onUp);};
-            window.addEventListener("mousemove",onMove);
-            window.addEventListener("mouseup",onUp);
-          }}
-          style={{width:"4px",cursor:"ew-resize",background:"transparent",flexShrink:0,zIndex:10,
-            transition:"background .15s"}}
-          onMouseEnter={e=>e.currentTarget.style.background=`${ACCENT}55`}
-          onMouseLeave={e=>e.currentTarget.style.background="transparent"}
-        />
-        <div style={{
-          width:`${aiSidebarW}px`, minWidth:`${aiSidebarW}px`, maxWidth:`${aiSidebarW}px`,
-          background: SURF,
-          boxShadow: "-4px 0 20px rgba(0,0,0,0.4)",
-          display:"flex", flexDirection:"column", overflow:"hidden", minHeight:0,
-          position:"relative",
-          transition:"width .22s ease, min-width .22s ease, max-width .22s ease",
-        }}>
-
-          <button onMouseDown={e=>e.preventDefault()} onClick={()=>setAiOpen(false)} title="Свернуть ИИ-панель" style={{
-            ...sideToggleBase,
-            left:"-12px",
-            borderRadius:"14px 0 0 14px",
-            clipPath:SIDE_TAB_CLIP_LEFT,
-          }}><SideChevron dir="right"/></button>
-
-          {/* Model selector */}
-          <div ref={aiModelMenuRootRef} style={{padding:"12px 10px 10px", borderBottom:`1px solid ${T3}22`, flexShrink:0}}>
-            <div style={{fontSize:"9px",color:T3,letterSpacing:"2px",marginBottom:"10px"}}>ИИ МОДЕЛИ</div>
-            {AIM.map(m=>{
-              const expanded = aiMod===m.id && aiModelMenuOpen;
-              const activeVariant = getAiVariant(m.id, aiMod===m.id ? aiModelVariant : undefined);
-              return (
-                <div key={m.id} style={{marginBottom:"6px"}}>
-                  <button onClick={()=>selectAiProvider(m.id)} style={{
-                    display:"flex", alignItems:"center", justifyContent:"space-between",
-                    width:"100%", padding:"7px 10px",
-                    background: aiMod===m.id ? BG : "transparent",
-                    boxShadow: aiMod===m.id ? SH_IN : "none",
-                    border:"none", borderRadius:"10px",
-                    cursor:"pointer", fontFamily:"inherit",
-                    transition:"all .08s",
-                  }}>
-                    <div style={{display:"flex", alignItems:"center", minWidth:0}}>
-                      <div style={{
-                        width:"6px", height:"6px", borderRadius:"50%",
-                        background:m.color,
-                        boxShadow: aiMod===m.id ? `0 0 8px ${m.color}` : "none",
-                        opacity: aiMod===m.id ? 1 : 0.25,
-                        marginRight:"8px", flexShrink:0,
-                      }}/>
-                      <span style={{color:aiMod===m.id?T1:T2, fontSize:"11px", marginRight:"6px"}}>{m.label}</span>
-                      <span style={{color:aiMod===m.id?m.color+"88":T3, fontSize:"10px"}}>{m.role}</span>
-                    </div>
-                    <div style={{display:"flex", alignItems:"center", gap:"8px", minWidth:0, marginLeft:"10px"}}>
-                      {aiMod===m.id && activeVariant?.label && (
-                        <span style={{color:m.color+"aa", fontSize:"9px", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", maxWidth:"110px"}}>{activeVariant.label}</span>
-                      )}
-                      {m.free && !expanded && <span style={{fontSize:"8px",color:"#4ade8066",border:`1px solid #4ade8022`,borderRadius:"4px",padding:"1px 5px",letterSpacing:"1px"}}>FREE</span>}
-                      <span style={{color:aiMod===m.id?m.color:T3,fontSize:"11px",lineHeight:"1",transform:expanded?"rotate(180deg)":"rotate(0deg)",transition:"transform .12s"}}>▾</span>
-                    </div>
-                  </button>
-                  {expanded && renderAiVariantPicker(m.id)}
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Messages */}
-          <div style={{flex:1, minHeight:0, overflow:"auto", padding:"10px", display:"flex", flexDirection:"column"}}>
-            {msgs.map((m,i)=>(
-              <div key={i} style={{display:"flex", justifyContent:m.role==="user"?"flex-end":"flex-start", marginBottom:"12px"}}>
-                <div style={{
-                  maxWidth:"90%", padding:"9px 12px",
-                  background: m.role==="user" ? BG : SURF,
-                  boxShadow: SH_SM,
-                  borderRadius:m.role==="user"?"12px 12px 2px 12px":"12px 12px 12px 2px",
-                  borderLeft: m.role==="ai" ? `2px solid ${getAiProvider(m.model).color||T3}` : "none",
-                  fontSize:"11px", lineHeight:"1.7",
-                  color:m.role==="user"?T2:T1,
-                }}>
-                  {m.text}
-                </div>
-              </div>
-            ))}
-            {aiLoad && (
-              <div style={{display:"flex", alignItems:"center"}}>
-                <Whale size={20}/>
-                <span style={{color:T3, fontSize:"10px", letterSpacing:"1px"}}>ДУМАЕТ...</span>
-              </div>
-            )}
-            <div ref={msgEnd}/>
-          </div>
-
-          {/* Input */}
-          <div style={{padding:"8px 10px 10px", borderTop:`1px solid ${T3}22`, flexShrink:0}}>
-            <div
-              onMouseDown={e=>{
-                e.preventDefault();
-                const startY = e.clientY;
-                const startH = aiComposerH;
-                const maxH = Math.floor((window.visualViewport?.height || window.innerHeight || document.documentElement.clientHeight) * 0.5);
-                const onMove = ev=>setAiComposerH(Math.max(56, Math.min(maxH, startH - (ev.clientY - startY))));
-                const onUp = ()=>{
-                  window.removeEventListener("mousemove", onMove);
-                  window.removeEventListener("mouseup", onUp);
-                };
-                window.addEventListener("mousemove", onMove);
-                window.addEventListener("mouseup", onUp);
-              }}
-              title="Тянуть вверх/вниз"
-              style={{
-                height:"14px",
-                display:"flex",
-                alignItems:"center",
-                justifyContent:"center",
-                cursor:"ns-resize",
-                userSelect:"none",
-              }}
-            >
-              <div style={{
-                width:"42px",
-                height:"4px",
-                borderRadius:"999px",
-                background:`${T3}66`,
-                boxShadow:"0 0 0 1px rgba(255,255,255,0.02)",
-              }}/>
-            </div>
+        <AiPanel
+          width={aiW}
+          sidebarWidth={aiSidebarW}
+          onWidthChange={setAiW}
+          onCollapse={() => setAiOpen(false)}
+          composerHeight={aiComposerH}
+          onComposerHeightChange={setAiComposerH}
+          models={AIM}
+          activeModelId={aiMod}
+          activeVariantId={aiModelVariant}
+          modelMenuOpen={aiModelMenuOpen}
+          modelMenuRootRef={aiModelMenuRootRef}
+          onSelectProvider={selectAiProvider}
+          renderVariantPicker={renderAiVariantPicker}
+          getVariantLabel={(pid, vid) => getAiVariant(pid, vid)?.label}
+          messages={msgs}
+          loading={aiLoad}
+          messagesEndRef={msgEnd}
+          getProviderColor={(id) => getAiProvider(id).color || T3}
+          accent={mc}
+          creditsLabel={getAiProvider(aiMod).free ? "БЕСПЛАТНО" : "≈ 12 КРЕДИТОВ"}
+          composer={
             <AiComposer
               layerRef={aiHistoryLayerRef}
               composerH={aiComposerH}
@@ -11121,80 +11013,17 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin }) {
               onDragLeave={handleAiDragLeave}
               onDrop={handleAiDrop}
             />
-            <div style={{marginTop:"5px",fontSize:"9px",color:T3,textAlign:"center",letterSpacing:"1px"}}>
-              {getAiProvider(aiMod).free?"БЕСПЛАТНО":"≈ 12 КРЕДИТОВ"}
-            </div>
-          </div>
-          {renderAiPreviewOverlay()}
-          <TooltipBubble tooltip={uiTooltip}/>
-          {markerCtxMenu && (
-            <div
-              onMouseDown={e=>e.stopPropagation()}
-              onClick={e=>e.stopPropagation()}
-              style={{
-                position:"fixed",
-                left: Math.min(markerCtxMenu.x, window.innerWidth - 210),
-                top: Math.min(markerCtxMenu.y, window.innerHeight - 180),
-                zIndex: 9999,
-                background: "#1e2340",
-                border: `1px solid ${mc}44`,
-                borderRadius: "12px",
-                padding: "10px",
-                boxShadow: "0 8px 32px rgba(0,0,0,0.55)",
-                minWidth: "200px",
-              }}>
-              <div style={{fontSize:"8px", letterSpacing:"2px", color:"rgba(255,255,255,0.35)", marginBottom:"8px"}}>ЦВЕТ МАРКЕРА</div>
-              <div style={{display:"grid", gridTemplateColumns:"repeat(5, 1fr)", gap:"5px", marginBottom:"10px"}}>
-                {MARKER_COLORS.map((col, i) => (
-                  <button
-                    key={i}
-                    onClick={()=>applyMarkerColor(col)}
-                    title={col === null ? "Стереть" : col}
-                    style={{
-                      width:"30px", height:"30px", borderRadius:"8px", cursor:"pointer",
-                      background: col === null ? "transparent" : col+"99",
-                      border: col === null ? "1.5px dashed rgba(255,255,255,0.35)" : `1.5px solid ${col}`,
-                      display:"flex", alignItems:"center", justifyContent:"center",
-                      WebkitAppearance:"none",
-                    }}>
-                    {col === null && (
-                      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="rgba(255,255,255,0.5)" strokeWidth="1.5" strokeLinecap="round">
-                        <path d="M2 2l8 8M10 2l-8 8"/>
-                      </svg>
-                    )}
-                  </button>
-                ))}
-              </div>
-              <div style={{display:"flex", gap:"5px"}}>
-                {[["Копировать", ()=>{document.execCommand("copy"); setMarkerCtxMenu(null);}],
-                  ["Вырезать",   ()=>{document.execCommand("cut");  setMarkerCtxMenu(null);}],
-                  ["Вставить",   ()=>{document.execCommand("paste");setMarkerCtxMenu(null);}]
-                ].map(([label, action]) => (
-                  <button key={label} onClick={action} style={{
-                    flex:1, padding:"5px 0", fontSize:"9px", letterSpacing:"1px",
-                    background:"rgba(255,255,255,0.07)", border:"1px solid rgba(255,255,255,0.12)",
-                    borderRadius:"7px", color:"rgba(255,255,255,0.65)", cursor:"pointer",
-                    fontFamily:"inherit", WebkitAppearance:"none",
-                  }}>{label}</button>
-                ))}
-              </div>
-              <button
-                onClick={()=>setMarkerCtxMenu(null)}
-                style={{
-                  position:"absolute", top:"6px", right:"8px",
-                  background:"transparent", border:"none", color:"rgba(255,255,255,0.3)",
-                  cursor:"pointer", fontSize:"14px", lineHeight:"1", padding:"0",
-                  WebkitAppearance:"none",
-                }}>×</button>
-            </div>
-          )}
-          {markerCtxMenu && (
-            <div
-              style={{position:"fixed",inset:0,zIndex:9998}}
-              onMouseDown={()=>setMarkerCtxMenu(null)}
-            />
-          )}
-        </div>
+          }
+          previewOverlay={renderAiPreviewOverlay()}
+          tooltip={<TooltipBubble tooltip={uiTooltip}/>}
+        />
+        <MarkerContextMenu
+          menu={markerCtxMenu}
+          colors={MARKER_COLORS}
+          accent={mc}
+          onApplyColor={applyMarkerColor}
+          onDismiss={()=>setMarkerCtxMenu(null)}
+        />
         </>
       ) : (
         <div style={{

@@ -1,4 +1,5 @@
-// Cross-browser scrollbars (textarea + main editor scroll):
+// Cross-browser app scrollbars (textarea, editor, panels).
+// Add class `ow-app-scrollbar` to any overflow:auto|scroll region.
 // - Firefox: scrollbar-color / scrollbar-width (no thumb hover in spec)
 // - Chromium / Safari / WebKit: ::-webkit-scrollbar-*
 
@@ -44,14 +45,9 @@ $ow-scrollbar-edge: rgba(255, 255, 255, 0.06);
   }
 }
 
-textarea {
-  @include ow-app-scrollbar;
-}
-
-.ow-editor-scroll {
-  @include ow-app-scrollbar;
-}
-
+textarea,
+.ow-app-scrollbar,
+.ow-editor-scroll,
 .ow-note-editor {
   @include ow-app-scrollbar;
 }

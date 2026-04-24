@@ -1,0 +1,56 @@
+/*
+ * AiMessageList — BEM block `ai-message-list`.
+ * Tailwind via @apply; dynamic border color via --aml-border.
+ */
+
+.ai-message-list {
+  @apply flex min-h-0 flex-1 flex-col overflow-auto p-2.5;
+
+  &__row {
+    @apply mb-3 flex;
+    --aml-border: transparent;
+
+    &--user {
+      @apply justify-end;
+    }
+
+    &--assistant {
+      @apply justify-start;
+    }
+  }
+
+  &__bubble {
+    @apply max-w-[90%] px-3 py-2 text-[11px] leading-[1.7];
+
+    &--user {
+      @apply rounded-[12px_12px_2px_12px] text-[var(--aml-t2)];
+      background: var(--aml-bg);
+      box-shadow: var(--aml-sh-sm);
+    }
+
+    &--ai {
+      @apply rounded-[12px_12px_12px_2px] border-l-2 border-solid text-[var(--aml-t1)];
+      background: var(--aml-surf);
+      box-shadow: var(--aml-sh-sm);
+      border-left-color: var(--aml-border);
+    }
+
+    &--neutral {
+      @apply rounded-[12px_12px_12px_2px] text-[var(--aml-t1)];
+      background: var(--aml-surf);
+      box-shadow: var(--aml-sh-sm);
+    }
+  }
+
+  &__loading {
+    @apply flex items-center;
+  }
+
+  &__loading-label {
+    @apply text-[10px] tracking-wide text-[var(--aml-t3)];
+  }
+
+  &__end-anchor {
+    @apply h-0 w-0 shrink-0;
+  }
+}

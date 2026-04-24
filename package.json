@@ -11,7 +11,9 @@
     "e2e:serve": "VITE_PWA_DISABLED=1 VITE_API_URL=http://127.0.0.1:4173 npm run build && vite preview --host 127.0.0.1 --port 4173",
     "test:e2e": "playwright test",
     "test:e2e:update": "playwright test --update-snapshots",
-    "test:e2e:capture-reference": "CAPTURE_REFERENCE=1 playwright test visual/reference.capture.spec.ts"
+    "test:e2e:capture-reference": "CAPTURE_REFERENCE=1 playwright test visual/reference.capture.spec.ts",
+    "test:unit": "vitest run",
+    "test:unit:watch": "vitest"
   },
   "dependencies": {
     "@reduxjs/toolkit": "^2.5.0",
@@ -26,16 +28,21 @@
   },
   "devDependencies": {
     "@playwright/test": "1.59.1",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.0.1",
+    "@testing-library/user-event": "^14.5.2",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.20",
+    "jsdom": "^25.0.1",
     "postcss": "^8.4.49",
     "sass": "^1.99.0",
     "sharp": "^0.34.5",
     "tailwindcss": "^3.4.17",
     "typescript": "~5.6.2",
     "vite": "^5.4.11",
+    "vitest": "^2.1.9",
     "vite-plugin-pwa": "^1.2.0"
   }
 }

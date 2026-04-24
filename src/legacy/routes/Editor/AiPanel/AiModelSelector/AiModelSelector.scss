@@ -1,0 +1,115 @@
+/*
+ * AiModelSelector — BEM `ai-model-selector`.
+ * Per-provider colors via data-provider + SCSS (no inline styles).
+ */
+
+.ai-model-selector {
+  @apply shrink-0 border-b px-2.5 pb-2.5 pt-3;
+  border-color: var(--ams-t3-22);
+
+  &__heading {
+    @apply mb-2.5 text-[9px] tracking-[0.2em] text-[var(--ams-t3)];
+  }
+
+  &__list-item {
+    @apply mb-1.5;
+  }
+
+  &__row {
+    @apply w-full cursor-pointer rounded-[10px] border-none p-0 transition-all duration-75;
+    font-family: inherit;
+    background: transparent;
+    box-shadow: none;
+
+    &--active {
+      background: var(--ams-bg);
+      box-shadow: var(--ams-sh-in);
+    }
+  }
+
+  &__row-inner {
+    @apply flex w-full items-center justify-between px-2.5 py-[7px];
+  }
+
+  &__left {
+    @apply flex min-w-0 items-center;
+  }
+
+  &__dot {
+    @apply mr-2 h-1.5 w-1.5 shrink-0 rounded-full opacity-25 transition-opacity;
+    background: var(--ams-dot);
+
+    .ai-model-selector__row--active & {
+      @apply opacity-100;
+      box-shadow: 0 0 8px var(--ams-dot);
+    }
+  }
+
+  &__label {
+    @apply mr-1.5 text-[11px];
+
+    .ai-model-selector__row--active & {
+      @apply text-[var(--ams-t1)];
+    }
+
+    .ai-model-selector__row:not(.ai-model-selector__row--active) & {
+      @apply text-[var(--ams-t2)];
+    }
+  }
+
+  &__role {
+    @apply text-[10px];
+
+    .ai-model-selector__row--active & {
+      color: color-mix(in srgb, var(--ams-dot) 53%, transparent);
+    }
+
+    .ai-model-selector__row:not(.ai-model-selector__row--active) & {
+      @apply text-[var(--ams-t3)];
+    }
+  }
+
+  &__right {
+    @apply ml-2.5 flex min-w-0 items-center gap-2;
+  }
+
+  &__variant-label {
+    @apply max-w-[110px] overflow-hidden text-ellipsis whitespace-nowrap text-[9px];
+    color: color-mix(in srgb, var(--ams-dot) 67%, transparent);
+  }
+
+  &__free-badge {
+    @apply rounded px-[5px] py-px text-[8px] tracking-wide;
+    color: rgb(74 222 128 / 0.4);
+    border: 1px solid rgb(74 222 128 / 0.13);
+  }
+
+  &__chevron {
+    @apply text-[11px] leading-none text-[var(--ams-t3)] transition-transform duration-100;
+
+    .ai-model-selector__row--active & {
+      color: var(--ams-dot);
+    }
+
+    &--open {
+      @apply rotate-180;
+    }
+  }
+
+  /* Provider palette for --ams-dot (must match ../../domain/ai AIM) */
+  &__row[data-provider="deepseek"] {
+    --ams-dot: #4ade80;
+  }
+  &__row[data-provider="claude"] {
+    --ams-dot: #7c6af7;
+  }
+  &__row[data-provider="gpt"] {
+    --ams-dot: #f472b6;
+  }
+  &__row[data-provider="grok"] {
+    --ams-dot: #f59e0b;
+  }
+  &__row[data-provider="gemini"] {
+    --ams-dot: #60a5fa;
+  }
+}

@@ -1,0 +1,62 @@
+/*
+ * AiPanel — BEM `ai-panel` (desktop expanded AI sidebar).
+ * Dynamic layout/theme via CSS custom properties from useAiPanel.
+ */
+
+.ai-panel {
+  @apply flex shrink-0 flex-row;
+
+  &__resizer {
+    @apply relative z-10 w-1 shrink-0 cursor-ew-resize;
+    background: transparent;
+    transition: background 0.15s;
+
+    &:hover {
+      background: var(--ap-accent-55);
+    }
+  }
+
+  &__sidebar {
+    @apply relative flex min-h-0 w-[var(--ap-sidebar-w)] min-w-[var(--ap-sidebar-w)] max-w-[var(--ap-sidebar-w)] flex-col overflow-hidden;
+    background: var(--ap-surf);
+    box-shadow: -4px 0 20px rgba(0, 0, 0, 0.4);
+    transition:
+      width 0.22s ease,
+      min-width 0.22s ease,
+      max-width 0.22s ease;
+  }
+
+  &__collapse-tab {
+    @apply absolute left-[-12px] top-1/2 z-40 flex h-16 w-9 -translate-y-1/2 cursor-pointer items-center justify-center overflow-hidden p-0 text-center text-[10px] leading-none;
+    border-radius: 14px 0 0 14px;
+    clip-path: polygon(0 0, 100% 6%, 100% 94%, 0 100%);
+    border: 1px solid var(--ap-mc-22);
+    background: linear-gradient(180deg, var(--ap-surf-fc), var(--ap-bg-f5));
+    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.24);
+    color: var(--ap-t2);
+    font-family: inherit;
+  }
+
+  &__composer-wrap {
+    @apply shrink-0 border-t px-2.5 pb-2.5 pt-2;
+    border-color: var(--ap-t3-22);
+  }
+
+  &__composer-grip {
+    @apply flex h-3.5 cursor-ns-resize select-none items-center justify-center;
+  }
+
+  &__composer-grip-handle {
+    @apply h-1 w-[42px] rounded-full;
+    background: var(--ap-t3-66);
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.02);
+  }
+
+  &__credits {
+    @apply mt-1.5 text-center text-[9px] tracking-wide text-[var(--ap-t3)];
+  }
+}
+
+.ai-panel-chevron {
+  @apply shrink-0;
+}

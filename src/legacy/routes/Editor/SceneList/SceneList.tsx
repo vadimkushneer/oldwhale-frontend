@@ -40,6 +40,9 @@ export function SceneList(props: SceneListProps) {
     getClickHandler,
     getCardShellCssVars,
     interactionAllowed,
+    mobileActionsSceneId,
+    clearMobileSceneActions,
+    getSceneItemCardPointerHandlers,
   } = useSceneList(props);
 
   const draggedScene = dragSceneId ? scenes.find((x) => x.id === dragSceneId) : undefined;
@@ -103,8 +106,16 @@ export function SceneList(props: SceneListProps) {
                   isSelected={isSelected}
                   interactionAllowed={interactionAllowed}
                   onToggleSceneSelect={onToggleSceneSelect}
-                  onDup={onDupScene}
-                  onDel={onDelScene}
+                  onDup={(id) => {
+                    clearMobileSceneActions();
+                    onDupScene(id);
+                  }}
+                  onDel={(id) => {
+                    clearMobileSceneActions();
+                    onDelScene(id);
+                  }}
+                  mobileActionsOpen={mobileActionsSceneId === s.id}
+                  sceneRootPointerHandlers={getSceneItemCardPointerHandlers(s.id)}
                 />
               )}
             </div>

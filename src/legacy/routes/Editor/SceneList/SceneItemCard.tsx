@@ -1,5 +1,13 @@
+import type { PointerEventHandler } from "react";
 import type { DesktopSceneCardMeta, SceneItem } from "./useSceneList";
 import { SceneCheckbox } from "./SceneCheckbox";
+
+export type SceneItemCardPointerHandlers = {
+  onPointerDown: PointerEventHandler<HTMLDivElement>;
+  onPointerMove: PointerEventHandler<HTMLDivElement>;
+  onPointerUp: PointerEventHandler<HTMLDivElement>;
+  onPointerCancel: PointerEventHandler<HTMLDivElement>;
+};
 
 export type SceneItemCardProps = {
   scene: SceneItem;
@@ -10,6 +18,10 @@ export type SceneItemCardProps = {
   onToggleSceneSelect: (id: string) => void;
   onDup: (id: string) => void;
   onDel: (id: string) => void;
+  /** When true, root gets `scene-item-card--actions-open` for mobile action visibility. */
+  mobileActionsOpen: boolean;
+  /** Long-press / pointer handlers on the scene card root (mobile viewport only). */
+  sceneRootPointerHandlers: SceneItemCardPointerHandlers;
 };
 
 export function SceneItemCard({
@@ -21,12 +33,24 @@ export function SceneItemCard({
   onToggleSceneSelect,
   onDup,
   onDel,
+  mobileActionsOpen,
+  sceneRootPointerHandlers,
 }: SceneItemCardProps) {
   const previewMod =
     meta.previewLines === 2 ? "scene-item-card__preview--lines-2" : "scene-item-card__preview--lines-1";
 
+  const rootClass = ["scene-item-card", mobileActionsOpen ? "scene-item-card--actions-open" : ""]
+    .filter(Boolean)
+    .join(" ");
+
   return (
-    <div className="scene-item-card">
+    <div
+      className={rootClass}
+      onPointerDown={sceneRootPointerHandlers.onPointerDown}
+      onPointerMove={sceneRootPointerHandlers.onPointerMove}
+      onPointerUp={sceneRootPointerHandlers.onPointerUp}
+      onPointerCancel={sceneRootPointerHandlers.onPointerCancel}
+    >
       <SceneCheckbox
         variant="scene"
         filled={isSelected}

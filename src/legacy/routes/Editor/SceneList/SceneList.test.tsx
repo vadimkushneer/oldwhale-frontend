@@ -1,8 +1,9 @@
 import type { ComponentProps } from "react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, fireEvent } from "@testing-library/react";
+import { act, render, fireEvent } from "@testing-library/react";
 import { SceneList } from "./SceneList";
 import type { SceneItem } from "./useSceneList";
+import { SCENE_LIST_MOBILE_MEDIA } from "./useSceneList";
 
 const SCENES: SceneItem[] = [
   { id: "act-1", kind: "act", actNum: 1, num: 1, text: "ACT I", index: 0 },
@@ -46,8 +47,21 @@ function setup(override?: Partial<ComponentProps<typeof SceneList>>) {
   return { ...props, ...view, onGoToScene, onSetActiveSceneId, onToggleSceneSelect, onToggleActSelect, onDupScene, onDelScene, onMoveScene };
 }
 
+/** Toggle before `setup()` for mobile viewport behavior. */
+let sceneListMobileMediaMatches = false;
+
 describe("SceneList", () => {
   beforeEach(() => {
+    sceneListMobileMediaMatches = false;
+    vi.spyOn(window, "matchMedia").mockImplementation((query: string) => ({
+      matches: query === SCENE_LIST_MOBILE_MEDIA ? sceneListMobileMediaMatches : false,
+      media: query,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }));
     vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
       const id = this.getAttribute("data-scene-id");
       if (id === "sc-1") return { top: 100, bottom: 200, left: 0, right: 100, width: 100, height: 100, x: 0, y: 100 } as DOMRect;
@@ -159,5 +173,66 @@ describe("SceneList", () => {
     fireEvent(document, new MouseEvent("mousemove", { bubbles: true, clientY: 250, clientX: 50 }));
     fireEvent(document, new MouseEvent("mouseup", { bubbles: true }));
     expect(onMoveScene).toHaveBeenCalledWith("sc-1", "sc-2");
+  });
+
+  it("mobile: long press reveals scene actions then auto-hides", () => {
+    vi.useFakeTimers();
+    sceneListMobileMediaMatches = true;
+    const { container } = setup();
+    const inner = container.querySelector('[data-scene-id="sc-1"] .scene-item-card') as HTMLElement;
+    expect(inner.className).not.toContain("scene-item-card--actions-open");
+
+    fireEvent.pointerDown(inner, { button: 0, clientX: 50, clientY: 150, bubbles: true });
+    act(() => {
+      vi.advanceTimersByTime(799);
+    });
+    expect(inner.className).not.toContain("scene-item-card--actions-open");
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(inner.className).toContain("scene-item-card--actions-open");
+
+    act(() => {
+      vi.advanceTimersByTime(800);
+    });
+    expect(inner.className).not.toContain("scene-item-card--actions-open");
+    vi.useRealTimers();
+  });
+
+  it("mobile: suppresses next shell click after long press", () => {
+    vi.useFakeTimers();
+    sceneListMobileMediaMatches = true;
+    const { onGoToScene, container } = setup();
+    const shell = container.querySelector('[data-scene-id="sc-1"]') as HTMLElement;
+    const inner = container.querySelector('[data-scene-id="sc-1"] .scene-item-card') as HTMLElement;
+
+    fireEvent.pointerDown(inner, { button: 0, clientX: 50, clientY: 150, bubbles: true });
+    act(() => {
+      vi.advanceTimersByTime(800);
+    });
+    fireEvent.pointerUp(inner, { button: 0, bubbles: true });
+    shell.click();
+    expect(onGoToScene).not.toHaveBeenCalled();
+
+    shell.click();
+    expect(onGoToScene).toHaveBeenCalledWith("sc-1");
+    vi.useRealTimers();
+  });
+
+  it("mobile: pointerdown outside open row closes actions", () => {
+    vi.useFakeTimers();
+    sceneListMobileMediaMatches = true;
+    const { container } = setup();
+    const inner = container.querySelector('[data-scene-id="sc-1"] .scene-item-card') as HTMLElement;
+    fireEvent.pointerDown(inner, { button: 0, clientX: 50, clientY: 150, bubbles: true });
+    act(() => {
+      vi.advanceTimersByTime(800);
+    });
+    expect(inner.className).toContain("scene-item-card--actions-open");
+
+    const listRoot = container.querySelector(".scene-list") as HTMLElement;
+    fireEvent.pointerDown(listRoot, { button: 0, clientX: 5, clientY: 5, bubbles: true });
+    expect(inner.className).not.toContain("scene-item-card--actions-open");
+    vi.useRealTimers();
   });
 });

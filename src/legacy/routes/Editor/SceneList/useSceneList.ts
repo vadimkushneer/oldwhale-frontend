@@ -1,10 +1,12 @@
 import {
   useCallback,
+  useEffect,
   useMemo,
   useRef,
   useState,
   type CSSProperties,
   type MouseEvent as ReactMouseEvent,
+  type PointerEvent as ReactPointerEvent,
 } from "react";
 import { BG, SH_IN, SURF, T1, T2, T3 } from "../../../ui/tokens";
 
@@ -50,6 +52,19 @@ export type SceneListProps = {
 const DRAG_THRESHOLD_PX = 5;
 const DRAG_END_CLICK_GUARD_MS = 300;
 
+/** CSS px; matches common `md` breakpoint (tablet/desktop from 768px). */
+export const SCENE_LIST_MOBILE_MEDIA = "(max-width: 767px)";
+const LONG_TAP_MS = 800;
+const AUTO_HIDE_ACTIONS_MS = 800;
+const LONG_PRESS_MOVE_CANCEL_PX = 10;
+
+function clearTimeoutRef(ref: { current: ReturnType<typeof setTimeout> | null }) {
+  if (ref.current != null) {
+    window.clearTimeout(ref.current);
+    ref.current = null;
+  }
+}
+
 export function useSceneList({
   scenes,
   accent,
@@ -88,6 +103,115 @@ export function useSceneList({
   }, []);
 
   const sceneCardRefs = useRef<Record<string, HTMLDivElement | null>>({});
+
+  const [isMobileViewport, setIsMobileViewport] = useState(() =>
+    typeof window !== "undefined" ? window.matchMedia(SCENE_LIST_MOBILE_MEDIA).matches : false,
+  );
+  const [mobileActionsSceneId, setMobileActionsSceneId] = useState<string | null>(null);
+
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const autoHideActionsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressPointerStartRef = useRef<{ x: number; y: number } | null>(null);
+  const suppressNextShellClickSceneIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    const mq = window.matchMedia(SCENE_LIST_MOBILE_MEDIA);
+    const onChange = () => setIsMobileViewport(mq.matches);
+    onChange();
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
+
+  const clearMobileSceneActions = useCallback(() => {
+    clearTimeoutRef(longPressTimerRef);
+    clearTimeoutRef(autoHideActionsTimerRef);
+    longPressPointerStartRef.current = null;
+    setMobileActionsSceneId(null);
+  }, []);
+
+  useEffect(() => {
+    if (!isMobileViewport) {
+      clearMobileSceneActions();
+      suppressNextShellClickSceneIdRef.current = null;
+    }
+  }, [isMobileViewport, clearMobileSceneActions]);
+
+  useEffect(() => {
+    if (!mobileActionsSceneId || !isMobileViewport) return;
+    const onDocPointerDown = (e: PointerEvent) => {
+      const shell = sceneCardRefs.current[mobileActionsSceneId];
+      if (shell?.contains(e.target as Node)) return;
+      clearTimeoutRef(longPressTimerRef);
+      clearTimeoutRef(autoHideActionsTimerRef);
+      longPressPointerStartRef.current = null;
+      setMobileActionsSceneId(null);
+    };
+    document.addEventListener("pointerdown", onDocPointerDown, true);
+    return () => document.removeEventListener("pointerdown", onDocPointerDown, true);
+  }, [mobileActionsSceneId, isMobileViewport]);
+
+  useEffect(() => {
+    return () => {
+      clearTimeoutRef(longPressTimerRef);
+      clearTimeoutRef(autoHideActionsTimerRef);
+    };
+  }, []);
+
+  const scheduleAutoHideActions = useCallback((sceneId: string) => {
+    clearTimeoutRef(autoHideActionsTimerRef);
+    autoHideActionsTimerRef.current = window.setTimeout(() => {
+      autoHideActionsTimerRef.current = null;
+      setMobileActionsSceneId((cur) => (cur === sceneId ? null : cur));
+    }, AUTO_HIDE_ACTIONS_MS);
+  }, []);
+
+  const getSceneItemCardPointerHandlers = useCallback(
+    (sceneId: string) => {
+      const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+        if (!isMobileViewport) return;
+        // Touch / incomplete test events may omit `button`; treat as primary (not `!== 0`).
+        if (e.button > 0) return;
+        const t = e.target;
+        if (t instanceof Element && t.closest(".scene-item-card__actions")) return;
+        clearTimeoutRef(longPressTimerRef);
+        longPressPointerStartRef.current = { x: e.clientX, y: e.clientY };
+
+        longPressTimerRef.current = window.setTimeout(() => {
+          longPressTimerRef.current = null;
+          longPressPointerStartRef.current = null;
+          suppressNextShellClickSceneIdRef.current = sceneId;
+          setMobileActionsSceneId(sceneId);
+          scheduleAutoHideActions(sceneId);
+        }, LONG_TAP_MS);
+      };
+
+      const cancelPendingLongPress = () => {
+        clearTimeoutRef(longPressTimerRef);
+        longPressPointerStartRef.current = null;
+      };
+
+      const onPointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
+        if (!isMobileViewport || !longPressTimerRef.current) return;
+        const start = longPressPointerStartRef.current;
+        if (!start) return;
+        if (Math.hypot(e.clientX - start.x, e.clientY - start.y) > LONG_PRESS_MOVE_CANCEL_PX) {
+          cancelPendingLongPress();
+        }
+      };
+
+      const onPointerUpOrCancel = () => {
+        cancelPendingLongPress();
+      };
+
+      return {
+        onPointerDown,
+        onPointerMove,
+        onPointerUp: onPointerUpOrCancel,
+        onPointerCancel: onPointerUpOrCancel,
+      };
+    },
+    [isMobileViewport, scheduleAutoHideActions],
+  );
 
   const cssVars = useMemo(
     () =>
@@ -132,6 +256,10 @@ export function useSceneList({
 
   const getClickHandler = useCallback(
     (s: SceneItem) => () => {
+      if (suppressNextShellClickSceneIdRef.current === s.id) {
+        suppressNextShellClickSceneIdRef.current = null;
+        return;
+      }
       if (!interactionAllowed()) return;
       if (selectedScenes.size > 0) {
         if (s.kind === "act" && typeof s.actNum === "number") onToggleActSelect(s.actNum);
@@ -230,5 +358,9 @@ export function useSceneList({
     getClickHandler,
     getCardShellCssVars,
     interactionAllowed,
+    isMobileViewport,
+    mobileActionsSceneId,
+    clearMobileSceneActions,
+    getSceneItemCardPointerHandlers,
   };
 }

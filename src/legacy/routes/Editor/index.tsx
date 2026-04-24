@@ -81,6 +81,8 @@ import {
 } from "../../ui/Tooltip";
 import { ActTempoSparkline } from "../../ui/ActTempoSparkline";
 import { useWindowWidth } from "../../hooks/useWindowWidth";
+import { useAppSelector } from "../../../hooks";
+import { useGetPublicCatalogQuery } from "../../../features/ai-catalog/aiCatalogApi";
 import {
   autoH,
   getScenes,
@@ -95,6 +97,21 @@ import { AiPanel } from "./AiPanel";
 import { MarkerContextMenu } from "./MarkerContextMenu";
 
 function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin }) {
+  void useAppSelector((s) => s.aiCatalog.revision);
+  const aiCatalogQuery = useGetPublicCatalogQuery();
+  const activeProviders = useMemo(() => {
+    const groups = aiCatalogQuery.data?.groups;
+    if (Array.isArray(groups) && groups.length > 0) {
+      return groups.map((g) => ({
+        id: g.slug,
+        label: g.label,
+        role: g.role || "",
+        color: g.color || "",
+        free: Boolean(g.free),
+      }));
+    }
+    return AIM;
+  }, [aiCatalogQuery.data]);
   const goHome = onGoHome || onLogout;
   const [mode, setMode] = useState(profile?.mode || "film");
   const modeBlocksCache = useRef({});
@@ -6759,7 +6776,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin }) {
               <div ref={aiModelMenuRootRef} style={{padding:"10px 12px 8px",display:"flex",flexDirection:"column",flexShrink:0,gap:"8px"}}>
                 <div style={{fontSize:"9px",color:T3,letterSpacing:"1.8px"}}>ИИ МОДЕЛИ</div>
                 <div style={{display:"flex",gap:"6px"}}>
-                  {AIM.map(m=>(
+                  {activeProviders.map(m=>(
                     <button key={m.id} onClick={()=>selectAiProvider(m.id)} style={{
                       flex:1,padding:"8px 6px",background:aiMod===m.id?BG:SURF,
                       boxShadow:aiMod===m.id?SH_IN:SH_SM,border:"none",borderRadius:"12px",
@@ -10971,7 +10988,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin }) {
           onCollapse={() => setAiOpen(false)}
           composerHeight={aiComposerH}
           onComposerHeightChange={setAiComposerH}
-          models={AIM}
+          models={activeProviders}
           activeModelId={aiMod}
           activeVariantId={aiModelVariant}
           modelMenuOpen={aiModelMenuOpen}

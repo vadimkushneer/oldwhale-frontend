@@ -8,21 +8,14 @@
  * chat-meta helpers consumed by EditorScreen's AI panel / history dropdown.
  */
 
-export const AIM = [
+const FALLBACK_AIM = [
   { id:"deepseek", label:"DeepSeek", role:"Черновик",  color:"#4ade80", free:true  },
   { id:"claude",   label:"Claude",   role:"Редактура", color:"#7c6af7", free:false },
   { id:"gpt",      label:"GPT",      role:"Идеи",      color:"#f472b6", free:false },
   { id:"grok",     label:"Grok",     role:"Идеи",      color:"#f59e0b", free:false },
   { id:"gemini",   label:"Gemini",   role:"Идеи",      color:"#60a5fa", free:false },
 ];
-export const AIR = {
-  deepseek:["Сцена хорошо открывается. Добавь деталь через действие — не через описание.","Диалог работает, но вторая реплика объясняет то что зритель уже понял. Срежь.","Начни с середины — брось зрителя в действие без предисловий."],
-  claude:  ["Персонажу не хватает чёткого желания в этой сцене. Что она хочет?","Второй акт провисает. Нужен поворот — момент когда план рушится.","Диалог звучит написанным. Прочитай вслух — услышишь где спотыкается ритм."],
-  gpt:     ["Что если сцена не в кофейне, а в месте которое само по себе метафора?","Что если Марина пишет письмо? Адресат неизвестен. Это меняет всё.","Что если дождь за окном — персонаж? Он что-то говорит ей. Что именно?"],
-  grok:    ["Попробуй сдвинуть акцент: не что произошло, а что герой скрывает.","Сделай конфликт резче в первой же реплике.","Проверь, можно ли сократить сцену на треть без потери смысла."],
-  gemini:  ["Разложи сцену на цель, препятствие и поворот.","Подумай, где здесь самый точный образ вместо объяснения.","Попробуй вариант, где подтекст важнее прямого смысла слов."],
-};
-export const AI_MODEL_VARIANTS = {
+const FALLBACK_VARIANTS = {
   claude: [
     { id:"claude-opus-4-6", label:"Opus 4.6" },
     { id:"claude-sonnet-4-6", label:"Sonnet 4.6" },
@@ -51,12 +44,69 @@ export const AI_MODEL_VARIANTS = {
   ],
 };
 
+function cloneFallbackVariants() {
+  const o = {};
+  for (const k of Object.keys(FALLBACK_VARIANTS)) {
+    o[k] = FALLBACK_VARIANTS[k].map((x) => ({ ...x }));
+  }
+  return o;
+}
+
+function defaultVariantsFromRecord(variantsByProvider) {
+  return Object.fromEntries(
+    Object.entries(variantsByProvider).map(([providerId, items]) => [
+      providerId,
+      (Array.isArray(items) && items[0]?.id) || "",
+    ]),
+  );
+}
+
+/** Live catalog (ESM live bindings); reassigned by `setAiCatalog`. */
+export let AIM = FALLBACK_AIM.map((x) => ({ ...x }));
+export let AI_MODEL_VARIANTS = cloneFallbackVariants();
+export let AI_DEFAULT_MODEL_VARIANTS = defaultVariantsFromRecord(AI_MODEL_VARIANTS);
+
+/**
+ * Apply catalog from `GET /api/ai/models` (or cache). Each group `slug` becomes provider id in `AIM` / variant map keys.
+ * @param {Array<{ slug: string; label: string; role: string; color: string; free: boolean; variants: Array<{ slug: string; label: string; is_default?: boolean }> }>} groups
+ */
+export function setAiCatalog(groups) {
+  if (!Array.isArray(groups) || groups.length === 0) {
+    AIM = FALLBACK_AIM.map((x) => ({ ...x }));
+    AI_MODEL_VARIANTS = cloneFallbackVariants();
+    AI_DEFAULT_MODEL_VARIANTS = defaultVariantsFromRecord(AI_MODEL_VARIANTS);
+    return;
+  }
+  AIM = groups.map((g) => ({
+    id: g.slug,
+    label: g.label,
+    role: g.role || "",
+    color: g.color || "",
+    free: Boolean(g.free),
+  }));
+  const vmap = {};
+  const defmap = {};
+  for (const g of groups) {
+    const pid = g.slug;
+    const vars = Array.isArray(g.variants) ? g.variants : [];
+    vmap[pid] = vars.map((v) => ({ id: v.slug, label: v.label != null ? String(v.label) : "" }));
+    const def = vars.find((v) => v.is_default);
+    defmap[pid] = (def && def.slug) || vars[0]?.slug || "";
+  }
+  AI_MODEL_VARIANTS = vmap;
+  AI_DEFAULT_MODEL_VARIANTS = defmap;
+}
+
+export const AIR = {
+  deepseek:["Сцена хорошо открывается. Добавь деталь через действие — не через описание.","Диалог работает, но вторая реплика объясняет то что зритель уже понял. Срежь.","Начни с середины — брось зрителя в действие без предисловий."],
+  claude:  ["Персонажу не хватает чёткого желания в этой сцене. Что она хочет?","Второй акт провисает. Нужен поворот — момент когда план рушится.","Диалог звучит написанным. Прочитай вслух — услышишь где спотыкается ритм."],
+  gpt:     ["Что если сцена не в кофейне, а в месте которое само по себе метафора?","Что если Марина пишет письмо? Адресат неизвестен. Это меняет всё.","Что если дождь за окном — персонаж? Он что-то говорит ей. Что именно?"],
+  grok:    ["Попробуй сдвинуть акцент: не что произошло, а что герой скрывает.","Сделай конфликт резче в первой же реплике.","Проверь, можно ли сократить сцену на треть без потери смысла."],
+  gemini:  ["Разложи сцену на цель, препятствие и поворот.","Подумай, где здесь самый точный образ вместо объяснения.","Попробуй вариант, где подтекст важнее прямого смысла слов."],
+};
 export const AI_STORE_KEY = "ow_ai_chat_store_v1";
 export const AI_HISTORY_LIMIT = 60;
 export const AI_DEFAULT_MODEL = "deepseek";
-export const AI_DEFAULT_MODEL_VARIANTS = Object.fromEntries(
-  Object.entries(AI_MODEL_VARIANTS).map(([providerId, items]) => [providerId, items[0]?.id || ""])
-);
 export const AI_FILE_EXTS = ["txt", "docx", "fdx", "whale"];
 export const AI_FILE_ACCEPT = ".txt,.docx,.fdx,.whale,text/plain,application/json,application/xml,application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 export const AI_CAN_USE_EMOJI = true;

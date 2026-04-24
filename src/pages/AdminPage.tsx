@@ -165,11 +165,16 @@ export function AdminPage() {
             НЕТ ПОДКЛЮЧЕНИЯ — АДМИН-ОПЕРАЦИИ НЕДОСТУПНЫ
           </div>
         ) : null}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, gap: 12, flexWrap: "wrap" }}>
           <div style={{ letterSpacing: 4, fontSize: 12 }}>АДМИН · ПОЛЬЗОВАТЕЛИ</div>
-          <Link to="/editor" style={{ color: ACCENT, fontSize: 10, letterSpacing: 2, textDecoration: "none" }}>
-            РЕДАКТОР →
-          </Link>
+          <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
+            <Link to="/admin/ai-models" style={{ color: T2, fontSize: 10, letterSpacing: 2, textDecoration: "none" }}>
+              ИИ · МОДЕЛИ →
+            </Link>
+            <Link to="/editor" style={{ color: ACCENT, fontSize: 10, letterSpacing: 2, textDecoration: "none" }}>
+              РЕДАКТОР →
+            </Link>
+          </div>
         </div>
 
         <form

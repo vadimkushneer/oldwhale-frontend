@@ -179,23 +179,23 @@ describe("SceneList", () => {
     vi.useFakeTimers();
     sceneListMobileMediaMatches = true;
     const { container } = setup();
-    const inner = container.querySelector('[data-scene-id="sc-1"] .scene-item-card') as HTMLElement;
-    expect(inner.className).not.toContain("scene-item-card--actions-open");
+    const row = container.querySelector('[data-scene-id="sc-1"]')!.closest(".scene-list__item") as HTMLElement;
+    expect(row.className).not.toContain("scene-list__item--scene-actions-open");
 
-    fireEvent.pointerDown(inner, { button: 0, clientX: 50, clientY: 150, bubbles: true });
+    fireEvent.pointerDown(row, { button: 0, clientX: 50, clientY: 150, bubbles: true });
     act(() => {
       vi.advanceTimersByTime(799);
     });
-    expect(inner.className).not.toContain("scene-item-card--actions-open");
+    expect(row.className).not.toContain("scene-list__item--scene-actions-open");
     act(() => {
       vi.advanceTimersByTime(1);
     });
-    expect(inner.className).toContain("scene-item-card--actions-open");
+    expect(row.className).toContain("scene-list__item--scene-actions-open");
 
     act(() => {
       vi.advanceTimersByTime(800);
     });
-    expect(inner.className).not.toContain("scene-item-card--actions-open");
+    expect(row.className).not.toContain("scene-list__item--scene-actions-open");
     vi.useRealTimers();
   });
 
@@ -204,13 +204,13 @@ describe("SceneList", () => {
     sceneListMobileMediaMatches = true;
     const { onGoToScene, container } = setup();
     const shell = container.querySelector('[data-scene-id="sc-1"]') as HTMLElement;
-    const inner = container.querySelector('[data-scene-id="sc-1"] .scene-item-card') as HTMLElement;
+    const row = shell.closest(".scene-list__item") as HTMLElement;
 
-    fireEvent.pointerDown(inner, { button: 0, clientX: 50, clientY: 150, bubbles: true });
+    fireEvent.pointerDown(row, { button: 0, clientX: 50, clientY: 150, bubbles: true });
     act(() => {
       vi.advanceTimersByTime(800);
     });
-    fireEvent.pointerUp(inner, { button: 0, bubbles: true });
+    fireEvent.pointerUp(row, { button: 0, bubbles: true });
     shell.click();
     expect(onGoToScene).not.toHaveBeenCalled();
 
@@ -223,16 +223,16 @@ describe("SceneList", () => {
     vi.useFakeTimers();
     sceneListMobileMediaMatches = true;
     const { container } = setup();
-    const inner = container.querySelector('[data-scene-id="sc-1"] .scene-item-card') as HTMLElement;
-    fireEvent.pointerDown(inner, { button: 0, clientX: 50, clientY: 150, bubbles: true });
+    const row = container.querySelector('[data-scene-id="sc-1"]')!.closest(".scene-list__item") as HTMLElement;
+    fireEvent.pointerDown(row, { button: 0, clientX: 50, clientY: 150, bubbles: true });
     act(() => {
       vi.advanceTimersByTime(800);
     });
-    expect(inner.className).toContain("scene-item-card--actions-open");
+    expect(row.className).toContain("scene-list__item--scene-actions-open");
 
     const listRoot = container.querySelector(".scene-list") as HTMLElement;
     fireEvent.pointerDown(listRoot, { button: 0, clientX: 5, clientY: 5, bubbles: true });
-    expect(inner.className).not.toContain("scene-item-card--actions-open");
+    expect(row.className).not.toContain("scene-list__item--scene-actions-open");
     vi.useRealTimers();
   });
 });

@@ -64,8 +64,24 @@ export function SceneList(props: SceneListProps) {
           .filter(Boolean)
           .join(" ");
 
+        const rowMods = [
+          "scene-list__item",
+          s.kind !== "act" && mobileActionsSceneId === s.id ? "scene-list__item--scene-actions-open" : "",
+        ]
+          .filter(Boolean)
+          .join(" ");
+
+        const sceneRowPointerHandlers = s.kind !== "act" ? getSceneItemCardPointerHandlers(s.id) : null;
+
         return (
-          <div key={s.id} className="scene-list__item">
+          <div
+            key={s.id}
+            className={rowMods}
+            onPointerDown={sceneRowPointerHandlers?.onPointerDown}
+            onPointerMove={sceneRowPointerHandlers?.onPointerMove}
+            onPointerUp={sceneRowPointerHandlers?.onPointerUp}
+            onPointerCancel={sceneRowPointerHandlers?.onPointerCancel}
+          >
             <div
               className={`scene-list__drop-indicator ${dropVisible ? "scene-list__drop-indicator--visible" : ""}`}
             />
@@ -114,8 +130,6 @@ export function SceneList(props: SceneListProps) {
                     clearMobileSceneActions();
                     onDelScene(id);
                   }}
-                  mobileActionsOpen={mobileActionsSceneId === s.id}
-                  sceneRootPointerHandlers={getSceneItemCardPointerHandlers(s.id)}
                 />
               )}
             </div>

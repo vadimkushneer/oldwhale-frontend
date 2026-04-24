@@ -140,7 +140,8 @@ export function useSceneList({
     if (!mobileActionsSceneId || !isMobileViewport) return;
     const onDocPointerDown = (e: PointerEvent) => {
       const shell = sceneCardRefs.current[mobileActionsSceneId];
-      if (shell?.contains(e.target as Node)) return;
+      const row = shell?.closest(".scene-list__item");
+      if (row?.contains(e.target as Node)) return;
       clearTimeoutRef(longPressTimerRef);
       clearTimeoutRef(autoHideActionsTimerRef);
       longPressPointerStartRef.current = null;

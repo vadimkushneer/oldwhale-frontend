@@ -10,6 +10,21 @@
     @apply flex flex-col;
   }
 
+  @media (min-width: 768px) {
+    &__item:hover .scene-item-card__actions,
+    &__item:focus-within .scene-item-card__actions {
+      opacity: 1;
+      pointer-events: auto;
+    }
+  }
+
+  @media (max-width: 767px) {
+    &__item--scene-actions-open .scene-item-card__actions {
+      opacity: 1;
+      pointer-events: auto;
+    }
+  }
+
   &__drop-indicator {
     @apply h-0 shrink-0 overflow-hidden rounded-sm transition-all duration-150;
     background: var(--sl-accent);
@@ -172,25 +187,22 @@
     transition: opacity 0.15s ease;
   }
 
-  @media (min-width: 768px) {
-    &:hover &__actions,
-    &:focus-within &__actions {
-      opacity: 1;
-      pointer-events: auto;
-    }
-  }
-
-  @media (max-width: 767px) {
-    &--actions-open &__actions {
-      opacity: 1;
-      pointer-events: auto;
-    }
-  }
-
   &__btn {
     @apply cursor-pointer border p-px px-1 text-[10px] leading-none;
     border-radius: 4px;
     font-family: inherit;
+    transform: scale(1);
+    transform-origin: center;
+    transition: transform 0.15s ease;
+
+    &:hover,
+    &:focus-visible {
+      transform: scale(1.15);
+    }
+
+    &:not(:first-child) {
+      margin-left: 4px;
+    }
 
     &--dup {
       background: var(--sl-accent-11);

@@ -1,0 +1,197 @@
+/*
+ * SceneList — BEM `scene-list` (desktop sidebar scene / act rows + drag ghost).
+ * Theme + per-row accents via CSS custom properties from useSceneList / getCardShellCssVars.
+ */
+
+.scene-list {
+  @apply flex flex-col;
+
+  &__item {
+    @apply flex flex-col;
+  }
+
+  &__drop-indicator {
+    @apply h-0 shrink-0 overflow-hidden rounded-sm transition-all duration-150;
+    background: var(--sl-accent);
+    flex-shrink: 0;
+
+    &--visible {
+      @apply mb-1.5 h-1;
+    }
+  }
+
+  &__card {
+    @apply mb-1 cursor-grab select-none rounded-[14px] px-2.5 py-2 transition-all duration-[220ms];
+    border-left: 3px solid var(--sl-card-border, transparent);
+    background: transparent;
+    -webkit-user-select: none;
+
+    &--active {
+      background: var(--sl-bg);
+      box-shadow: var(--sl-sh-in);
+    }
+
+    &--dragging {
+      @apply opacity-0;
+    }
+  }
+
+  &__ghost {
+    @apply fixed z-[9999] w-[180px] rounded-[14px] px-2.5 py-2 opacity-[0.92] shadow-[0_8px_24px_rgba(0,0,0,0.5)];
+    left: var(--sl-ghost-x);
+    top: var(--sl-ghost-y);
+    min-height: var(--sl-ghost-h);
+    pointer-events: none;
+    background: var(--sl-surf);
+  }
+
+  &__ghost-inner {
+    @apply flex items-center;
+  }
+
+  &__ghost-num {
+    @apply shrink-0 text-[10px];
+    color: var(--sl-accent);
+  }
+
+  &__ghost-title {
+    @apply min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[11px];
+    color: var(--sl-t1);
+  }
+}
+
+.scene-checkbox {
+  @apply mr-2 flex h-[18px] w-[18px] shrink-0 cursor-pointer items-center justify-center rounded-md transition-all duration-150;
+  border: 1px solid var(--sl-t3-55);
+  background: var(--sl-t3-14);
+
+  &--scene-selected {
+    border-color: var(--sl-accent);
+    background: var(--sl-accent);
+    box-shadow: 0 0 0 1px var(--sl-accent-22);
+  }
+
+  &--act-complete {
+    border-color: var(--sl-accent);
+    background: var(--sl-accent);
+    box-shadow: 0 0 0 1px var(--sl-accent-22);
+  }
+
+  &__mark {
+    @apply text-[10px] font-bold leading-none;
+    color: #000;
+  }
+}
+
+.scene-act-card {
+  @apply flex items-center;
+
+  &__num {
+    @apply mr-0 min-w-[16px] shrink-0 text-[10px];
+    color: var(--sl-t3);
+
+    &--active {
+      color: var(--sl-row-accent);
+    }
+  }
+
+  &__title {
+    @apply min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[10px] font-bold uppercase leading-[1.4] tracking-wide;
+    color: var(--sl-row-accent);
+  }
+}
+
+.scene-item-card {
+  @apply flex items-start;
+
+  &__main {
+    @apply min-w-0 flex-1;
+  }
+
+  &__headline {
+    @apply flex min-w-0 items-baseline;
+  }
+
+  &__num {
+    @apply min-w-[18px] shrink-0 text-[10px] leading-[1.22];
+    color: var(--sl-t3);
+
+    &--active {
+      color: var(--sl-row-accent);
+    }
+  }
+
+  &__title {
+    @apply min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[11px] leading-[1.22];
+    color: var(--sl-t2);
+
+    &--active {
+      color: var(--sl-t1);
+    }
+  }
+
+  &__cast {
+    @apply mt-0.5 overflow-hidden pl-[18px] text-ellipsis whitespace-nowrap text-[10px] leading-[1.12];
+    color: var(--sl-t3);
+  }
+
+  &__preview {
+    @apply overflow-hidden pl-[18px] text-[10px] leading-[1.12];
+    color: var(--sl-t3);
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    word-break: break-word;
+
+    &--after-cast {
+      @apply mt-px;
+    }
+
+    &:not(.scene-item-card__preview--after-cast) {
+      @apply mt-0.5;
+    }
+
+    &--scene-active {
+      color: var(--sl-t2);
+    }
+
+    &--lines-1 {
+      -webkit-line-clamp: 1;
+      max-height: 1.12em;
+    }
+
+    &--lines-2 {
+      -webkit-line-clamp: 2;
+      max-height: 2.24em;
+    }
+  }
+
+  &__actions {
+    @apply ml-1.5 flex shrink-0 gap-1;
+  }
+
+  &__btn {
+    @apply cursor-pointer border p-px px-1 text-[10px] leading-none;
+    border-radius: 4px;
+    font-family: inherit;
+
+    &--dup {
+      background: var(--sl-accent-11);
+      border-color: var(--sl-accent-33);
+      color: var(--sl-accent);
+    }
+
+    &--del {
+      @apply flex items-center justify-center text-[11px];
+      background: rgb(248 113 113 / 0.03);
+      border: 1px solid rgb(248 113 113 / 0.09);
+      color: #f87171;
+    }
+  }
+
+  &__del-icon {
+    @apply shrink-0;
+    stroke: currentColor;
+    stroke-width: 1.5;
+    stroke-linecap: round;
+  }
+}

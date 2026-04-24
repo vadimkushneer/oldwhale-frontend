@@ -95,6 +95,7 @@ import { PlayHeaderEditor } from "./PlayHeader";
 import { AiComposer } from "./AiComposer";
 import { AiPanel } from "./AiPanel";
 import { MarkerContextMenu } from "./MarkerContextMenu";
+import { SceneList } from "./SceneList";
 
 function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin }) {
   void useAppSelector((s) => s.aiCatalog.revision);
@@ -8581,197 +8582,22 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin }) {
             СЦЕНЫ — {scenes.filter(s=>s.kind!=="act").length}
           </div>
 
-          {scenes.map((s,idx)=>(
-            <div key={s.id}>
-              {/* Drop indicator */}
-              <div style={{
-                height: dragSceneId && dragOverId===s.id ? "4px" : "0px",
-                background: mc,
-                borderRadius:"2px",
-                transition:"height .15s",
-                marginBottom: dragSceneId && dragOverId===s.id ? "6px" : "0px",
-                flexShrink:0,
-              }}/>
-              <div
-                ref={el=>sceneCardRefs.current[s.id]=el}
-                data-scene-id={s.id}
-                onMouseDown={e=>{
-                  if (e.button !== 0) return;
-                  dragStartY.current = e.clientY;
-                  let dragging = false;
-                  const card = sceneCardRefs.current[s.id];
-                  const onMove = (ev) => {
-                    if (!dragging) {
-                      if (Math.abs(ev.clientY - dragStartY.current) < 5) return;
-                      dragging = true;
-                      setDragCardH(card ? card.offsetHeight : 60);
-                      setDragPos({x: ev.clientX, y: ev.clientY});
-                      _setDragSceneId.current(s.id);
-                    }
-                    if (!_dragSceneId.current) return;
-                    setDragPos({x: ev.clientX, y: ev.clientY});
-                    let foundId = null;
-                    for (const sc of scenes) {
-                      if (sc.kind === "act") continue;
-                      const el = sceneCardRefs.current[sc.id];
-                      if (!el) continue;
-                      const r = el.getBoundingClientRect();
-                      if (ev.clientY >= r.top && ev.clientY <= r.bottom) { foundId = sc.id; break; }
-                    }
-                    if (foundId && foundId !== _dragSceneId.current) _setDragOverId.current(foundId);
-                    else if (!foundId) _setDragOverId.current(null);
-                  };
-                  const onUp = () => {
-                    if (_dragSceneId.current && _dragOverId.current && _dragSceneId.current !== _dragOverId.current) {
-                      moveScene(_dragSceneId.current, _dragOverId.current);
-                      _dragJustEnded.current = true;
-                      setTimeout(()=>{ _dragJustEnded.current = false; }, 300);
-                    }
-                    _setDragSceneId.current(null);
-                    _setDragOverId.current(null);
-                    document.removeEventListener('mousemove', onMove);
-                    document.removeEventListener('mouseup', onUp);
-                  };
-                  document.addEventListener('mousemove', onMove);
-                  document.addEventListener('mouseup', onUp);
-                }}
-                onClick={()=>{
-                  if (_dragSceneId.current || _dragJustEnded.current) return;
-                  if (selectedScenes.size > 0) {
-                    if (s.kind === "act") toggleActSelect(s.actNum);
-                    else toggleSceneSelect(s.id);
-                    return;
-                  }
-                  if (mode === "film" && s.kind === "act") { setActiveSceneId(s.id); return; }
-                  goToScene(s.id);
-                }}
-                style={{
-                  padding:"8px 10px", borderRadius:"14px", cursor:"grab", marginBottom:"4px",
-                  background: activeSceneId===s.id ? BG : "transparent",
-                  boxShadow: activeSceneId===s.id ? SH_IN : "none",
-                  borderLeft:`3px solid ${selectedScenes.has(s.id)?(getSceneCardMetaById(s.id).color || mc):activeSceneId===s.id?(getSceneCardMetaById(s.id).color || mc):(getSceneCardMetaById(s.id).color||"transparent")}`,
-                  transition:"all .22s",
-                  opacity: dragSceneId===s.id ? 0 : 1,
-                  userSelect:"none", WebkitUserSelect:"none",
-                }}>
-                {s.kind === "act" ? (
-                  <div style={{display:"flex", alignItems:"center"}}>
-                    <div onClick={e=>{if(_dragSceneId.current||_dragJustEnded.current)return;e.stopPropagation();toggleActSelect(s.actNum);}} style={{
-                      width:"18px",height:"18px",borderRadius:"6px",flexShrink:0,cursor:"pointer",marginRight:"8px",
-                      border:`1px solid ${scenes.filter(ss=>ss.kind==="scene"&&ss.actNum===s.actNum).every(ss=>selectedScenes.has(ss.id))&&scenes.filter(ss=>ss.kind==="scene"&&ss.actNum===s.actNum).length>0?mc:T3+"55"}`,
-                      background:scenes.filter(ss=>ss.kind==="scene"&&ss.actNum===s.actNum).every(ss=>selectedScenes.has(ss.id))&&scenes.filter(ss=>ss.kind==="scene"&&ss.actNum===s.actNum).length>0?mc:T3+"14",
-                      display:"flex",alignItems:"center",justifyContent:"center",
-                      boxShadow: scenes.filter(ss=>ss.kind==="scene"&&ss.actNum===s.actNum).every(ss=>selectedScenes.has(ss.id))&&scenes.filter(ss=>ss.kind==="scene"&&ss.actNum===s.actNum).length>0 ? `0 0 0 1px ${mc}22` : "none",
-                      transition:"all .15s",
-                    }}>{scenes.filter(ss=>ss.kind==="scene"&&ss.actNum===s.actNum).every(ss=>selectedScenes.has(ss.id))&&scenes.filter(ss=>ss.kind==="scene"&&ss.actNum===s.actNum).length>0&&<span style={{color:"#000",fontSize:"10px",fontWeight:"bold",lineHeight:1}}>✓</span>}</div>
-                    {mode!=="film" && <span style={{color: activeSceneId===s.id ? (getSceneCardMetaById(s.id).color || mc) : T3, fontSize:"10px", minWidth:"16px", flexShrink:0}}>{s.num}.</span>}
-                    <span style={{
-                      color: (getSceneCardMetaById(s.id).color || mc),
-                      fontSize:"10px",
-                      fontWeight:"bold",
-                      letterSpacing:"1px",
-                      lineHeight:"1.4",
-                      whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis",
-                      flex:1, minWidth:0,
-                    }}>{s.text || "—"}</span>
-                  </div>
-                ) : (()=>{
-                  const cardMeta = getDesktopSceneCardMeta(s);
-                  return (
-                    <div style={{display:"flex", alignItems:"flex-start"}}>
-                      <div onClick={e=>{if(_dragSceneId.current||_dragJustEnded.current)return;e.stopPropagation();toggleSceneSelect(s.id);}} style={{
-                        width:"18px",height:"18px",borderRadius:"6px",flexShrink:0,cursor:"pointer",marginRight:"8px",marginTop:"0px",
-                        border:`1px solid ${selectedScenes.has(s.id)?mc:T3+"55"}`,
-                        background:selectedScenes.has(s.id)?mc:T3+"14",
-                        display:"flex",alignItems:"center",justifyContent:"center",
-                        boxShadow:selectedScenes.has(s.id)?`0 0 0 1px ${mc}22`:"none",
-                        transition:"all .15s",
-                      }}>{selectedScenes.has(s.id)&&<span style={{color:"#000",fontSize:"10px",fontWeight:"bold",lineHeight:1}}>✓</span>}</div>
-
-                      <div style={{flex:1, minWidth:0}}>
-                        <div style={{display:"flex", alignItems:"baseline", minWidth:0}}>
-                          <span style={{color: activeSceneId===s.id ? (cardMeta.cardMeta?.color || mc) : T3, fontSize:"10px", minWidth:"18px", flexShrink:0, lineHeight:"1.22"}}>{s.num}.</span>
-                          <span style={{
-                            color: activeSceneId===s.id ? T1 : T2,
-                            fontSize:"11px",
-                            lineHeight:"1.22",
-                            whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis",
-                            flex:1, minWidth:0,
-                          }}>{s.text || "—"}</span>
-                        </div>
-
-                        {cardMeta.castText && (
-                          <div style={{
-                            color:T3,
-                            fontSize:"10px",
-                            paddingLeft:"18px",
-                            marginTop:"2px",
-                            lineHeight:"1.12",
-                            whiteSpace:"nowrap",
-                            overflow:"hidden",
-                            textOverflow:"ellipsis"
-                          }}>
-                            {cardMeta.castText}
-                          </div>
-                        )}
-
-                        {cardMeta.previewText && (
-                          <div style={{
-                            color: activeSceneId===s.id ? T2 : T3,
-                            fontSize:"10px",
-                            paddingLeft:"18px",
-                            marginTop: cardMeta.castText ? "1px" : "2px",
-                            lineHeight:"1.12",
-                            display:"-webkit-box",
-                            WebkitBoxOrient:"vertical",
-                            WebkitLineClamp: cardMeta.previewLines,
-                            overflow:"hidden",
-                            textOverflow:"ellipsis",
-                            wordBreak:"break-word",
-                            maxHeight: cardMeta.previewLines===2 ? "2.24em" : "1.12em"
-                          }}>
-                            {cardMeta.previewText}
-                          </div>
-                        )}
-                      </div>
-
-                      <div style={{display:"flex", flexShrink:0, marginLeft:"6px"}}>
-                        <button onMouseDown={e=>{e.stopPropagation();e.preventDefault();}} onClick={e=>{e.stopPropagation();dupScene(s.id);}} style={{
-                          background:`${mc}11`,border:`1px solid ${mc}33`,borderRadius:"4px",color:mc,fontSize:"10px",cursor:"pointer",padding:"1px 4px",lineHeight:1,
-                        }}>⧉</button>
-                        <button onMouseDown={e=>{e.stopPropagation();e.preventDefault();}} onClick={e=>{e.stopPropagation();delScene(s.id);}} style={{
-                          background:"#f8717108",border:"1px solid #f8717118",borderRadius:"4px",color:"#f87171",fontSize:"11px",cursor:"pointer",padding:"1px 4px",lineHeight:1,
-                        }}><svg width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="#f87171" strokeWidth="1.5" strokeLinecap="round"><line x1="1" y1="1" x2="7" y2="7"/><line x1="7" y1="1" x2="1" y2="7"/></svg></button>
-                      </div>
-                    </div>
-                  );
-                })()}
-              </div>
-            </div>
-          ))}
-
-          {/* Ghost card during drag */}
-          {dragSceneId && (()=>{
-            const s = scenes.find(x=>x.id===dragSceneId);
-            if (!s) return null;
-            return (
-              <div style={{
-                position:"fixed",
-                top: dragPos.y - dragCardH/2,
-                left: dragPos.x - 90,
-                width:"180px",
-                background:SURF, borderRadius:"14px",
-                boxShadow:"0 8px 24px rgba(0,0,0,0.5)",
-                padding:"8px 10px", opacity:0.92,
-                pointerEvents:"none", zIndex:9999,
-              }}>
-                <div style={{display:"flex", alignItems:"center"}}>
-                  <span style={{color:mc, fontSize:"10px"}}>{s.num}.</span>
-                  <span style={{color:T1, fontSize:"11px", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", flex:1}}>{s.text||"—"}</span>
-                </div>
-              </div>
-            );
-          })()}
+          <SceneList
+            scenes={scenes}
+            accent={mc}
+            mode={mode}
+            activeSceneId={activeSceneId}
+            selectedScenes={selectedScenes}
+            getSceneCardMetaById={getSceneCardMetaById}
+            getDesktopSceneCardMeta={getDesktopSceneCardMeta}
+            onGoToScene={goToScene}
+            onSetActiveSceneId={setActiveSceneId}
+            onToggleSceneSelect={toggleSceneSelect}
+            onToggleActSelect={toggleActSelect}
+            onDupScene={dupScene}
+            onDelScene={delScene}
+            onMoveScene={moveScene}
+          />
         </div>
 
         {/* Film mobile: scene/act buttons. Other modes keep the single add button. */}

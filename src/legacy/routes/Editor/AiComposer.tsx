@@ -75,7 +75,7 @@ export function AiComposer({
     <div ref={layerRef} className="ai-composer" style={cssVars}>
       {renderHistoryDropdown?.()}
       <div
-        className={cn("ai-composer__panel", dropActive && "ai-composer__panel--drop-active")}
+        className={cn("ai-composer__panel flex flex-col", dropActive && "ai-composer__panel--drop-active")}
         onDragEnter={onDragEnter}
         onDragOver={onDragOver}
         onDragLeave={onDragLeave}
@@ -94,32 +94,7 @@ export function AiComposer({
             <div className="ai-composer__drop-badge">+</div>
           </div>
         )}
-        <div className="ai-composer__side-buttons">
-          <button
-            className="ai-composer__side-button"
-            onClick={onStartNewChat}
-            aria-label="Новый чат"
-            {...getTooltipAnchorProps("Новый чат")}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M12 5v14"/>
-              <path d="M5 12h14"/>
-            </svg>
-          </button>
-          <button
-            className={cn("ai-composer__side-button", historyOpen && "ai-composer__side-button--open")}
-            onClick={onToggleHistory}
-            aria-label="Просмотреть историю"
-            {...getTooltipAnchorProps("История чатов")}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M6 7h12"/>
-              <path d="M6 12h12"/>
-              <path d="M6 17h12"/>
-            </svg>
-          </button>
-        </div>
-        <div className="ai-composer__center">
+        <div className="ai-composer__center w-full">
           {pendingFiles.length > 0 && (
             <div className="ai-composer__chips">
               {pendingFiles.map(file => (
@@ -154,19 +129,50 @@ export function AiComposer({
             placeholder={placeholder}
           />
         </div>
-        <button
-          className="ai-composer__flat-button"
-          onClick={() => onOpenFilePicker(fileInputId)}
-          title="Добавить файл"
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d="M21.44 11.05l-8.49 8.49a6 6 0 0 1-8.49-8.49l8.49-8.48a4 4 0 0 1 5.66 5.65l-8.5 8.49a2 2 0 0 1-2.82-2.83l7.78-7.78"/>
-          </svg>
-        </button>
-        <button
-          className="ai-composer__flat-button ai-composer__flat-button--send"
-          onClick={onSend}
-        >→</button>
+        <div className="ai-composer__buttons flex w-full flex-row justify-between">
+          <div className="ai-composer__side-buttons">
+            <button
+              className="ai-composer__side-button"
+              onClick={onStartNewChat}
+              aria-label="Новый чат"
+              {...getTooltipAnchorProps("Новый чат")}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M12 5v14"/>
+                <path d="M5 12h14"/>
+              </svg>
+            </button>
+            <button
+              className={cn("ai-composer__side-button", historyOpen && "ai-composer__side-button--open")}
+              onClick={onToggleHistory}
+              aria-label="Просмотреть историю"
+              {...getTooltipAnchorProps("История чатов")}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M6 7h12"/>
+                <path d="M6 12h12"/>
+                <path d="M6 17h12"/>
+              </svg>
+            </button>
+          </div>
+          <div className="ai-composer__side-buttons">
+            <button
+              className="ai-composer__flat-button"
+              onClick={() => onOpenFilePicker(fileInputId)}
+              title="Добавить файл"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M21.44 11.05l-8.49 8.49a6 6 0 0 1-8.49-8.49l8.49-8.48a4 4 0 0 1 5.66 5.65l-8.5 8.49a2 2 0 0 1-2.82-2.83l7.78-7.78"/>
+              </svg>
+            </button>
+            <button
+              className="ai-composer__flat-button ai-composer__flat-button--send"
+              onClick={onSend}
+            >
+              →
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );

@@ -1,0 +1,379 @@
+/*
+ * LeftSidebar — BEM `left-sidebar` (desktop expanded editor sidebar).
+ * Static styling is class-driven; inline styles are reserved for drag width
+ * and custom runtime accent fallback only.
+ */
+
+.left-sidebar {
+  --ls-bg: #1a1b2e;
+  --ls-surf: #1f2040;
+  --ls-t1: #e4e1f5;
+  --ls-t2: #9896b8;
+  --ls-t3: #5a587a;
+  --ls-accent: #7c6af7;
+  --ls-shadow-in: inset 3px 3px 10px rgba(0, 0, 0, 0.5), inset -2px -2px 6px rgba(255, 255, 255, 0.035);
+  --ls-shadow-sm: 4px 4px 12px rgba(0, 0, 0, 0.4), -2px -2px 7px rgba(255, 255, 255, 0.032);
+
+  @apply relative flex min-h-0 shrink-0 flex-col overflow-hidden;
+  background: var(--ls-surf);
+  box-shadow: 4px 0 20px rgba(0, 0, 0, 0.4);
+  transition:
+    width 0.22s ease,
+    min-width 0.22s ease,
+    max-width 0.22s ease;
+
+  &--accent-green {
+    --ls-accent: #4ade80;
+  }
+
+  &--accent-violet {
+    --ls-accent: #7c6af7;
+  }
+
+  &--accent-pink {
+    --ls-accent: #f472b6;
+  }
+
+  &--accent-amber {
+    --ls-accent: #f59e0b;
+  }
+
+  &--accent-blue {
+    --ls-accent: #60a5fa;
+  }
+
+  &__collapse-tab,
+  &__menu-button,
+  &__mode-tab,
+  &__quick-action,
+  &__search-close,
+  &__selection-copy,
+  &__selection-delete,
+  &__add-button,
+  &__credits-button {
+    @apply appearance-none;
+    font-family: inherit;
+  }
+
+  &__collapse-tab {
+    @apply absolute right-[-12px] top-1/2 z-40 flex h-16 w-9 -translate-y-1/2 cursor-pointer items-center justify-center overflow-hidden p-0;
+    border-radius: 0 14px 14px 0;
+    clip-path: polygon(0 6%, 100% 0, 100% 100%, 0 94%);
+    border: 1px solid color-mix(in srgb, var(--ls-accent) 22%, transparent);
+    background: linear-gradient(180deg, rgb(31 32 64 / 0.99), rgb(26 27 46 / 0.96));
+    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.24);
+    color: var(--ls-t2);
+  }
+
+  &__chevron,
+  &__icon {
+    @apply shrink-0;
+  }
+
+  &__brand {
+    @apply flex items-center gap-3 px-[14px] pb-3 pt-4;
+  }
+
+  &__brand-logo {
+    @apply flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px];
+    background: var(--ls-bg);
+    box-shadow: var(--ls-shadow-sm);
+  }
+
+  &__brand-copy {
+    @apply min-w-0 flex-1;
+  }
+
+  &__brand-title {
+    @apply text-[12px] tracking-[3px];
+    color: var(--ls-t1);
+  }
+
+  &__brand-subtitle {
+    @apply text-[9px] tracking-[2px];
+    color: var(--ls-t3);
+  }
+
+  &__menu-button {
+    @apply flex h-7 w-7 shrink-0 cursor-pointer flex-col items-center justify-center rounded-lg p-0;
+    background: var(--ls-bg);
+    box-shadow: var(--ls-shadow-sm);
+    border: none;
+  }
+
+  &__menu-icon {
+    @apply flex flex-col items-center justify-center;
+  }
+
+  &__menu-line {
+    @apply block h-[1.5px] w-3 rounded-sm;
+    background: var(--ls-t2);
+
+    & + & {
+      margin-top: 3px;
+    }
+  }
+
+  &__mode-tabs {
+    @apply mx-2.5 mb-2.5 flex rounded-xl p-[5px];
+    background: var(--ls-bg);
+    box-shadow: var(--ls-shadow-in);
+  }
+
+  &__mode-tab {
+    @apply flex flex-1 cursor-pointer items-center justify-center rounded-xl border-0 bg-transparent px-1 py-2 transition-all duration-[250ms];
+    color: var(--ls-t3);
+
+    &--active {
+      background: var(--ls-surf);
+      box-shadow: var(--ls-shadow-sm);
+      color: #fff;
+    }
+  }
+
+  &__mode-tab-icon {
+    @apply flex items-center justify-center;
+  }
+
+  &__stats {
+    @apply mx-2.5 mb-2 flex rounded-[10px] px-3 py-2;
+    background: var(--ls-bg);
+    box-shadow: var(--ls-shadow-in);
+  }
+
+  &__stat {
+    @apply flex-1 text-center;
+  }
+
+  &__stat-label {
+    @apply text-[8px] tracking-[1px];
+    color: var(--ls-t3);
+  }
+
+  &__stat-value {
+    @apply mt-0.5 text-[11px];
+    color: var(--ls-t2);
+  }
+
+  &__quick-actions {
+    @apply px-2.5 pb-2;
+  }
+
+  &__quick-actions-grid {
+    @apply grid grid-cols-4 gap-2;
+
+    & + & {
+      @apply mt-2;
+    }
+  }
+
+  &__quick-action {
+    @apply flex h-10 w-full cursor-pointer items-center justify-center rounded-[10px] border;
+    background: var(--ls-bg);
+    box-shadow: var(--ls-shadow-sm);
+    border-color: color-mix(in srgb, var(--ls-accent) 27%, transparent);
+    color: var(--ls-accent);
+
+    &--active {
+      background: color-mix(in srgb, var(--ls-accent) 20%, var(--ls-bg));
+      border-color: var(--ls-accent);
+    }
+  }
+
+  &__search-panel {
+    @apply relative z-20 mx-2.5 mb-2 flex flex-col gap-2 rounded-[10px] px-2.5 py-2;
+    background: var(--ls-bg);
+    box-shadow: var(--ls-shadow-sm);
+    border: 1px solid color-mix(in srgb, var(--ls-accent) 27%, transparent);
+    color: var(--ls-accent);
+  }
+
+  &__search-row {
+    @apply relative z-[1] flex min-h-6 items-center gap-2;
+  }
+
+  &__search-input {
+    @apply min-w-0 flex-1 bg-transparent text-[11px] outline-none;
+    border: none;
+    color: var(--ls-t2);
+    font-family: inherit;
+  }
+
+  &__search-close {
+    @apply flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center bg-transparent p-0;
+    border: none;
+    color: var(--ls-accent);
+  }
+
+  &__search-meta {
+    @apply flex min-h-[18px] items-center justify-between gap-2;
+  }
+
+  &__search-count {
+    @apply whitespace-nowrap text-[9px] tracking-[1px];
+    color: var(--ls-t3);
+
+    &--matched {
+      color: var(--ls-t2);
+    }
+  }
+
+  &__search-caption {
+    @apply text-right text-[8px] tracking-[1px];
+    color: var(--ls-t3);
+  }
+
+  &__content {
+    @apply relative flex-1 overflow-auto px-2 pb-0 pt-1;
+  }
+
+  &__selection-bar {
+    @apply relative flex px-0.5 pb-1.5 pt-1 transition-opacity duration-200;
+    opacity: 0;
+    pointer-events: none;
+
+    &--visible {
+      opacity: 1;
+      pointer-events: auto;
+    }
+  }
+
+  &__copy-toast {
+    @apply pointer-events-none absolute left-1/2 top-[-32px] z-[100] -translate-x-1/2 whitespace-nowrap rounded-lg px-2.5 py-1 text-[9px] tracking-[1px];
+    background: var(--ls-accent);
+    color: #000;
+  }
+
+  &__selection-copy {
+    @apply flex-1 cursor-pointer rounded-[10px] px-1.5 py-1.5 text-[9px] font-bold tracking-[1px] transition-colors duration-300;
+    background: transparent;
+    border: none;
+    color: transparent;
+
+    &--active {
+      background: var(--ls-accent);
+      color: #000;
+    }
+
+    &--copied {
+      background: #4ade80;
+      color: #000;
+    }
+  }
+
+  &__selection-delete {
+    @apply ml-1 cursor-pointer rounded-[10px] px-2.5 py-1.5 text-[9px];
+    background: var(--ls-surf);
+    box-shadow: none;
+    border: none;
+    color: var(--ls-t2);
+  }
+
+  &__scene-count {
+    @apply px-1.5 pb-2 text-[9px] tracking-[2px];
+    color: var(--ls-t3);
+  }
+
+  &__footer {
+    @apply shrink-0 px-2.5 pb-2.5 pt-2;
+  }
+
+  &__add-actions {
+    @apply flex gap-2;
+
+    &--split .left-sidebar__add-button {
+      @apply flex-1;
+    }
+  }
+
+  &__add-button {
+    @apply w-full cursor-pointer rounded-[14px] px-2.5 py-2.5 text-[10px] tracking-[2px];
+    background: var(--ls-bg);
+    box-shadow: var(--ls-shadow-sm);
+    border: none;
+    color: var(--ls-t2);
+    transition: all 0.22s;
+  }
+
+  &__credits {
+    @apply mt-1 rounded-xl px-3 py-2.5;
+    background: var(--ls-bg);
+    box-shadow: var(--ls-shadow-in);
+  }
+
+  &__credits-header {
+    @apply mb-1.5 flex items-center justify-between;
+  }
+
+  &__credits-title {
+    @apply text-[9px] tracking-[1px];
+    color: var(--ls-t3);
+  }
+
+  &__credits-value {
+    @apply text-[13px] font-bold;
+    color: var(--ls-t1);
+
+    &--low {
+      color: #ef4444;
+    }
+  }
+
+  &__credits-meter {
+    @apply mb-2 h-[3px] w-full overflow-hidden rounded-[3px];
+    appearance: none;
+    background: var(--ls-surf);
+    box-shadow: var(--ls-shadow-in);
+
+    &::-webkit-progress-bar {
+      background: var(--ls-surf);
+      border-radius: 3px;
+    }
+
+    &::-webkit-progress-value {
+      background: var(--ls-accent);
+      border-radius: 3px;
+      box-shadow: 0 0 8px color-mix(in srgb, var(--ls-accent) 55%, transparent);
+      transition: width 0.3s ease;
+    }
+
+    &::-moz-progress-bar {
+      background: var(--ls-accent);
+      border-radius: 3px;
+      box-shadow: 0 0 8px color-mix(in srgb, var(--ls-accent) 55%, transparent);
+      transition: width 0.3s ease;
+    }
+
+    &--low::-webkit-progress-value {
+      background: #ef4444;
+      box-shadow: 0 0 8px rgb(239 68 68 / 0.55);
+    }
+
+    &--low::-moz-progress-bar {
+      background: #ef4444;
+      box-shadow: 0 0 8px rgb(239 68 68 / 0.55);
+    }
+  }
+
+  &__credits-actions {
+    @apply flex;
+  }
+
+  &__credits-button {
+    @apply cursor-pointer rounded-lg px-2.5 py-[7px] text-[9px] tracking-[1px];
+    background: var(--ls-surf);
+    box-shadow: var(--ls-shadow-sm);
+    border: none;
+
+    &--primary {
+      @apply flex-1;
+      color: var(--ls-accent);
+    }
+
+    &--logout {
+      @apply ml-1 px-2.5 text-[12px];
+      color: var(--ls-t3);
+      letter-spacing: 0;
+    }
+  }
+}

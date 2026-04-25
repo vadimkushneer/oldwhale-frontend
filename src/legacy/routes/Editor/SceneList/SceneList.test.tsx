@@ -53,15 +53,19 @@ let sceneListMobileMediaMatches = false;
 describe("SceneList", () => {
   beforeEach(() => {
     sceneListMobileMediaMatches = false;
-    vi.spyOn(window, "matchMedia").mockImplementation((query: string) => ({
-      matches: query === SCENE_LIST_MOBILE_MEDIA ? sceneListMobileMediaMatches : false,
-      media: query,
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-      addListener: vi.fn(),
-      removeListener: vi.fn(),
-      dispatchEvent: vi.fn(),
-    }));
+    vi.spyOn(window, "matchMedia").mockImplementation((query: string) => {
+      const mql = {
+        matches: query === SCENE_LIST_MOBILE_MEDIA ? sceneListMobileMediaMatches : false,
+        media: query,
+        onchange: null,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      };
+      return mql as unknown as MediaQueryList;
+    });
     vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
       const id = this.getAttribute("data-scene-id");
       if (id === "sc-1") return { top: 100, bottom: 200, left: 0, right: 100, width: 100, height: 100, x: 0, y: 100 } as DOMRect;

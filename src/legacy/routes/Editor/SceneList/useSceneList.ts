@@ -58,7 +58,7 @@ const LONG_TAP_MS = 800;
 const AUTO_HIDE_ACTIONS_MS = 800;
 const LONG_PRESS_MOVE_CANCEL_PX = 10;
 
-function clearTimeoutRef(ref: { current: ReturnType<typeof setTimeout> | null }) {
+function clearTimeoutRef(ref: { current: number | null }) {
   if (ref.current != null) {
     window.clearTimeout(ref.current);
     ref.current = null;
@@ -109,8 +109,8 @@ export function useSceneList({
   );
   const [mobileActionsSceneId, setMobileActionsSceneId] = useState<string | null>(null);
 
-  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const autoHideActionsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressTimerRef = useRef<number | null>(null);
+  const autoHideActionsTimerRef = useRef<number | null>(null);
   const longPressPointerStartRef = useRef<{ x: number; y: number } | null>(null);
   const suppressNextShellClickSceneIdRef = useRef<string | null>(null);
 

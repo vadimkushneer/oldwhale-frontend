@@ -94,8 +94,8 @@ import {
 import { PlayHeaderEditor } from "./PlayHeader";
 import { AiComposer } from "./AiComposer";
 import { AiPanel } from "./AiPanel";
+import { LeftSidebar } from "./LeftSidebar/LeftSidebar";
 import { MarkerContextMenu } from "./MarkerContextMenu";
-import { SceneList } from "./SceneList";
 
 function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin }) {
   void useAppSelector((s) => s.aiCatalog.revision);
@@ -8200,494 +8200,48 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin }) {
 
       {/* ══ LEFT SIDEBAR ══ */}
       {leftPanelOpen ? (
-      <div style={{
-        width:`${leftSidebarW}px`, minWidth:`${leftSidebarW}px`, maxWidth:`${leftSidebarW}px`,
-        background: SURF,
-        boxShadow: "4px 0 20px rgba(0,0,0,0.4)",
-        display:"flex", flexDirection:"column", overflow:"hidden",
-        position:"relative",
-        transition:"width .22s ease, min-width .22s ease, max-width .22s ease",
-      }}>
-
-        <button onMouseDown={e=>e.preventDefault()} onClick={()=>setLeftPanelOpen(false)} title="Свернуть левое меню" style={{
-          ...sideToggleBase,
-          right:"-12px",
-          borderRadius:"0 14px 14px 0",
-          clipPath:SIDE_TAB_CLIP_RIGHT,
-        }}><SideChevron dir="left"/></button>
-
-        {/* Logo */}
-        <div style={{padding:"16px 14px 12px", display:"flex", alignItems:"center", columnGap:"12px"}}>
-          <div style={{
-            width:"36px", height:"36px", borderRadius:"10px",
-            background: BG, boxShadow: SH_SM,
-            display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0,
-          }}>
-            <Whale size={22}/>
-          </div>
-          <div style={{flex:1}}>
-            <div style={{color:T1, fontSize:"12px", letterSpacing:"3px"}}>OLD WHALE</div>
-            <div style={{color:T3, fontSize:"9px", letterSpacing:"2px"}}>РЕДАКТОР</div>
-          </div>
-          <button onClick={()=>setMenuOpen(o=>!o)} style={{
-            width:"28px",height:"28px",borderRadius:"8px",background:BG,boxShadow:SH_SM,
-            border:"none",cursor:"pointer",display:"flex",flexDirection:"column",
-            alignItems:"center",justifyContent:"center",flexShrink:0,padding:"0",
-          }}>
-            {[0,1,2].map(i=>(<span key={i} style={{display:"block",width:"12px",height:"1.5px",background:T2,borderRadius:"2px",marginTop:i>0?"3px":0}}/>))}
-          </button>
-        </div>
-
-        {/* Mode tabs */}
-        <div style={{
-          display:"flex", margin:"0 10px 10px",
-          background: BG, borderRadius:"12px", padding:"5px",
-          boxShadow: SH_IN,
-        }}>
-          {MODES.map(m=>(
-            <button key={m.id} title={m.label} onClick={()=>switchMode(m.id)} style={{
-              flex:1, padding:"8px 4px", border:"none",
-              background: mode===m.id ? SURF : "transparent",
-              boxShadow: mode===m.id ? SH_SM : "none",
-              borderRadius:"12px",
-              color: mode===m.id ? "#fff" : T3,
-              display:"flex", alignItems:"center", justifyContent:"center",
-              cursor:"pointer", transition:"all .25s",
-            }}>{m.icon}</button>
-          ))}
-        </div>
-
-        {/* Stats */}
-        <div style={{
-          margin:"0 10px 8px",
-          background: BG, borderRadius:"10px",
-          boxShadow: SH_IN,
-          padding:"8px 12px",
-          display:"flex",
-        }}>
-          {[["ХРН",st.timing],["СТР",st.pages],["СЛВ",st.words]].map(([l,v])=>(
-            <div key={l} style={{flex:1, textAlign:"center"}}>
-              <div style={{color:T3, fontSize:"8px", letterSpacing:"1px"}}>{l}</div>
-              <div style={{color:T2, fontSize:"11px", marginTop:"2px"}}>{v}</div>
-            </div>
-          ))}
-        </div>
-
-        {/* МОИ ПРОЕКТЫ */}
-        <div style={{padding:"0 10px 8px"}}>
-          <div style={{
-            display:"grid",
-            gridTemplateColumns:"repeat(4, minmax(0, 1fr))",
-            gap:"8px",
-            alignItems:"stretch",
-          }}>
-            <button
-              {...getTooltipAnchorProps("Мои проекты")}
-              aria-label="Мои проекты"
-              onClick={()=>openMyProjectsList()}
-              style={{
-                width:"100%", height:"40px",
-                background: BG, boxShadow: SH_SM,
-                border:`1px solid ${mc}44`, borderRadius:"10px",
-                color: mc, cursor:"pointer",
-                display:"flex", alignItems:"center", justifyContent:"center",
-                WebkitAppearance:"none",
-              }}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H10l2 2h6.5A2.5 2.5 0 0 1 21 9.5v8A2.5 2.5 0 0 1 18.5 20h-13A2.5 2.5 0 0 1 3 17.5z"/>
-                <path d="M8 11h8"/>
-                <path d="M8 15h5"/>
-              </svg>
-            </button>
-            <button
-              {...getTooltipAnchorProps("Новый проект")}
-              aria-label="Новый проект"
-              onClick={()=>{newProject();setProjectsOpen(false);}}
-              style={{
-                width:"100%", height:"40px",
-                background:BG, boxShadow:SH_SM,
-                border:`1px solid ${mc}44`, borderRadius:"10px", color:mc,
-                cursor:"pointer",
-                display:"flex", alignItems:"center", justifyContent:"center",
-                WebkitAppearance:"none",
-              }}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 5v14"/>
-                <path d="M5 12h14"/>
-              </svg>
-            </button>
-            <button
-              {...getTooltipAnchorProps("Карточки сцен")}
-              aria-label="Карточки сцен"
-              onClick={()=>openSceneCardsWindow()}
-              style={{
-                width:"100%", height:"40px",
-                background:BG, boxShadow:SH_SM,
-                border:`1px solid ${mc}44`, borderRadius:"10px", color:mc,
-                cursor:"pointer",
-                display:"flex", alignItems:"center", justifyContent:"center",
-                WebkitAppearance:"none",
-              }}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="4" y="5" width="6" height="6" rx="1.2"/>
-                <rect x="14" y="5" width="6" height="6" rx="1.2"/>
-                <rect x="4" y="13" width="6" height="6" rx="1.2"/>
-                <rect x="14" y="13" width="6" height="6" rx="1.2"/>
-              </svg>
-            </button>
-            <button
-              {...getTooltipAnchorProps("Поиск в активном редакторе")}
-              aria-label="Поиск в активном редакторе"
-              onClick={editorSearchOpen ? closeEditorSearch : openEditorSearch}
-              style={{
-                width:"100%", height:"40px",
-                background:BG, boxShadow:SH_SM,
-                border:`1px solid ${mc}44`, borderRadius:"10px", color:mc,
-                cursor:"pointer",
-                display:"flex", alignItems:"center", justifyContent:"center",
-                WebkitAppearance:"none",
-              }}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="11" cy="11" r="7"/>
-                <path d="m20 20-3.5-3.5"/>
-              </svg>
-            </button>
-          </div>
-
-          <div style={{
-            display:"grid",
-            gridTemplateColumns:"repeat(4, minmax(0, 1fr))",
-            gap:"8px",
-            alignItems:"stretch",
-            marginTop:"8px",
-          }}>
-            <button
-              {...getTooltipAnchorProps("Режим маркера")}
-              aria-label="Режим маркера"
-              onClick={()=>setMarkerModeOn(v=>!v)}
-              style={{
-                width:"100%", height:"40px",
-                background: markerModeOn ? mc+"33" : BG, boxShadow: SH_SM,
-                border:`1px solid ${markerModeOn ? mc : mc+"44"}`, borderRadius:"10px",
-                color: mc, cursor:"pointer",
-                display:"flex", alignItems:"center", justifyContent:"center",
-                WebkitAppearance:"none",
-              }}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M3 21h4.5L19 9.5a2.12 2.12 0 0 0-3-3L4.5 18 3 21z"/>
-                <path d="M16 6l2 2"/>
-              </svg>
-            </button>
-            <button
-              {...getTooltipAnchorProps("Доп. кнопка 2")}
-              aria-label="Дополнительная кнопка 2"
-              onClick={()=>{}}
-              style={{
-                width:"100%", height:"40px",
-                background:BG, boxShadow:SH_SM,
-                border:`1px solid ${mc}44`, borderRadius:"10px", color:mc,
-                cursor:"pointer",
-                display:"flex", alignItems:"center", justifyContent:"center",
-                WebkitAppearance:"none",
-              }}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 4 20 18H4z"/>
-                <path d="M12 9v4"/>
-                <circle cx="12" cy="16" r=".8" fill="currentColor" stroke="none"/>
-              </svg>
-            </button>
-            <button
-              {...getTooltipAnchorProps("Доп. кнопка 3")}
-              aria-label="Дополнительная кнопка 3"
-              onClick={()=>{}}
-              style={{
-                width:"100%", height:"40px",
-                background:BG, boxShadow:SH_SM,
-                border:`1px solid ${mc}44`, borderRadius:"10px", color:mc,
-                cursor:"pointer",
-                display:"flex", alignItems:"center", justifyContent:"center",
-                WebkitAppearance:"none",
-              }}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M4 12c2.2-4 5.8-4 8 0s5.8 4 8 0"/>
-                <path d="M4 16c2.2-4 5.8-4 8 0s5.8 4 8 0"/>
-                <path d="M4 8c2.2-4 5.8-4 8 0s5.8 4 8 0"/>
-              </svg>
-            </button>
-            <button
-              {...getTooltipAnchorProps("Доп. кнопка 4")}
-              aria-label="Дополнительная кнопка 4"
-              onClick={()=>{}}
-              style={{
-                width:"100%", height:"40px",
-                background:BG, boxShadow:SH_SM,
-                border:`1px solid ${mc}44`, borderRadius:"10px", color:mc,
-                cursor:"pointer",
-                display:"flex", alignItems:"center", justifyContent:"center",
-                WebkitAppearance:"none",
-              }}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 3 14.6 9.4 21 12l-6.4 2.6L12 21l-2.6-6.4L3 12l6.4-2.6z"/>
-              </svg>
-            </button>
-          </div>
-
-          {editorSearchOpen && (
-            <div
-              onMouseDown={e=>e.stopPropagation()}
-              onClick={e=>e.stopPropagation()}
-              style={{
-                marginTop:"8px",
-                background:BG,
-                boxShadow:SH_SM,
-                border:`1px solid ${mc}44`,
-                borderRadius:"10px",
-                color:mc,
-                padding:"8px 10px",
-                display:"flex",
-                flexDirection:"column",
-                gap:"8px",
-                position:"relative",
-                zIndex:24,
-                pointerEvents:"auto",
-              }}>
-              <div style={{
-                display:"flex",
-                alignItems:"center",
-                gap:"8px",
-                minHeight:"24px",
-                position:"relative",
-                zIndex:25,
-              }}>
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{flexShrink:0}}>
-                  <circle cx="11" cy="11" r="7"/>
-                  <path d="m20 20-3.5-3.5"/>
-                </svg>
-                <input
-                  ref={searchInputRef}
-                  autoFocus
-                  value={editorSearchQuery}
-                  onMouseDown={e=>e.stopPropagation()}
-                  onClick={e=>e.stopPropagation()}
-                  onFocus={e=>e.stopPropagation()}
-                  onChange={e=>setEditorSearchQuery(e.target.value)}
-                  onKeyDown={e=>{
-                    e.stopPropagation();
-                    if (e.key === "Escape") {
-                      e.preventDefault();
-                      closeEditorSearch();
-                      return;
-                    }
-                  }}
-                  placeholder="Поиск / #тег"
-                  spellCheck={false}
-                  style={{
-                    flex:1,
-                    minWidth:0,
-                    background:"transparent",
-                    border:"none",
-                    outline:"none",
-                    color:T2,
-                    fontSize:"11px",
-                    fontFamily:"inherit",
-                    pointerEvents:"auto",
-                    position:"relative",
-                    zIndex:26,
-                  }}
-                />
-                <button
-                  title="Свернуть поиск"
-                  aria-label="Свернуть поиск"
-                  onClick={closeEditorSearch}
-                  style={{
-                    width:"24px", height:"24px", flexShrink:0,
-                    background:"transparent", border:"none", color:mc,
-                    cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center",
-                    WebkitAppearance:"none",
-                  }}>
-                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
-                    <path d="M1 1l8 8"/>
-                    <path d="M9 1L1 9"/>
-                  </svg>
-                </button>
-              </div>
-
-              <div style={{
-                display:"flex",
-                alignItems:"center",
-                justifyContent:"space-between",
-                gap:"8px",
-                minHeight:"18px",
-              }}>
-                <div style={{
-                  color:editorSearchMatches.length ? T2 : T3,
-                  fontSize:"9px",
-                  letterSpacing:"1px",
-                  whiteSpace:"nowrap",
-                }}>
-                  {editorSearchMatches.length ? `НАЙДЕНО: ${editorSearchMatches.length}` : "НАЙДЕНО: 0"}
-                </div>
-                <div style={{
-                  color:T3,
-                  fontSize:"8px",
-                  letterSpacing:"1px",
-                  textAlign:"right",
-                }}>
-                  ПОДСВЕТКА В АКТИВНОМ РЕДАКТОРЕ
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Scene list */}
-        <div style={{flex:1, overflow:"auto", padding:"4px 8px", position:"relative"}}>
-          {/* Selection action bar */}
-          <div style={{
-            display:"flex", padding:"4px 2px 6px",
-            opacity: selectedScenes.size > 0 ? 1 : 0,
-            transition:"opacity .2s", pointerEvents: selectedScenes.size > 0 ? "auto" : "none",
-            position:"relative",
-          }}>
-            {/* Тост */}
-            {copyToast && (
-              <div style={{
-                position:"absolute", top:"-32px", left:"50%", transform:"translateX(-50%)",
-                background:mc, color:"#000", fontSize:"9px", letterSpacing:"1px",
-                padding:"4px 10px", borderRadius:"8px", whiteSpace:"nowrap",
-                pointerEvents:"none", zIndex:100,
-              }}>✓ СКОПИРОВАНО</div>
-            )}
-            <button onClick={copySelectedScenes} style={{
-              flex:1,padding:"6px",
-              background:selectedScenes.size>0?(copyToast?"#4ade80":mc):"transparent",
-              border:"none",borderRadius:"10px",
-              color:selectedScenes.size>0?"#000":"transparent",
-              fontSize:"9px",letterSpacing:"1px",cursor:"pointer",fontFamily:"inherit",fontWeight:"bold",
-              WebkitAppearance:"none",
-              transition:"background .3s",
-            }}>{copyToast ? "✓ СКОПИРОВАНО" : `КОПИРОВАТЬ (${selectedScenes.size})`}</button>
-            <button onClick={()=>{
-              const ids=[...selectedScenes];
-              ids.forEach(id=>delScene(id));
-              setSelectedScenes(new Set());
-            }} style={{
-              padding:"6px 10px",background:SURF,border:"none",borderRadius:"10px",
-              color:T2,fontSize:"9px",cursor:"pointer",fontFamily:"inherit",
-              WebkitAppearance:"none",
-            }}>🗑</button>
-          </div>
-
-          <div style={{color:T3, fontSize:"9px", letterSpacing:"2px", padding:"0px 6px 8px"}}>
-            СЦЕНЫ — {scenes.filter(s=>s.kind!=="act").length}
-          </div>
-
-          <SceneList
-            scenes={scenes}
-            accent={mc}
-            mode={mode}
-            activeSceneId={activeSceneId}
-            selectedScenes={selectedScenes}
-            getSceneCardMetaById={getSceneCardMetaById}
-            getDesktopSceneCardMeta={getDesktopSceneCardMeta}
-            onGoToScene={goToScene}
-            onSetActiveSceneId={setActiveSceneId}
-            onToggleSceneSelect={toggleSceneSelect}
-            onToggleActSelect={toggleActSelect}
-            onDupScene={dupScene}
-            onDelScene={delScene}
-            onMoveScene={moveScene}
-          />
-        </div>
-
-        {/* Film mobile: scene/act buttons. Other modes keep the single add button. */}
-        <div style={{padding:"8px 10px"}}>
-          {mode === "film" ? (
-            <div style={{display:"flex", gap:"8px"}}>
-              <button onClick={()=>{ const last=blocks[blocks.length-1]; if(last) addAfter(last.id,"scene"); }} style={{
-                flex:1, padding:"10px",
-                background: BG, boxShadow: SH_SM,
-                border:"none", borderRadius:"14px",
-                color: T2, fontSize:"10px", cursor:"pointer",
-                fontFamily:"inherit", letterSpacing:"2px",
-                transition:"all .22s",
-              }}>СЦЕНА</button>
-              <button onClick={()=>{ insertFilmAct(); }} style={{
-                flex:1, padding:"10px",
-                background: BG, boxShadow: SH_SM,
-                border:"none", borderRadius:"14px",
-                color: T2, fontSize:"10px", cursor:"pointer",
-                fontFamily:"inherit", letterSpacing:"2px",
-                transition:"all .22s",
-              }}>АКТ</button>
-            </div>
-          ) : mode === "play" ? (
-            <div style={{display:"flex", gap:"8px"}}>
-              <button onClick={()=>{ const last=blocks[blocks.length-1]; if(last) addAfter(last.id,"scene"); }} style={{
-                flex:1, padding:"10px",
-                background: BG, boxShadow: SH_SM,
-                border:"none", borderRadius:"14px",
-                color: T2, fontSize:"10px", cursor:"pointer",
-                fontFamily:"inherit", letterSpacing:"2px",
-                transition:"all .22s",
-              }}>+ СЦЕНА</button>
-              <button onClick={()=>{ insertPlayAct(); }} style={{
-                flex:1, padding:"10px",
-                background: BG, boxShadow: SH_SM,
-                border:"none", borderRadius:"14px",
-                color: T2, fontSize:"10px", cursor:"pointer",
-                fontFamily:"inherit", letterSpacing:"2px",
-                transition:"all .22s",
-              }}>+ АКТ</button>
-            </div>
-          ) : (
-            <button onClick={()=>{ const last=blocks[blocks.length-1]; if(last) addAfter(last.id,"scene"); }} style={{
-              width:"100%", padding:"10px",
-              background: BG, boxShadow: SH_SM,
-              border:"none", borderRadius:"14px",
-              color: T2, fontSize:"10px", cursor:"pointer",
-              fontFamily:"inherit", letterSpacing:"2px",
-              transition:"all .22s",
-            }}>+ НОВАЯ СЦЕНА</button>
-          )}
-        </div>
-
-        {/* Credits */}
-        <div style={{
-          margin:"4px 10px 10px",
-          background: BG, borderRadius:"12px",
-          boxShadow: SH_IN, padding:"10px 12px",
-        }}>
-          <div style={{display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"6px"}}>
-            <span style={{color:T3, fontSize:"9px", letterSpacing:"1px"}}>КРЕДИТЫ</span>
-            <span style={{color: credits<50 ? "#ef4444" : T1, fontSize:"13px", fontWeight:"bold"}}>{credits}</span>
-          </div>
-          <div style={{background:SURF, borderRadius:"3px", height:"3px", marginBottom:"8px", boxShadow:SH_IN}}>
-            <div style={{height:"100%", borderRadius:"3px",
-              width:`${Math.min(100,(credits/500)*100)}%`,
-              background: credits<50 ? "#ef4444" : mc,
-              boxShadow: `0 0 8px ${mc}88`,
-              transition:"all .3s"
-            }}/>
-          </div>
-          <div style={{display:"flex"}}>
-            <button style={{
-              flex:1, padding:"7px",
-              background: SURF, boxShadow: SH_SM,
-              border:"none", borderRadius:"8px",
-              color: mc, fontSize:"9px", cursor:"pointer",
-              fontFamily:"inherit", letterSpacing:"1px",
-            }}>ПОПОЛНИТЬ</button>
-            <button onClick={onLogout} style={{
-              padding:"7px 10px",
-              background: SURF, boxShadow: SH_SM,
-              border:"none", borderRadius:"8px",
-              color: T3, fontSize:"12px", cursor:"pointer",
-              fontFamily:"inherit",
-            }} title="Выйти">⏻</button>
-          </div>
-        </div>
-      </div>
+        <LeftSidebar
+          width={leftSidebarW}
+          mode={mode}
+          accent={mc}
+          stats={st}
+          scenes={scenes}
+          activeSceneId={activeSceneId}
+          selectedScenes={selectedScenes}
+          markerModeOn={markerModeOn}
+          editorSearchOpen={editorSearchOpen}
+          editorSearchQuery={editorSearchQuery}
+          editorSearchMatchesCount={editorSearchMatches.length}
+          searchInputRef={searchInputRef}
+          copyToast={copyToast}
+          credits={credits}
+          getTooltipAnchorProps={getTooltipAnchorProps}
+          getSceneCardMetaById={getSceneCardMetaById}
+          getDesktopSceneCardMeta={getDesktopSceneCardMeta}
+          onCollapse={()=>setLeftPanelOpen(false)}
+          onToggleMenu={()=>setMenuOpen(o=>!o)}
+          onSwitchMode={switchMode}
+          onOpenMyProjects={openMyProjectsList}
+          onCreateProject={()=>{newProject();setProjectsOpen(false);}}
+          onOpenSceneCards={openSceneCardsWindow}
+          onToggleEditorSearch={editorSearchOpen ? closeEditorSearch : openEditorSearch}
+          onCloseEditorSearch={closeEditorSearch}
+          onEditorSearchQueryChange={setEditorSearchQuery}
+          onToggleMarkerMode={()=>setMarkerModeOn(v=>!v)}
+          onCopySelectedScenes={copySelectedScenes}
+          onDeleteScene={delScene}
+          onClearSelectedScenes={()=>setSelectedScenes(new Set())}
+          onGoToScene={goToScene}
+          onSetActiveSceneId={setActiveSceneId}
+          onToggleSceneSelect={toggleSceneSelect}
+          onToggleActSelect={toggleActSelect}
+          onDupScene={dupScene}
+          onMoveScene={moveScene}
+          onAddSceneAfterLast={()=>{ const last=blocks[blocks.length-1]; if(last) addAfter(last.id,"scene"); }}
+          onInsertFilmAct={insertFilmAct}
+          onInsertPlayAct={insertPlayAct}
+          onLogout={onLogout}
+        />
       ) : (
         <div style={{
           width:`${leftSidebarW}px`, minWidth:`${leftSidebarW}px`, maxWidth:`${leftSidebarW}px`,

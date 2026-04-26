@@ -131,8 +131,12 @@ describe("SceneList", () => {
 
   it("calls onDupScene and onDelScene from scene actions", () => {
     const { onDupScene, onDelScene, container } = setup();
-    const dup = container.querySelector('[data-scene-id="sc-1"] .scene-item-card__btn--dup') as HTMLButtonElement;
-    const del = container.querySelector('[data-scene-id="sc-1"] .scene-item-card__btn--del') as HTMLButtonElement;
+    const dup = container.querySelector(
+      '[data-scene-id="sc-1"] .editor-action-buttons__button--duplicate',
+    ) as HTMLButtonElement;
+    const del = container.querySelector(
+      '[data-scene-id="sc-1"] .editor-action-buttons__button--delete',
+    ) as HTMLButtonElement;
     dup.click();
     del.click();
     expect(onDupScene).toHaveBeenCalledWith("sc-1");

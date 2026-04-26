@@ -1,4 +1,5 @@
 import type { DesktopSceneCardMeta, SceneItem } from "./useSceneList";
+import { EditorActionButtons } from "../EditorActionButtons/EditorActionButtons";
 import { SceneCheckbox } from "./SceneCheckbox";
 
 export type SceneItemCardProps = {
@@ -62,46 +63,13 @@ export function SceneItemCard({
       </div>
 
       <div className="scene-item-card__actions">
-        <button
-          type="button"
-          className="scene-item-card__btn scene-item-card__btn--dup"
-          onMouseDown={(e) => {
-            e.stopPropagation();
-            e.preventDefault();
-          }}
-          onClick={(e) => {
-            e.stopPropagation();
-            onDup(scene.id);
-          }}
-          aria-label="Дублировать сцену"
-        >
-          ⧉
-        </button>
-        <button
-          type="button"
-          className="scene-item-card__btn scene-item-card__btn--del"
-          onMouseDown={(e) => {
-            e.stopPropagation();
-            e.preventDefault();
-          }}
-          onClick={(e) => {
-            e.stopPropagation();
-            onDel(scene.id);
-          }}
-          aria-label="Удалить сцену"
-        >
-          <svg
-            className="scene-item-card__del-icon"
-            width="8"
-            height="8"
-            viewBox="0 0 8 8"
-            fill="none"
-            aria-hidden
-          >
-            <line x1="1" y1="1" x2="7" y2="7" />
-            <line x1="7" y1="1" x2="1" y2="7" />
-          </svg>
-        </button>
+        <EditorActionButtons
+          variant="scene-card"
+          duplicateLabel="Дублировать сцену"
+          deleteLabel="Удалить сцену"
+          onDuplicate={() => onDup(scene.id)}
+          onDelete={() => onDel(scene.id)}
+        />
       </div>
     </div>
   );

@@ -181,47 +181,9 @@
   }
 
   &__actions {
-    @apply ml-1.5 flex shrink-0 gap-1;
+    @apply ml-1.5 flex shrink-0;
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.15s ease;
-  }
-
-  &__btn {
-    @apply cursor-pointer border p-px px-1 text-[10px] leading-none;
-    border-radius: 4px;
-    font-family: inherit;
-    transform: scale(1);
-    transform-origin: center;
-    transition: transform 0.15s ease;
-
-    &:hover,
-    &:focus-visible {
-      transform: scale(1.15);
-    }
-
-    &:not(:first-child) {
-      margin-left: 4px;
-    }
-
-    &--dup {
-      background: var(--sl-accent-11);
-      border-color: var(--sl-accent-33);
-      color: var(--sl-accent);
-    }
-
-    &--del {
-      @apply flex items-center justify-center text-[11px];
-      background: rgb(248 113 113 / 0.03);
-      border: 1px solid rgb(248 113 113 / 0.09);
-      color: #f87171;
-    }
-  }
-
-  &__del-icon {
-    @apply shrink-0;
-    stroke: currentColor;
-    stroke-width: 1.5;
-    stroke-linecap: round;
   }
 }

@@ -11,16 +11,11 @@ import {
   cx,
   useEditorDocument,
 } from "./useEditorDocument";
+import {
+  EditorActionButtons,
+  EditorActionCloseGlyph,
+} from "../EditorActionButtons/EditorActionButtons";
 import "./EditorDocument.scss";
-
-function CloseGlyph() {
-  return (
-    <svg width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden>
-      <line x1="1" y1="1" x2="7" y2="7" />
-      <line x1="7" y1="1" x2="1" y2="7" />
-    </svg>
-  );
-}
 
 function AlignIcon({ align }: { align: "left" | "center" | "right" }) {
   if (align === "center") {
@@ -368,7 +363,7 @@ export function EditorDocument({
                             setNoteColorOpen(false);
                           }}
                         >
-                          <CloseGlyph />
+                          <EditorActionCloseGlyph />
                         </button>
                       </div>
                     ) : null}
@@ -735,27 +730,13 @@ export function EditorDocument({
                                         {headChecked ? <span className="editor-document__selection-mark">✓</span> : null}
                                       </div>
 
-                                      <button
-                                        type="button"
-                                        className="editor-document__gutter-button editor-document__gutter-button--accent"
-                                        onMouseDown={(e) => {
-                                          e.preventDefault();
-                                          dupScene(block.id);
-                                        }}
-                                      >
-                                        ⧉
-                                      </button>
-
-                                      <button
-                                        type="button"
-                                        className="editor-document__gutter-button editor-document__gutter-button--danger"
-                                        onMouseDown={(e) => {
-                                          e.preventDefault();
-                                          delScene(block.id);
-                                        }}
-                                      >
-                                        <CloseGlyph />
-                                      </button>
+                                      <EditorActionButtons
+                                        variant="gutter"
+                                        duplicateLabel="Дублировать сцену"
+                                        deleteLabel="Удалить сцену"
+                                        onDuplicate={() => dupScene(block.id)}
+                                        onDelete={() => delScene(block.id)}
+                                      />
 
                                       <span className="editor-document__gutter-num">{num}.</span>
                                     </>
@@ -829,11 +810,11 @@ export function EditorDocument({
                                         +
                                       </button>
 
-                                      <button
-                                        type="button"
-                                        className="editor-document__gutter-button editor-document__gutter-button--accent"
-                                        onMouseDown={(e) => {
-                                          e.preventDefault();
+                                      <EditorActionButtons
+                                        variant="gutter"
+                                        duplicateLabel="Дублировать блок"
+                                        deleteLabel="Удалить блок"
+                                        onDuplicate={() => {
                                           const nextBlock = { ...block, id: uid() };
                                           setBlocks((prev) => {
                                             const index = prev.findIndex((item) => item.id === block.id);
@@ -843,20 +824,8 @@ export function EditorDocument({
                                           });
                                           markDirty();
                                         }}
-                                      >
-                                        ⧉
-                                      </button>
-
-                                      <button
-                                        type="button"
-                                        className="editor-document__gutter-button editor-document__gutter-button--danger"
-                                        onMouseDown={(e) => {
-                                          e.preventDefault();
-                                          delBlock(block.id);
-                                        }}
-                                      >
-                                        <CloseGlyph />
-                                      </button>
+                                        onDelete={() => delBlock(block.id)}
+                                      />
                                     </>
                                   ) : null}
                                 </div>

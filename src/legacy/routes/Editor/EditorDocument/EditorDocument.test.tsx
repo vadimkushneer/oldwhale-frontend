@@ -275,6 +275,40 @@ describe("EditorDocument", () => {
     if (originalDivHeight) Object.defineProperty(HTMLDivElement.prototype, "scrollHeight", originalDivHeight);
   });
 
+  it("fires shared gutter actions for scene heads and regular blocks", () => {
+    const setBlocks = vi.fn();
+    const props = makeBaseProps({
+      blocksState: {
+        setBlocks,
+      },
+    });
+
+    const { container } = render(<EditorDocument {...props} />);
+    const duplicateButtons = container.querySelectorAll(
+      ".editor-action-buttons--gutter .editor-action-buttons__button--duplicate",
+    );
+    const deleteButtons = container.querySelectorAll(
+      ".editor-action-buttons--gutter .editor-action-buttons__button--delete",
+    );
+
+    fireEvent.mouseDown(duplicateButtons[0] as HTMLButtonElement);
+    fireEvent.mouseDown(deleteButtons[0] as HTMLButtonElement);
+    expect(props.actions.dupScene).toHaveBeenCalledWith("scene-1");
+    expect(props.actions.delScene).toHaveBeenCalledWith("scene-1");
+
+    fireEvent.mouseDown(duplicateButtons[1] as HTMLButtonElement);
+    expect(setBlocks).toHaveBeenCalledTimes(1);
+    expect(props.note.markDirty).toHaveBeenCalledTimes(1);
+    const updater = setBlocks.mock.calls[0][0];
+    const next = updater(props.blocksState.blocks);
+    expect(next).toHaveLength(3);
+    expect(next[2]).toMatchObject({ type: "action", text: "A short action line." });
+    expect(next[2].id).not.toBe("action-1");
+
+    fireEvent.mouseDown(deleteButtons[1] as HTMLButtonElement);
+    expect(props.actions.delBlock).toHaveBeenCalledWith("action-1");
+  });
+
   it("splits multiline film paste into multiple blocks", () => {
     const setBlocks = vi.fn();
     const props = makeBaseProps({

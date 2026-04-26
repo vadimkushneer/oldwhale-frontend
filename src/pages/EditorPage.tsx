@@ -1,5 +1,6 @@
 import { useCallback, useMemo } from "react";
-import { Link, Navigate, useNavigate } from "react-router-dom";
+import { Link, Navigate, useLocation, useNavigate, useParams } from "react-router-dom";
+import { MODES } from "../legacy/domain/blocks";
 import { EditorScreen } from "../legacy/routes/Editor";
 import { useAppDispatch, useAppSelector } from "../hooks";
 import { clearAuth } from "../features/auth/authSlice";
@@ -8,6 +9,17 @@ type Profile = { mode?: string; id?: string; label?: string; color?: string; des
 
 /** When JWT is valid but onboarding profile was never stored (or was cleared), editor still loads. */
 const FALLBACK_AUTH_PROFILE: Profile = { mode: "film" };
+const EDITOR_MODE_IDS = MODES.map((mode: { id: string }) => mode.id);
+const EDITOR_MODE_SET = new Set<string>(EDITOR_MODE_IDS);
+
+function normalizeEditorMode(value?: string): string | null {
+  if (!value) return null;
+  return EDITOR_MODE_SET.has(value) ? value : null;
+}
+
+function getEditorPath(mode: string) {
+  return `/editor/${mode}`;
+}
 
 function readProfile(): Profile | null {
   try {
@@ -42,12 +54,24 @@ function RestoringSessionScreen() {
 
 export function EditorPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const { modeName } = useParams<{ modeName?: string }>();
   const dispatch = useAppDispatch();
   const token = useAppSelector((s) => s.auth.token);
   const user = useAppSelector((s) => s.auth.user);
   const restoreStatus = useAppSelector((s) => s.auth.restoreStatus);
 
   const storedProfile = useMemo(() => readProfile(), []);
+  const requestedMode = normalizeEditorMode(modeName);
+  const storedMode = normalizeEditorMode(storedProfile?.mode);
+  const resolvedMode = requestedMode ?? storedMode ?? FALLBACK_AUTH_PROFILE.mode ?? "film";
+  const canonicalPath = getEditorPath(resolvedMode);
+  const profile: Profile = {
+    ...(storedProfile ?? {}),
+    mode: resolvedMode,
+  };
+  const needsAuth = resolvedMode !== "note";
+  const isGuest = resolvedMode === "note" && !token;
 
   /**
    * Presence of a JWT is the source of truth for "logged-in". `user` may be
@@ -56,12 +80,6 @@ export function EditorPage() {
    * the user back through the login form — the token is still valid and any
    * protected API call will surface a real 401 if it isn't.
    */
-  const profile: Profile | null =
-    storedProfile ?? (token ? FALLBACK_AUTH_PROFILE : null);
-
-  const needsAuth = profile?.mode !== "note";
-  const isGuest = profile?.mode === "note" && !token;
-
   const onLogout = useCallback(() => {
     dispatch(clearAuth());
     try {
@@ -83,18 +101,56 @@ export function EditorPage() {
   }, [navigate]);
 
   const onLogin = useCallback(() => {
-    navigate("/login", { replace: false, state: { from: { pathname: "/editor", search: "" } } });
-  }, [navigate]);
+    navigate("/login", {
+      replace: false,
+      state: {
+        from: {
+          pathname: canonicalPath,
+          search: location.search,
+        },
+      },
+    });
+  }, [canonicalPath, location.search, navigate]);
 
-  if (!profile) {
-    if (!token && restoreStatus === "ready") {
-      return <Navigate to="/" replace />;
-    }
+  const onModeRouteChange = useCallback(
+    (nextMode: string) => {
+      const normalizedMode = normalizeEditorMode(nextMode);
+      if (!normalizedMode) return;
+      const nextPath = getEditorPath(normalizedMode);
+      if (nextPath === location.pathname) return;
+      navigate(
+        {
+          pathname: nextPath,
+          search: location.search,
+          hash: location.hash,
+        },
+        { replace: false },
+      );
+    },
+    [location.hash, location.pathname, location.search, navigate],
+  );
+
+  if (location.pathname !== canonicalPath) {
+    return (
+      <Navigate
+        to={{ pathname: canonicalPath, search: location.search, hash: location.hash }}
+        replace
+      />
+    );
+  }
+
+  if (needsAuth && !token && restoreStatus !== "ready") {
     return <RestoringSessionScreen />;
   }
 
   if (needsAuth && !token && restoreStatus === "ready") {
-    return <Navigate to="/login" replace state={{ from: { pathname: "/editor", search: "" } }} />;
+    return (
+      <Navigate
+        to="/login"
+        replace
+        state={{ from: { pathname: canonicalPath, search: location.search } }}
+      />
+    );
   }
 
   if (needsAuth && token && restoreStatus !== "ready") {
@@ -131,6 +187,8 @@ export function EditorPage() {
         onLogout={onLogout}
         onGoHome={onGoHome}
         onLogin={onLogin}
+        routeMode={resolvedMode}
+        onModeRouteChange={onModeRouteChange}
       />
     </div>
   );

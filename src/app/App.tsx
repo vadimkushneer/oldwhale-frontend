@@ -52,6 +52,7 @@ export default function App() {
         <Route path="/" element={<OnboardingPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/editor" element={<EditorPage />} />
+        <Route path="/editor/:modeName" element={<EditorPage />} />
         <Route path="/admin" element={<AdminPage />} />
         <Route path="/admin/ai-models" element={<AiModelsAdminPage />} />
       </Routes>

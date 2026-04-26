@@ -98,7 +98,7 @@ import { LeftSidebar } from "./LeftSidebar/LeftSidebar";
 import { MarkerContextMenu } from "./MarkerContextMenu";
 import { EditorDocument } from "./EditorDocument/EditorDocument";
 
-function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin }) {
+function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode, onModeRouteChange }) {
   void useAppSelector((s) => s.aiCatalog.revision);
   const aiCatalogQuery = useGetPublicCatalogQuery();
   const activeProviders = useMemo(() => {
@@ -115,13 +115,16 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin }) {
     return AIM;
   }, [aiCatalogQuery.data]);
   const goHome = onGoHome || onLogout;
-  const [mode, setMode] = useState(profile?.mode || "film");
+  const initialMode = routeMode || profile?.mode || "film";
+  const [mode, setMode] = useState(initialMode);
   const modeBlocksCache = useRef({});
-  const [blocks, setBlocks]           = useState(() => { const m=profile?.mode||"film"; return (INIT[m]||INIT.film).map(b=>({...b})); });
+  const [blocks, setBlocks]           = useState(() => { const m=initialMode; return (INIT[m]||INIT.film).map(b=>({...b})); });
   const blocksRef = useRef([]);
   useEffect(()=>{ blocksRef.current = blocks; }, [blocks]);
   const modeRef = useRef(mode);
   useEffect(()=>{ modeRef.current = mode; }, [mode]);
+  const skipNextRouteSyncRef = useRef(false);
+  const syncingRouteModeRef = useRef(null);
   const whaleFileHandleRef = useRef(null);
   const saveNowRef = useRef(()=>{});
   const [focId, setFocId]             = useState(null);
@@ -1339,7 +1342,8 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin }) {
     ensureModeHistory(initialMode, initialBlocks);
   };
 
-  const switchMode = (m) => {
+  const switchMode = (m, options = {}) => {
+    const { syncRoute = true } = options;
     const currentMode = modeRef.current || mode;
     const currentBlocks = blocksRef.current;
     modeBlocksCache.current[currentMode] = currentBlocks;
@@ -1358,7 +1362,30 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin }) {
     setSceneCardMenu(null);
     lastFocId.current = null;
     setMenuOpen(false);
+    if (syncRoute && onModeRouteChange) {
+      skipNextRouteSyncRef.current = true;
+      onModeRouteChange(m);
+    }
   };
+
+  useEffect(() => {
+    if (!routeMode || routeMode === mode || skipNextRouteSyncRef.current) return;
+    syncingRouteModeRef.current = routeMode;
+    switchMode(routeMode, { syncRoute: false });
+  }, [routeMode]);
+
+  useEffect(() => {
+    if (syncingRouteModeRef.current) {
+      if (syncingRouteModeRef.current === mode) syncingRouteModeRef.current = null;
+      return;
+    }
+    if (skipNextRouteSyncRef.current) {
+      if (mode === routeMode) skipNextRouteSyncRef.current = false;
+      return;
+    }
+    if (!onModeRouteChange || !mode || mode === routeMode) return;
+    onModeRouteChange(mode);
+  }, [mode, routeMode, onModeRouteChange]);
 
   const pushHistory = (blks) => {
     const currentMode = modeRef.current || mode;

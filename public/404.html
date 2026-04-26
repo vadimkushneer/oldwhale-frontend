@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Redirecting...</title>
+    <script>
+      (function () {
+        var appRoutes = { editor: true, login: true, admin: true };
+        var segments = window.location.pathname.split("/").filter(Boolean);
+        var routeIndex = -1;
+
+        for (var index = 0; index < segments.length; index += 1) {
+          if (appRoutes[segments[index]]) {
+            routeIndex = index;
+            break;
+          }
+        }
+
+        if (routeIndex === -1) {
+          return;
+        }
+
+        var baseSegments = segments.slice(0, routeIndex);
+        var basePath = "/" + (baseSegments.length > 0 ? baseSegments.join("/") + "/" : "");
+
+        try {
+          window.sessionStorage.setItem(
+            "ow_spa_redirect",
+            window.location.pathname + window.location.search + window.location.hash,
+          );
+        } catch (error) {
+          /* ignore */
+        }
+
+        window.location.replace(window.location.origin + basePath);
+      })();
+    </script>
+  </head>
+  <body>
+    <p>Redirecting...</p>
+  </body>
+</html>

@@ -1,6 +1,6 @@
-import type { CSSProperties } from "react";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { Link, Navigate } from "react-router-dom";
+import type { AiGroupAdmin, AiVariantAdmin } from "../api/types";
 import {
   useCreateAiGroupMutation,
   useCreateAiVariantMutation,
@@ -14,17 +14,6 @@ import {
 } from "../features/ai-catalog/aiCatalogApi";
 import { useAppSelector } from "../hooks";
 import { useOnlineStatus } from "../hooks/useOnlineStatus";
-import type { AiGroupAdmin, AiVariantAdmin } from "../api/types";
-import {
-  ACCENT,
-  BG,
-  SH_IN,
-  SH_OUT,
-  SURF,
-  T1,
-  T2,
-  T3,
-} from "../legacy/ui/tokens";
 
 function sortGroups(gs: AiGroupAdmin[]) {
   return [...gs].sort((a, b) => a.position - b.position || a.id - b.id);
@@ -33,6 +22,55 @@ function sortGroups(gs: AiGroupAdmin[]) {
 function sortVariants(vs: AiVariantAdmin[]) {
   return [...vs].sort((a, b) => a.position - b.position || a.id - b.id);
 }
+
+function cx(...parts: Array<string | false | null | undefined>) {
+  return parts.filter(Boolean).join(" ");
+}
+
+const surfaceShadowClassName =
+  "[box-shadow:8px_8px_22px_rgba(0,0,0,0.5),-4px_-4px_12px_rgba(255,255,255,0.038)]";
+const insetShadowClassName =
+  "[box-shadow:inset_3px_3px_10px_rgba(0,0,0,0.5),inset_-2px_-2px_6px_rgba(255,255,255,0.035)]";
+const focusRingClassName =
+  "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#7c6af7]";
+const panelClassName = cx(
+  "rounded-2xl bg-[#1f2040] p-4",
+  surfaceShadowClassName,
+);
+const inputBaseClassName = cx(
+  "w-full rounded-lg border-0 bg-[#1a1b2e] px-[10px] py-2 font-mono text-[#e4e1f5] caret-[#7c6af7]",
+  "placeholder:text-[#5a587a]",
+  insetShadowClassName,
+  focusRingClassName,
+  "disabled:cursor-not-allowed disabled:opacity-60",
+);
+const inputClassName = cx(inputBaseClassName, "text-[11px]");
+const denseInputClassName = cx(inputBaseClassName, "min-w-0 text-[10px]");
+const buttonBaseClassName = cx(
+  "inline-flex cursor-pointer items-center justify-center border-0 font-mono transition-colors duration-150",
+  focusRingClassName,
+  "disabled:cursor-not-allowed disabled:opacity-60",
+);
+const primaryButtonClassName = cx(
+  buttonBaseClassName,
+  "rounded-lg bg-[#7c6af7] px-3 py-2 text-[9px] tracking-[1px] text-white hover:bg-[#8a7bff]",
+);
+const smallButtonClassName = cx(
+  buttonBaseClassName,
+  "rounded-[6px] px-2 py-1 text-[9px]",
+);
+const neutralButtonClassName = cx(
+  smallButtonClassName,
+  "bg-[#5a587a] text-[#1a1b2e] hover:bg-[#6a6890]",
+);
+const successButtonClassName = cx(
+  smallButtonClassName,
+  "bg-[#34d399] text-[#0f172a] hover:bg-[#43e1ab]",
+);
+const dangerButtonClassName = cx(
+  smallButtonClassName,
+  "bg-[#f472b6] text-[#1a1b2e] hover:bg-[#fb7fc1]",
+);
 
 export function AiModelsAdminPage() {
   const user = useAppSelector((s) => s.auth.user);
@@ -46,6 +84,10 @@ export function AiModelsAdminPage() {
 
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const selected = groups.find((g) => g.id === selectedId) ?? null;
+  const selectedVariants = useMemo(
+    () => (selected ? sortVariants(selected.variants) : []),
+    [selected],
+  );
 
   const [dragGroupId, setDragGroupId] = useState<number | null>(null);
   const [dragVariantId, setDragVariantId] = useState<number | null>(null);
@@ -107,21 +149,10 @@ export function AiModelsAdminPage() {
 
   if (restoreStatus !== "ready") {
     return (
-      <div
-        style={{
-          width: "100vw",
-          minHeight: "100vh",
-          background: BG,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          color: T3,
-          fontFamily: "'Courier New',monospace",
-          letterSpacing: "2px",
-          fontSize: "11px",
-        }}
-      >
-        ВОССТАНОВЛЕНИЕ СЕССИИ…
+      <div className="ai-models-admin ai-models-admin--restoring flex min-h-screen items-center justify-center bg-[#1a1b2e] px-5 font-mono text-[11px] tracking-[2px] text-[#5a587a]">
+        <div className="ai-models-admin__restore-message">
+          ВОССТАНОВЛЕНИЕ СЕССИИ…
+        </div>
       </div>
     );
   }
@@ -132,21 +163,14 @@ export function AiModelsAdminPage() {
 
   if (user.role !== "admin") {
     return (
-      <div
-        style={{
-          minHeight: "100vh",
-          background: BG,
-          color: T1,
-          fontFamily: "'Courier New',monospace",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: 24,
-        }}
-      >
-        <div style={{ fontSize: 14, letterSpacing: 2, marginBottom: 12 }}>НЕДОСТАТОЧНО ПРАВ</div>
-        <Link to="/editor" style={{ marginTop: 28, color: ACCENT, fontSize: 11, letterSpacing: 2, textDecoration: "none" }}>
+      <div className="ai-models-admin ai-models-admin--forbidden flex min-h-screen flex-col items-center justify-center bg-[#1a1b2e] p-6 font-mono text-[#e4e1f5]">
+        <div className="ai-models-admin__forbidden-title mb-3 text-[14px] tracking-[2px]">
+          НЕДОСТАТОЧНО ПРАВ
+        </div>
+        <Link
+          to="/editor"
+          className="ai-models-admin__forbidden-link mt-7 text-[11px] tracking-[2px] text-[#7c6af7] no-underline transition-colors duration-150 hover:text-[#978bff]"
+        >
           ← К РЕДАКТОРУ
         </Link>
       </div>
@@ -193,55 +217,66 @@ export function AiModelsAdminPage() {
   }
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        background: BG,
-        color: T1,
-        fontFamily: "'Courier New',monospace",
-        padding: "24px 20px 40px",
-        boxSizing: "border-box",
-      }}
-    >
-      <div style={{ maxWidth: 1100, margin: "0 auto" }}>
+    <div className="ai-models-admin min-h-screen bg-[#1a1b2e] px-5 pb-10 pt-6 font-mono text-[#e4e1f5]">
+      <div className="ai-models-admin__container mx-auto max-w-[1100px]">
         {!online ? (
           <div
-            style={{
-              background: SURF,
-              boxShadow: SH_OUT,
-              borderRadius: 12,
-              padding: "10px 14px",
-              color: "#f472b6",
-              fontSize: 11,
-              letterSpacing: 1,
-              marginBottom: 16,
-            }}
+            className={cx(
+              "ai-models-admin__status-banner ai-models-admin__status-banner--offline mb-4 rounded-xl bg-[#1f2040] px-[14px] py-[10px] text-[11px] tracking-[1px] text-[#f472b6]",
+              surfaceShadowClassName,
+            )}
           >
             НЕТ ПОДКЛЮЧЕНИЯ — ОПЕРАЦИИ НЕДОСТУПНЫ
           </div>
         ) : null}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, gap: 12, flexWrap: "wrap" }}>
-          <div style={{ letterSpacing: 4, fontSize: 12 }}>АДМИН · ИИ МОДЕЛИ</div>
-          <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
-            <Link to="/admin" style={{ color: T2, fontSize: 10, letterSpacing: 2, textDecoration: "none" }}>
+        <div className="ai-models-admin__toolbar mb-5 flex flex-wrap items-center justify-between gap-3">
+          <div className="ai-models-admin__title text-[12px] tracking-[4px]">
+            АДМИН · ИИ МОДЕЛИ
+          </div>
+          <div className="ai-models-admin__toolbar-nav flex items-center gap-4">
+            <Link
+              to="/admin"
+              className="ai-models-admin__toolbar-link ai-models-admin__toolbar-link--muted text-[10px] tracking-[2px] text-[#9896b8] no-underline transition-colors duration-150 hover:text-[#e4e1f5]"
+            >
               ← ПОЛЬЗОВАТЕЛИ
             </Link>
-            <Link to="/editor" style={{ color: ACCENT, fontSize: 10, letterSpacing: 2, textDecoration: "none" }}>
+            <Link
+              to="/editor"
+              className="ai-models-admin__toolbar-link ai-models-admin__toolbar-link--accent text-[10px] tracking-[2px] text-[#7c6af7] no-underline transition-colors duration-150 hover:text-[#978bff]"
+            >
               РЕДАКТОР →
             </Link>
           </div>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, alignItems: "start" }}>
-          <div style={{ background: SURF, boxShadow: SH_OUT, borderRadius: 16, padding: 16 }}>
-            <div style={{ color: T3, fontSize: 10, letterSpacing: 2, marginBottom: 12 }}>ГРУППЫ (ПРОВАЙДЕРЫ)</div>
+        <div className="ai-models-admin__content grid grid-cols-2 items-start gap-4">
+          <div
+            className={cx(
+              "ai-models-admin__panel ai-models-admin__panel--groups",
+              panelClassName,
+            )}
+          >
+            <div className="ai-models-admin__panel-title mb-3 text-[10px] tracking-[2px] text-[#5a587a]">
+              ГРУППЫ (ПРОВАЙДЕРЫ)
+            </div>
             {isLoading ? (
-              <div style={{ color: T3, fontSize: 11 }}>ЗАГРУЗКА…</div>
+              <div className="ai-models-admin__loading-state text-[11px] text-[#5a587a]">
+                ЗАГРУЗКА…
+              </div>
             ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <div className="ai-models-admin__groups-list flex flex-col gap-2">
                 {groups.map((g) => (
                   <div
                     key={g.id}
+                    className={cx(
+                      "ai-models-admin__group-card cursor-pointer rounded-xl border border-[#5a587a33] p-2.5 transition-colors",
+                      selectedId === g.id
+                        ? cx(
+                            "ai-models-admin__group-card--selected bg-[#1a1b2e]",
+                            insetShadowClassName,
+                          )
+                        : "ai-models-admin__group-card--idle bg-transparent",
+                    )}
                     draggable={!busy}
                     onDragStart={() => setDragGroupId(g.id)}
                     onDragOver={(e) => e.preventDefault()}
@@ -258,14 +293,6 @@ export function AiModelsAdminPage() {
                       setDragGroupId(null);
                     }}
                     onClick={() => setSelectedId(g.id)}
-                    style={{
-                      borderRadius: 12,
-                      padding: 10,
-                      background: selectedId === g.id ? BG : "transparent",
-                      boxShadow: selectedId === g.id ? SH_IN : "none",
-                      cursor: "pointer",
-                      border: `1px solid ${T3}33`,
-                    }}
                   >
                     <GroupRow
                       group={g}
@@ -285,41 +312,82 @@ export function AiModelsAdminPage() {
                 ))}
               </div>
             )}
-            <form onSubmit={onCreateGroup} style={{ marginTop: 16, display: "grid", gap: 8, gridTemplateColumns: "1fr 1fr auto" }}>
+            <form
+              onSubmit={onCreateGroup}
+              className="ai-models-admin__group-create-form mt-4 grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-2"
+            >
               <input
+                className={cx(
+                  "ai-models-admin__group-create-input ai-models-admin__group-create-input--slug",
+                  inputClassName,
+                )}
                 placeholder="slug (латиница)"
                 value={gSlug}
                 onChange={(e) => setGSlug(e.target.value)}
-                style={inp}
               />
-              <input placeholder="label" value={gLabel} onChange={(e) => setGLabel(e.target.value)} style={inp} />
-              <button type="submit" disabled={busy || createGroupState.isLoading} style={btnPrimary}>
+              <input
+                className={cx(
+                  "ai-models-admin__group-create-input ai-models-admin__group-create-input--label",
+                  inputClassName,
+                )}
+                placeholder="label"
+                value={gLabel}
+                onChange={(e) => setGLabel(e.target.value)}
+              />
+              <button
+                type="submit"
+                disabled={busy || createGroupState.isLoading}
+                className={cx(
+                  "ai-models-admin__group-create-button ai-models-admin__group-create-button--primary",
+                  primaryButtonClassName,
+                )}
+              >
                 + ГРУППА
               </button>
-              {gErr ? <div style={{ gridColumn: "1 / -1", color: "#f472b6", fontSize: 11 }}>{gErr}</div> : null}
+              {gErr ? (
+                <div className="ai-models-admin__group-create-error col-[1/-1] text-[11px] text-[#f472b6]">
+                  {gErr}
+                </div>
+              ) : null}
             </form>
           </div>
 
-          <div style={{ background: SURF, boxShadow: SH_OUT, borderRadius: 16, padding: 16, minHeight: 320 }}>
-            <div style={{ color: T3, fontSize: 10, letterSpacing: 2, marginBottom: 12 }}>ВАРИАНТЫ</div>
+          <div
+            className={cx(
+              "ai-models-admin__panel ai-models-admin__panel--variants min-h-[320px]",
+              panelClassName,
+            )}
+          >
+            <div className="ai-models-admin__panel-title mb-3 text-[10px] tracking-[2px] text-[#5a587a]">
+              ВАРИАНТЫ
+            </div>
             {!selected ? (
-              <div style={{ color: T2, fontSize: 11 }}>Выберите группу слева</div>
+              <div className="ai-models-admin__empty-state text-[11px] text-[#9896b8]">
+                Выберите группу слева
+              </div>
             ) : (
               <>
-                <div style={{ fontSize: 11, color: T2, marginBottom: 12 }}>
-                  Группа: <span style={{ color: T1 }}>{selected.label}</span> ({selected.slug})
+                <div className="ai-models-admin__variants-group mb-3 text-[11px] text-[#9896b8]">
+                  Группа:{" "}
+                  <span className="ai-models-admin__variants-group-label text-[#e4e1f5]">
+                    {selected.label}
+                  </span>{" "}
+                  ({selected.slug})
                 </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  {sortVariants(selected.variants).map((v) => (
+                <div className="ai-models-admin__variants-list flex flex-col gap-2">
+                  {selectedVariants.map((v) => (
                     <div
                       key={v.id}
+                      className={cx(
+                        "ai-models-admin__variant-row grid grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)_auto_auto] items-center gap-2 rounded-[10px] bg-[#1a1b2e] p-2 text-[10px]",
+                        insetShadowClassName,
+                      )}
                       draggable={!busy}
                       onDragStart={() => setDragVariantId(v.id)}
                       onDragOver={(e) => e.preventDefault()}
                       onDrop={() => {
                         if (dragVariantId == null || dragVariantId === v.id) return;
-                        const vs = sortVariants(selected.variants);
-                        const ids = vs.map((x) => x.id);
+                        const ids = selectedVariants.map((x) => x.id);
                         const from = ids.indexOf(dragVariantId);
                         const to = ids.indexOf(v.id);
                         if (from < 0 || to < 0) return;
@@ -329,21 +397,14 @@ export function AiModelsAdminPage() {
                         void onReorderVariants(selected.id, next);
                         setDragVariantId(null);
                       }}
-                      style={{
-                        borderRadius: 10,
-                        padding: 8,
-                        background: BG,
-                        boxShadow: SH_IN,
-                        display: "grid",
-                        gridTemplateColumns: "auto 1fr 1fr auto auto",
-                        gap: 8,
-                        alignItems: "center",
-                        fontSize: 10,
-                      }}
                     >
                       <input
                         type="radio"
                         name={`def-${selected.id}`}
+                        className={cx(
+                          "ai-models-admin__variant-default-radio h-4 w-4 accent-[#7c6af7]",
+                          focusRingClassName,
+                        )}
                         checked={v.is_default}
                         onChange={() => void patchVariant({ id: v.id, is_default: true }).then(() => refetch())}
                         disabled={busy}
@@ -351,8 +412,10 @@ export function AiModelsAdminPage() {
                       <input
                         defaultValue={v.slug}
                         key={`${v.id}-slug`}
-                        id={`vs-${v.id}`}
-                        style={{ ...inp, fontSize: 10 }}
+                        className={cx(
+                          "ai-models-admin__variant-input ai-models-admin__variant-input--slug",
+                          denseInputClassName,
+                        )}
                         onBlur={(e) => {
                           const nv = e.target.value.trim();
                           if (nv && nv !== v.slug) void patchVariant({ id: v.id, slug: nv }).then(() => refetch());
@@ -361,7 +424,10 @@ export function AiModelsAdminPage() {
                       <input
                         defaultValue={v.label}
                         key={`${v.id}-lab`}
-                        style={{ ...inp, fontSize: 10 }}
+                        className={cx(
+                          "ai-models-admin__variant-input ai-models-admin__variant-input--label",
+                          denseInputClassName,
+                        )}
                         onBlur={(e) => {
                           const nv = e.target.value;
                           if (nv !== v.label) void patchVariant({ id: v.id, label: nv }).then(() => refetch());
@@ -371,7 +437,10 @@ export function AiModelsAdminPage() {
                         type="button"
                         disabled={busy}
                         onClick={() => void patchVariant({ id: v.id, is_default: true }).then(() => refetch())}
-                        style={{ ...btnSm, background: T3, color: BG }}
+                        className={cx(
+                          "ai-models-admin__variant-button ai-models-admin__variant-button--default",
+                          neutralButtonClassName,
+                        )}
                       >
                         DEF
                       </button>
@@ -383,20 +452,53 @@ export function AiModelsAdminPage() {
                           await deleteVariant({ id: v.id }).unwrap();
                           await refetch();
                         }}
-                        style={{ ...btnSm, background: "#f472b6", color: "#1a1b2e" }}
+                        className={cx(
+                          "ai-models-admin__variant-button ai-models-admin__variant-button--delete",
+                          dangerButtonClassName,
+                        )}
                       >
                         ×
                       </button>
                     </div>
                   ))}
                 </div>
-                <form onSubmit={onCreateVariant} style={{ marginTop: 14, display: "grid", gap: 8, gridTemplateColumns: "1fr 1fr auto" }}>
-                  <input placeholder="slug варианта" value={vSlug} onChange={(e) => setVSlug(e.target.value)} style={inp} />
-                  <input placeholder="label" value={vLabel} onChange={(e) => setVLabel(e.target.value)} style={inp} />
-                  <button type="submit" disabled={busy} style={btnPrimary}>
+                <form
+                  onSubmit={onCreateVariant}
+                  className="ai-models-admin__variant-create-form mt-3.5 grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-2"
+                >
+                  <input
+                    className={cx(
+                      "ai-models-admin__variant-create-input ai-models-admin__variant-create-input--slug",
+                      inputClassName,
+                    )}
+                    placeholder="slug варианта"
+                    value={vSlug}
+                    onChange={(e) => setVSlug(e.target.value)}
+                  />
+                  <input
+                    className={cx(
+                      "ai-models-admin__variant-create-input ai-models-admin__variant-create-input--label",
+                      inputClassName,
+                    )}
+                    placeholder="label"
+                    value={vLabel}
+                    onChange={(e) => setVLabel(e.target.value)}
+                  />
+                  <button
+                    type="submit"
+                    disabled={busy}
+                    className={cx(
+                      "ai-models-admin__variant-create-button ai-models-admin__variant-create-button--primary",
+                      primaryButtonClassName,
+                    )}
+                  >
                     + ВАРИАНТ
                   </button>
-                  {vErr ? <div style={{ gridColumn: "1 / -1", color: "#f472b6", fontSize: 11 }}>{vErr}</div> : null}
+                  {vErr ? (
+                    <div className="ai-models-admin__variant-create-error col-[1/-1] text-[11px] text-[#f472b6]">
+                      {vErr}
+                    </div>
+                  ) : null}
                 </form>
               </>
             )}
@@ -406,39 +508,6 @@ export function AiModelsAdminPage() {
     </div>
   );
 }
-
-const inp: CSSProperties = {
-  width: "100%",
-  padding: "8px 10px",
-  background: BG,
-  boxShadow: SH_IN,
-  border: "none",
-  borderRadius: 8,
-  color: T1,
-  fontFamily: "inherit",
-  fontSize: 11,
-};
-
-const btnPrimary: CSSProperties = {
-  padding: "8px 12px",
-  background: ACCENT,
-  border: "none",
-  borderRadius: 8,
-  color: "#fff",
-  letterSpacing: 1,
-  fontSize: 9,
-  cursor: "pointer",
-  fontFamily: "inherit",
-};
-
-const btnSm: CSSProperties = {
-  padding: "4px 8px",
-  border: "none",
-  borderRadius: 6,
-  fontSize: 9,
-  cursor: "pointer",
-  fontFamily: "inherit",
-};
 
 function GroupRow({
   group,
@@ -466,19 +535,58 @@ function GroupRow({
   }, [group.id, group.slug, group.label, group.role, group.color, group.free]);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-      <div style={{ fontSize: 9, color: T3 }}>⋮ drag строки группы</div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-        <input value={slug} onChange={(e) => setSlug(e.target.value)} style={inp} />
-        <input value={label} onChange={(e) => setLabel(e.target.value)} style={inp} />
-        <input value={role} onChange={(e) => setRole(e.target.value)} style={inp} />
-        <input value={color} onChange={(e) => setColor(e.target.value)} style={inp} />
+    <div className="ai-models-admin__group-editor flex flex-col gap-1.5">
+      <div className="ai-models-admin__group-editor-hint text-[9px] text-[#5a587a]">
+        ⋮ drag строки группы
       </div>
-      <label style={{ fontSize: 10, color: T2, display: "flex", alignItems: "center", gap: 6 }}>
-        <input type="checkbox" checked={free} onChange={(e) => setFree(e.target.checked)} disabled={busy} />
-        free
+      <div className="ai-models-admin__group-editor-fields grid grid-cols-2 gap-1.5">
+        <input
+          className={cx(
+            "ai-models-admin__group-editor-input ai-models-admin__group-editor-input--slug",
+            inputClassName,
+          )}
+          value={slug}
+          onChange={(e) => setSlug(e.target.value)}
+        />
+        <input
+          className={cx(
+            "ai-models-admin__group-editor-input ai-models-admin__group-editor-input--label",
+            inputClassName,
+          )}
+          value={label}
+          onChange={(e) => setLabel(e.target.value)}
+        />
+        <input
+          className={cx(
+            "ai-models-admin__group-editor-input ai-models-admin__group-editor-input--role",
+            inputClassName,
+          )}
+          value={role}
+          onChange={(e) => setRole(e.target.value)}
+        />
+        <input
+          className={cx(
+            "ai-models-admin__group-editor-input ai-models-admin__group-editor-input--color",
+            inputClassName,
+          )}
+          value={color}
+          onChange={(e) => setColor(e.target.value)}
+        />
+      </div>
+      <label className="ai-models-admin__group-editor-toggle flex items-center gap-1.5 text-[10px] text-[#9896b8]">
+        <input
+          type="checkbox"
+          className={cx(
+            "ai-models-admin__group-editor-checkbox h-4 w-4 accent-[#7c6af7]",
+            focusRingClassName,
+          )}
+          checked={free}
+          onChange={(e) => setFree(e.target.checked)}
+          disabled={busy}
+        />
+        <span className="ai-models-admin__group-editor-toggle-label">free</span>
       </label>
-      <div style={{ display: "flex", gap: 8 }}>
+      <div className="ai-models-admin__group-editor-actions flex gap-2">
         <button
           type="button"
           disabled={busy}
@@ -491,11 +599,22 @@ function GroupRow({
               free,
             })
           }
-          style={{ ...btnSm, background: "#34d399", color: "#0f172a" }}
+          className={cx(
+            "ai-models-admin__group-editor-button ai-models-admin__group-editor-button--save",
+            successButtonClassName,
+          )}
         >
           СОХРАНИТЬ
         </button>
-        <button type="button" disabled={busy} onClick={() => void onDelete()} style={{ ...btnSm, background: "#f472b6", color: "#1a1b2e" }}>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => void onDelete()}
+          className={cx(
+            "ai-models-admin__group-editor-button ai-models-admin__group-editor-button--delete",
+            dangerButtonClassName,
+          )}
+        >
           УДАЛИТЬ ГРУППУ
         </button>
       </div>

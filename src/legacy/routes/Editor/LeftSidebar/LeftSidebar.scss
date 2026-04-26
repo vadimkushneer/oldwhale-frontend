@@ -122,7 +122,13 @@
 
   &__mode-tab {
     @apply flex flex-1 cursor-pointer items-center justify-center rounded-xl border-0 bg-transparent px-1 py-2 transition-all duration-[250ms];
+    position: relative;
     color: var(--ls-t3);
+
+    &:hover {
+      transform: scale(1.2);
+      z-index: 1;
+    }
 
     &--active {
       background: var(--ls-surf);

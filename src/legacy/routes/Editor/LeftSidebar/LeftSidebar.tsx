@@ -312,7 +312,7 @@ function AddControls({ actions }: { actions: readonly LeftSidebarAddAction[] }) 
   return (
     <div
       className={cx(
-        "left-sidebar__add-actions",
+        "left-sidebar__add-actions mb-2",
         actions.length > 1 && "left-sidebar__add-actions--split",
       )}
     >

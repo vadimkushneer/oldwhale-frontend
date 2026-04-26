@@ -450,7 +450,7 @@ export function LeftSidebar(props: LeftSidebarProps) {
         />
       ) : null}
 
-      <div className="left-sidebar__content">
+      <div className="left-sidebar__content ow-app-scrollbar">
         <SelectionBar
           copyToast={copyToast}
           copyLabel={copyLabel}

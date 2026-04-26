@@ -1,4 +1,4 @@
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, Navigate } from "react-router-dom";
 import type { AiGroupAdmin, AiVariantAdmin } from "../api/types";
 import {
@@ -21,6 +21,28 @@ function sortGroups(gs: AiGroupAdmin[]) {
 
 function sortVariants(vs: AiVariantAdmin[]) {
   return [...vs].sort((a, b) => a.position - b.position || a.id - b.id);
+}
+
+/** 6-digit hex for native color input, or fallback when the field is not parseable as hex. */
+function hexForColorInput(raw: string): string {
+  const s = raw.trim();
+  if (/^#[0-9a-f]{6}$/i.test(s)) return s.toLowerCase();
+  if (/^#[0-9a-f]{3}$/i.test(s)) {
+    const h = s.slice(1);
+    return `#${h[0]}${h[0]}${h[1]}${h[1]}${h[2]}${h[2]}`.toLowerCase();
+  }
+  return "#000000";
+}
+
+/** CSS color for the swatch when the value looks like hex; otherwise undefined. */
+function hexForSwatch(raw: string): string | undefined {
+  const s = raw.trim();
+  if (/^#[0-9a-f]{6}$/i.test(s)) return s;
+  if (/^#[0-9a-f]{3}$/i.test(s)) {
+    const h = s.slice(1);
+    return `#${h[0]}${h[0]}${h[1]}${h[1]}${h[2]}${h[2]}`;
+  }
+  return undefined;
 }
 
 function cx(...parts: Array<string | false | null | undefined>) {
@@ -525,6 +547,7 @@ function GroupRow({
   const [role, setRole] = useState(group.role);
   const [color, setColor] = useState(group.color);
   const [free, setFree] = useState(group.free);
+  const colorInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setSlug(group.slug);
@@ -564,14 +587,48 @@ function GroupRow({
           value={role}
           onChange={(e) => setRole(e.target.value)}
         />
-        <input
+        <div
+          role="group"
+          aria-label="Цвет"
           className={cx(
             "ai-models-admin__group-editor-input ai-models-admin__group-editor-input--color",
-            inputClassName,
+            "flex w-full min-w-0 cursor-pointer items-stretch overflow-hidden rounded-lg border-0 bg-[#1a1b2e] p-0 font-mono text-[11px] text-[#e4e1f5]",
+            insetShadowClassName,
+            "focus-within:outline-none focus-within:ring-1 focus-within:ring-[#7c6af7]",
           )}
-          value={color}
-          onChange={(e) => setColor(e.target.value)}
-        />
+          onClick={(e) => {
+            if ((e.target as HTMLElement).closest(".ai-models-admin__group-editor-color-code")) {
+              return;
+            }
+            colorInputRef.current?.click();
+          }}
+        >
+          <input
+            ref={colorInputRef}
+            type="color"
+            className="sr-only"
+            tabIndex={-1}
+            value={hexForColorInput(color)}
+            onChange={(e) => setColor(e.target.value)}
+          />
+          <div
+            className="pointer-events-none flex w-9 shrink-0 items-center justify-center border-r border-[#ffffff14] self-stretch"
+            title="Выбрать цвет"
+          >
+            <span
+              className="h-5 w-5 rounded border border-[#ffffff26] shadow-[inset_0_0_0_1px_rgba(0,0,0,0.25)]"
+              style={{
+                backgroundColor: hexForSwatch(color) ?? "#3d3f5c",
+              }}
+            />
+          </div>
+          <input
+            className="ai-models-admin__group-editor-color-code min-w-0 flex-1 cursor-text border-0 bg-transparent px-[10px] py-2 font-mono text-[#e4e1f5] outline-none placeholder:text-[#5a587a] caret-[#7c6af7]"
+            value={color}
+            onChange={(e) => setColor(e.target.value)}
+            aria-label="Код цвета"
+          />
+        </div>
       </div>
       <label className="ai-models-admin__group-editor-toggle flex items-center gap-1.5 text-[10px] text-[#9896b8]">
         <input

@@ -1,0 +1,186 @@
+/*
+ * EditorTopBar — compact document status and control strip.
+ * BEM block: `editor-top-bar`
+ * Static layout uses Tailwind utilities; color/state stays in scoped CSS.
+ */
+
+.editor-top-bar {
+  --etb-bg: #1a1b2e;
+  --etb-surf: #1f2040;
+  --etb-t2: #9896b8;
+  --etb-t3: #5a587a;
+  --etb-hover-text: #e8e4d8;
+  --etb-accent: #7c6af7;
+  --etb-shadow-sm: 4px 4px 12px rgba(0, 0, 0, 0.4), -2px -2px 7px rgba(255, 255, 255, 0.032);
+  --etb-shadow-in: inset 3px 3px 10px rgba(0, 0, 0, 0.5), inset -2px -2px 6px rgba(255, 255, 255, 0.035);
+
+  @apply flex h-10 shrink-0 items-center overflow-hidden px-3;
+  background: var(--etb-surf);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+
+  &--accent-green {
+    --etb-accent: #4ade80;
+  }
+
+  &--accent-violet {
+    --etb-accent: #7c6af7;
+  }
+
+  &--accent-pink {
+    --etb-accent: #f472b6;
+  }
+
+  &--accent-amber {
+    --etb-accent: #f59e0b;
+  }
+
+  &--accent-blue {
+    --etb-accent: #60a5fa;
+  }
+
+  &:hover &__mode,
+  &:hover &__stat-label,
+  &:hover &__stat-value,
+  &:hover &__save-label,
+  &:hover &__zoom-value {
+    color: var(--etb-hover-text);
+  }
+
+  &__mode {
+    @apply mr-2 flex shrink-0 items-center gap-1 whitespace-nowrap text-[10px] tracking-[1px];
+    color: var(--etb-t3);
+  }
+
+  &__mode-icon {
+    @apply flex shrink-0 items-center justify-center;
+  }
+
+  &__mode-label {
+    @apply leading-none;
+  }
+
+  &__spacer {
+    @apply min-w-[4px] flex-1;
+  }
+
+  &__stats {
+    @apply flex min-w-0 shrink items-center overflow-hidden;
+  }
+
+  &__stat {
+    @apply mr-[10px] flex shrink-0 items-center whitespace-nowrap text-[9px] tracking-[1px];
+  }
+
+  &__stat-label {
+    color: var(--etb-t3);
+  }
+
+  &__stat-value {
+    @apply ml-[3px];
+    color: var(--etb-t2);
+  }
+
+  &__actions {
+    @apply flex shrink-0 items-center;
+  }
+
+  &__save-status {
+    @apply mr-2 flex items-center;
+  }
+
+  &__save-dot {
+    @apply mr-1 h-[5px] w-[5px] rounded-full transition-all duration-500;
+
+    &--saved {
+      background: #4ade80;
+      box-shadow: 0 0 6px #4ade8088;
+    }
+
+    &--pending {
+      background: #f472b6;
+      box-shadow: 0 0 6px #f472b688;
+    }
+  }
+
+  &__save-label {
+    @apply whitespace-nowrap text-[9px] tracking-[1px];
+    color: var(--etb-t3);
+  }
+
+  &__sheet-toggle,
+  &__icon-button,
+  &__zoom-button,
+  &__ai-toggle {
+    @apply appearance-none;
+    font-family: inherit;
+  }
+
+  &__sheet-toggle,
+  &__ai-toggle {
+    @apply whitespace-nowrap rounded-lg border-0 px-[10px] py-1 text-[10px] tracking-[1px] transition-all duration-200;
+    cursor: pointer;
+  }
+
+  &__sheet-toggle {
+    @apply mr-[6px];
+    background: var(--etb-bg);
+    box-shadow: var(--etb-shadow-sm);
+    color: var(--etb-t3);
+
+    &--active {
+      background: color-mix(in srgb, var(--etb-accent) 20%, transparent);
+      box-shadow: var(--etb-shadow-in);
+      color: var(--etb-accent);
+    }
+  }
+
+  &__history-controls {
+    @apply flex items-center;
+  }
+
+  &__icon-button {
+    @apply flex items-center justify-center border-0 bg-transparent px-[6px] py-1;
+    color: var(--etb-t3);
+    cursor: pointer;
+    line-height: 1;
+
+    &:hover,
+    &:focus-visible {
+      color: var(--etb-t2);
+    }
+  }
+
+  &__icon {
+    @apply shrink-0;
+  }
+
+  &__zoom-controls {
+    @apply mr-[6px] flex items-center;
+  }
+
+  &__zoom-button {
+    @apply flex h-[22px] w-[22px] items-center justify-center rounded-md border-0 p-0 text-[14px];
+    background: var(--etb-bg);
+    box-shadow: var(--etb-shadow-sm);
+    color: var(--etb-t2);
+    cursor: pointer;
+    line-height: 1;
+  }
+
+  &__zoom-value {
+    @apply min-w-[30px] text-center text-[9px] tracking-[1px] mx-[8px];
+    color: var(--etb-t3);
+  }
+
+  &__ai-toggle {
+    background: var(--etb-surf);
+    box-shadow: var(--etb-shadow-sm);
+    color: var(--etb-t2);
+
+    &--open {
+      background: var(--etb-bg);
+      box-shadow: var(--etb-shadow-in);
+      color: var(--etb-accent);
+    }
+  }
+}

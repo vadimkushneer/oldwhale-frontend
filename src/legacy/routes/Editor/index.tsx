@@ -97,6 +97,7 @@ import { AiPanel } from "./AiPanel";
 import { LeftSidebar } from "./LeftSidebar/LeftSidebar";
 import { MarkerContextMenu } from "./MarkerContextMenu";
 import { EditorDocument } from "./EditorDocument/EditorDocument";
+import { EditorTopBar } from "./EditorTopBar/EditorTopBar";
 
 function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode, onModeRouteChange }) {
   void useAppSelector((s) => s.aiCatalog.revision);
@@ -8311,81 +8312,21 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
       <div style={{flex:1, display:"flex", flexDirection:"column", overflow:"hidden"}}>
 
         {/* Top bar */}
-        <div className="topbar-hover" style={{
-          height:"40px", background: SURF,
-          boxShadow: "0 2px 12px rgba(0,0,0,0.3)",
-          display:"flex", alignItems:"center",
-          padding:"0 12px", flexShrink:0,
-          overflow:"hidden",
-        }}>
-          <span style={{color:T3, fontSize:"10px", letterSpacing:"1px", flexShrink:0, whiteSpace:"nowrap", marginRight:"8px"}}>
-            {MODES.find(m=>m.id===mode)?.icon} {MODES.find(m=>m.id===mode)?.label.toUpperCase()}
-          </span>
-          <div style={{flex:1, minWidth:"4px"}}/>
-          {/* Статистика — схлопывается первой */}
-          <div style={{display:"flex", alignItems:"center", flexShrink:1, overflow:"hidden", minWidth:0}}>
-            {[["ХРН.",st.timing],["СТР.",st.pages],["СЛОВ",st.words],["СИМВ.",st.chars]].map(([l,v])=>(
-              <span key={l} style={{fontSize:"9px", color:T3, letterSpacing:"1px", flexShrink:0, whiteSpace:"nowrap", marginRight:"10px"}}>
-                {l}<span style={{color:T2, marginLeft:"3px"}}>{v}</span>
-              </span>
-            ))}
-          </div>
-          {/* Правый блок кнопок — никогда не переносится */}
-          <div style={{display:"flex", alignItems:"center", flexShrink:0}}>
-            <div style={{display:"flex", alignItems:"center", marginRight:"8px"}}>
-              <div style={{
-                width:"5px", height:"5px", borderRadius:"50%",
-                background: saved ? "#4ade80" : "#f472b6",
-                boxShadow: saved ? "0 0 6px #4ade8088" : "0 0 6px #f472b688",
-                transition:"all .5s", marginRight:"4px",
-              }}/>
-              <span style={{fontSize:"9px", color:T3, letterSpacing:"1px", whiteSpace:"nowrap"}}>{saved?"СОХР.":"СОХР..."}</span>
-            </div>
-            <button onMouseDown={e=>e.preventDefault()} onClick={()=>setSheetOn(v=>!v)}
-              title={sheetOn?"Скрыть лист":"Показать лист"}
-              style={{
-                padding:"4px 10px", position:"relative", marginRight:"6px",
-                background: sheetOn ? mc+"33" : BG,
-                boxShadow: sheetOn ? SH_IN : SH_SM,
-                border:"none", borderRadius:"8px",
-                color: sheetOn ? mc : T3,
-                fontSize:"10px", cursor:"pointer",
-                fontFamily:"inherit", letterSpacing:"1px",
-                transition:"all .2s", whiteSpace:"nowrap",
-                WebkitAppearance:"none",
-              }}>ЛИСТ</button>
-            <div style={{display:"flex",alignItems:"center"}}>
-              <button onMouseDown={e=>e.preventDefault()} onClick={undo} style={{
-                background:"transparent",border:"none",color:T3,
-                cursor:"pointer",padding:"4px 6px",
-                display:"flex",alignItems:"center",justifyContent:"center",
-              }}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 7v6h6"/><path d="M3 13C5 7 11 4 17 6s9 8 7 14"/></svg></button>
-              <button onMouseDown={e=>e.preventDefault()} onClick={redo} style={{
-                background:"transparent",border:"none",color:T3,
-                cursor:"pointer",padding:"4px 6px",
-                display:"flex",alignItems:"center",justifyContent:"center",
-              }}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 7v6h-6"/><path d="M21 13C19 7 13 4 7 6S-2 14 0 20"/></svg></button>
-            </div>
-            <div style={{display:"flex",alignItems:"center", marginRight:"6px"}}>
-              <button onMouseDown={e=>e.preventDefault()} onClick={()=>setZoom(z=>Math.max(50,z-10))}
-                style={{width:"22px",height:"22px",background:BG,boxShadow:SH_SM,border:"none",borderRadius:"6px",color:T2,fontSize:"14px",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",lineHeight:1,WebkitAppearance:"none"}}>−</button>
-              <span style={{fontSize:"9px",color:T3,minWidth:"30px",textAlign:"center",letterSpacing:"1px"}}>{zoom}%</span>
-              <button onMouseDown={e=>e.preventDefault()} onClick={()=>setZoom(z=>Math.min(200,z+10))}
-                style={{width:"22px",height:"22px",background:BG,boxShadow:SH_SM,border:"none",borderRadius:"6px",color:T2,fontSize:"14px",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",lineHeight:1,WebkitAppearance:"none"}}>+</button>
-            </div>
-            <button onClick={()=>setAiOpen(!aiOpen)} style={{
-              padding:"4px 10px",
-              background: aiOpen ? BG : SURF,
-              boxShadow: aiOpen ? SH_IN : SH_SM,
-              border:"none", borderRadius:"8px",
-              color: aiOpen ? mc : T2,
-              fontSize:"10px", cursor:"pointer",
-              fontFamily:"inherit", letterSpacing:"1px",
-              transition:"all .2s", whiteSpace:"nowrap",
-              WebkitAppearance:"none",
-            }}>ИИ {aiOpen ? "▶" : "◀"}</button>
-          </div>
-        </div>
+        <EditorTopBar
+          mode={mode}
+          stats={st}
+          saved={saved}
+          sheetOn={sheetOn}
+          zoom={zoom}
+          aiOpen={aiOpen}
+          accent={mc}
+          onToggleSheet={() => setSheetOn((value) => !value)}
+          onUndo={undo}
+          onRedo={redo}
+          onZoomOut={() => setZoom((value) => Math.max(50, value - 10))}
+          onZoomIn={() => setZoom((value) => Math.min(200, value + 10))}
+          onToggleAi={() => setAiOpen((value) => !value)}
+        />
 
         {/* Document */}
         <EditorDocument

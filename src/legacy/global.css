@@ -16,11 +16,6 @@ body {
   height: 100vh;
 }
 
-.topbar-hover:hover span,
-.topbar-hover:hover {
-  color: #e8e4d8 !important;
-}
-
 .gutter-label {
   transition: color 0.08s;
   cursor: default;

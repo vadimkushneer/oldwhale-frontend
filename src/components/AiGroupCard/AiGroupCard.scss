@@ -1,0 +1,15 @@
+/* BEM block `ai-group-card` — admin AI group list item shell */
+.ai-group-card {
+  @apply cursor-pointer rounded-xl border border-[#5a587a33] p-2.5 transition-colors;
+}
+
+.ai-group-card--selected {
+  @apply bg-[#1a1b2e];
+  box-shadow:
+    inset 3px 3px 10px rgba(0, 0, 0, 0.5),
+    inset -2px -2px 6px rgba(255, 255, 255, 0.035);
+}
+
+.ai-group-card--idle {
+  @apply bg-transparent;
+}

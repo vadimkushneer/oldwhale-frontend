@@ -1,4 +1,4 @@
-import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { Link, Navigate } from "react-router-dom";
 import type { AiGroupAdmin, AiVariantAdmin } from "../api/types";
 import {
@@ -14,6 +14,7 @@ import {
 } from "../features/ai-catalog/aiCatalogApi";
 import { useAppSelector } from "../hooks";
 import { useOnlineStatus } from "../hooks/useOnlineStatus";
+import { AiGroupCard } from "../components/AiGroupCard/AiGroupCard";
 
 function sortGroups(gs: AiGroupAdmin[]) {
   return [...gs].sort((a, b) => a.position - b.position || a.id - b.id);
@@ -288,33 +289,16 @@ export function AiModelsAdminPage() {
             ) : (
               <div className="ai-models-admin__groups-list flex flex-col gap-2">
                 {groups.map((g) => (
-                  <div
+                  <AiGroupCard
                     key={g.id}
-                    className={cx(
-                      "ai-models-admin__group-card cursor-pointer rounded-xl border border-[#5a587a33] p-2.5 transition-colors",
-                      selectedId === g.id
-                        ? cx(
-                            "ai-models-admin__group-card--selected bg-[#1a1b2e]",
-                            insetShadowClassName,
-                          )
-                        : "ai-models-admin__group-card--idle bg-transparent",
-                    )}
-                    draggable={!busy}
-                    onDragStart={() => setDragGroupId(g.id)}
-                    onDragOver={(e) => e.preventDefault()}
-                    onDrop={() => {
-                      if (dragGroupId == null || dragGroupId === g.id) return;
-                      const ids = groups.map((x) => x.id);
-                      const from = ids.indexOf(dragGroupId);
-                      const to = ids.indexOf(g.id);
-                      if (from < 0 || to < 0) return;
-                      const next = [...ids];
-                      next.splice(from, 1);
-                      next.splice(to, 0, dragGroupId);
-                      void onReorderGroups(next);
-                      setDragGroupId(null);
-                    }}
-                    onClick={() => setSelectedId(g.id)}
+                    groupId={g.id}
+                    isSelected={selectedId === g.id}
+                    busy={busy}
+                    orderedGroupIds={groups.map((x) => x.id)}
+                    dragGroupId={dragGroupId}
+                    onDragGroupIdChange={setDragGroupId}
+                    onSelectGroup={setSelectedId}
+                    onReorderGroupIds={(ids) => void onReorderGroups(ids)}
                   >
                     <GroupRow
                       group={g}
@@ -330,7 +314,7 @@ export function AiModelsAdminPage() {
                         await refetch();
                       }}
                     />
-                  </div>
+                  </AiGroupCard>
                 ))}
               </div>
             )}
@@ -539,7 +523,14 @@ function GroupRow({
 }: {
   group: AiGroupAdmin;
   busy: boolean;
-  onSave: (body: { slug?: string; label?: string; role?: string; color?: string; free?: boolean }) => Promise<void>;
+  onSave: (body: {
+    slug?: string;
+    label?: string;
+    role?: string;
+    color?: string;
+    free?: boolean;
+    apiKey?: string;
+  }) => Promise<void>;
   onDelete: () => Promise<void>;
 }) {
   const [slug, setSlug] = useState(group.slug);
@@ -547,7 +538,9 @@ function GroupRow({
   const [role, setRole] = useState(group.role);
   const [color, setColor] = useState(group.color);
   const [free, setFree] = useState(group.free);
+  const [apiKey, setApiKey] = useState(group.apiKey ?? "");
   const colorInputRef = useRef<HTMLInputElement>(null);
+  const apiKeyFieldId = useId();
 
   useEffect(() => {
     setSlug(group.slug);
@@ -555,7 +548,8 @@ function GroupRow({
     setRole(group.role);
     setColor(group.color);
     setFree(group.free);
-  }, [group.id, group.slug, group.label, group.role, group.color, group.free]);
+    setApiKey(group.apiKey ?? "");
+  }, [group.id, group.slug, group.label, group.role, group.color, group.free, group.apiKey]);
 
   const hasUnsavedChanges = useMemo(() => {
     return (
@@ -563,9 +557,10 @@ function GroupRow({
       label.trim() !== group.label.trim() ||
       role.trim() !== group.role.trim() ||
       color.trim() !== group.color.trim() ||
-      free !== group.free
+      free !== group.free ||
+      apiKey.trim() !== (group.apiKey ?? "").trim()
     );
-  }, [slug, label, role, color, free, group.slug, group.label, group.role, group.color, group.free]);
+  }, [slug, label, role, color, free, apiKey, group.slug, group.label, group.role, group.color, group.free, group.apiKey]);
 
   return (
     <div className="ai-models-admin__group-editor flex flex-col gap-1.5">
@@ -639,6 +634,28 @@ function GroupRow({
             aria-label="Код цвета"
           />
         </div>
+        <div className="ai-models-admin__group-editor-field ai-models-admin__group-editor-field--api-key col-span-2 flex flex-col gap-1">
+          <label
+            className="ai-models-admin__group-editor-label ai-models-admin__group-editor-label--api-key text-[9px] tracking-[1px] text-[#5a587a]"
+            htmlFor={apiKeyFieldId}
+          >
+            КЛЮЧ API
+          </label>
+          <input
+            id={apiKeyFieldId}
+            type="password"
+            className={cx(
+              "ai-models-admin__group-editor-input ai-models-admin__group-editor-input--api-key",
+              inputClassName,
+            )}
+            value={apiKey}
+            onChange={(e) => setApiKey(e.target.value)}
+            placeholder="Секретный ключ провайдера (sk-...)"
+            autoComplete="off"
+            spellCheck={false}
+            disabled={busy}
+          />
+        </div>
       </div>
       <label className="ai-models-admin__group-editor-toggle flex items-center gap-1.5 text-[10px] text-[#9896b8]">
         <input
@@ -664,6 +681,7 @@ function GroupRow({
               role: role.trim(),
               color: color.trim(),
               free,
+              apiKey: apiKey.trim(),
             })
           }
           className={cx(

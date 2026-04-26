@@ -68,6 +68,8 @@ export interface AiGroupAdmin {
   role: string;
   color: string;
   free: boolean;
+  /** Provider API key (sensitive; may be empty or omitted by API). */
+  apiKey?: string;
   position: number;
   created_at: string;
   variants: AiVariantAdmin[];

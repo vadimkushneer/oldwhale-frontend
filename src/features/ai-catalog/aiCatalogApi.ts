@@ -42,7 +42,15 @@ export const aiCatalogApi = createApi({
     }),
     createAiGroup: build.mutation<
       AiGroupAdmin,
-      { slug: string; label: string; role?: string; color?: string; free?: boolean; position?: number }
+      {
+        slug: string;
+        label: string;
+        role?: string;
+        color?: string;
+        free?: boolean;
+        apiKey?: string;
+        position?: number;
+      }
     >({
       query: (body) => ({ url: "/api/admin/ai/groups", method: "POST", body }),
       transformResponse: (r: AiGroupWrapResponse) => ({ ...r.group, variants: [] as AiVariantAdmin[] }),
@@ -53,7 +61,16 @@ export const aiCatalogApi = createApi({
     }),
     patchAiGroup: build.mutation<
       AiGroupAdmin,
-      { id: number; slug?: string; label?: string; role?: string; color?: string; free?: boolean; position?: number }
+      {
+        id: number;
+        slug?: string;
+        label?: string;
+        role?: string;
+        color?: string;
+        free?: boolean;
+        apiKey?: string;
+        position?: number;
+      }
     >({
       query: ({ id, ...body }) => ({
         url: `/api/admin/ai/groups/${id}`,

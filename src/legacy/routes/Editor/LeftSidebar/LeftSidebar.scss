@@ -55,6 +55,23 @@
     font-family: inherit;
   }
 
+  /* Pushable controls: 20% scale on hover (collapse tab keeps vertical centering). */
+  &__menu-button,
+  &__quick-action,
+  &__search-close,
+  &__selection-copy,
+  &__selection-delete,
+  // &__add-button,
+  // &__credits-button,
+  &__mode-tab {
+    position: relative;
+
+    &:hover:not(:disabled) {
+      transform: scale(1.2);
+      z-index: 1;
+    }
+  }
+
   &__collapse-tab {
     @apply absolute right-[-12px] top-1/2 z-40 flex h-16 w-9 -translate-y-1/2 cursor-pointer items-center justify-center overflow-hidden p-0;
     border-radius: 0 14px 14px 0;
@@ -63,6 +80,12 @@
     background: linear-gradient(180deg, rgb(31 32 64 / 0.99), rgb(26 27 46 / 0.96));
     box-shadow: 0 8px 18px rgba(0, 0, 0, 0.24);
     color: var(--ls-t2);
+    transition: transform 250ms ease;
+
+    &:hover:not(:disabled) {
+      transform: translateY(-50%) scale(1.2);
+      z-index: 50;
+    }
   }
 
   &__chevron,
@@ -99,6 +122,7 @@
     background: var(--ls-bg);
     box-shadow: var(--ls-shadow-sm);
     border: none;
+    transition: transform 250ms ease;
   }
 
   &__menu-icon {
@@ -122,13 +146,7 @@
 
   &__mode-tab {
     @apply flex flex-1 cursor-pointer items-center justify-center rounded-xl border-0 bg-transparent px-1 py-2 transition-all duration-[250ms];
-    position: relative;
     color: var(--ls-t3);
-
-    &:hover {
-      transform: scale(1.2);
-      z-index: 1;
-    }
 
     &--active {
       background: var(--ls-surf);
@@ -179,6 +197,7 @@
     box-shadow: var(--ls-shadow-sm);
     border-color: color-mix(in srgb, var(--ls-accent) 27%, transparent);
     color: var(--ls-accent);
+    transition: transform 250ms ease;
 
     &--active {
       background: color-mix(in srgb, var(--ls-accent) 20%, var(--ls-bg));
@@ -209,6 +228,7 @@
     @apply flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center bg-transparent p-0;
     border: none;
     color: var(--ls-accent);
+    transition: transform 250ms ease;
   }
 
   &__search-meta {
@@ -251,10 +271,14 @@
   }
 
   &__selection-copy {
-    @apply flex-1 cursor-pointer rounded-[10px] px-1.5 py-1.5 text-[9px] font-bold tracking-[1px] transition-colors duration-300;
+    @apply flex-1 cursor-pointer rounded-[10px] px-1.5 py-1.5 text-[9px] font-bold tracking-[1px];
     background: transparent;
     border: none;
     color: transparent;
+    transition:
+      color 300ms,
+      background-color 300ms,
+      transform 250ms ease;
 
     &--active {
       background: var(--ls-accent);
@@ -273,6 +297,7 @@
     box-shadow: none;
     border: none;
     color: var(--ls-t2);
+    transition: transform 250ms ease;
   }
 
   &__scene-count {
@@ -298,7 +323,11 @@
     box-shadow: var(--ls-shadow-sm);
     border: none;
     color: var(--ls-t2);
-    transition: all 0.22s;
+    transition:
+      transform 250ms ease,
+      background-color 0.22s,
+      color 0.22s,
+      box-shadow 0.22s;
   }
 
   &__credits {
@@ -370,6 +399,7 @@
     background: var(--ls-surf);
     box-shadow: var(--ls-shadow-sm);
     border: none;
+    transition: transform 250ms ease;
 
     &--primary {
       @apply flex-1;

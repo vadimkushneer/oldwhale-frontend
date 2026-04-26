@@ -557,6 +557,16 @@ function GroupRow({
     setFree(group.free);
   }, [group.id, group.slug, group.label, group.role, group.color, group.free]);
 
+  const hasUnsavedChanges = useMemo(() => {
+    return (
+      slug.trim() !== group.slug.trim() ||
+      label.trim() !== group.label.trim() ||
+      role.trim() !== group.role.trim() ||
+      color.trim() !== group.color.trim() ||
+      free !== group.free
+    );
+  }, [slug, label, role, color, free, group.slug, group.label, group.role, group.color, group.free]);
+
   return (
     <div className="ai-models-admin__group-editor flex flex-col gap-1.5">
       <div className="ai-models-admin__group-editor-hint text-[9px] text-[#5a587a]">
@@ -646,7 +656,7 @@ function GroupRow({
       <div className="ai-models-admin__group-editor-actions flex gap-2">
         <button
           type="button"
-          disabled={busy}
+          disabled={busy || !hasUnsavedChanges}
           onClick={() =>
             onSave({
               slug: slug.trim(),

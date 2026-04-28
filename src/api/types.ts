@@ -50,6 +50,17 @@ export interface AiCatalogPublicResponse {
   groups: AiGroupPublic[];
 }
 
+/** POST /api/ai/chat */
+export interface AiChatRequest {
+  message: string;
+  groupSlug: string;
+  variantSlug: string;
+}
+
+export interface AiChatResponse {
+  reply: string;
+}
+
 /** Admin nested variant row */
 export interface AiVariantAdmin {
   id: number;

@@ -9,7 +9,7 @@
  *   - src/legacy/ui/Tooltip          TooltipBubble + useTooltipController + UI_TOOLTIP_STORE_KEY
  *   - src/legacy/ui/ActTempoSparkline ActTempoSparkline
  *   - src/legacy/domain/blocks       BLOCK_DEFS, MODES, NOTEBOOK_INIT, INIT, uid, makeScene
- *   - src/legacy/domain/ai           AIM, AIR, AI_MODEL_VARIANTS, and the AI chat-store helpers
+ *   - src/legacy/domain/ai           AIM, AI_MODEL_VARIANTS, and the AI chat-store helpers
  *   - src/legacy/domain/sceneCard    SCENE_CARD_* option catalogs + normalize/clamp helpers
  *   - src/legacy/hooks/useWindowWidth
  *   - src/legacy/util/doc            autoH, getScenes, docStats, noteDocStats, play-act ordinals
@@ -34,7 +34,6 @@ import {
 } from "../../domain/blocks";
 import {
   AIM,
-  AIR,
   AI_MODEL_VARIANTS,
   AI_STORE_KEY,
   AI_HISTORY_LIMIT,
@@ -82,6 +81,7 @@ import {
 import { ActTempoSparkline } from "../../ui/ActTempoSparkline";
 import { useWindowWidth } from "../../hooks/useWindowWidth";
 import { useAppSelector } from "../../../hooks";
+import { apiBaseUrl } from "../../../api/env";
 import { useGetPublicCatalogQuery } from "../../../features/ai-catalog/aiCatalogApi";
 import {
   autoH,
@@ -101,6 +101,7 @@ import { EditorTopBar } from "./EditorTopBar/EditorTopBar";
 
 function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode, onModeRouteChange }) {
   void useAppSelector((s) => s.aiCatalog.revision);
+  const authToken = useAppSelector((s) => s.auth.token);
   const aiCatalogQuery = useGetPublicCatalogQuery();
   const activeProviders = useMemo(() => {
     const groups = aiCatalogQuery.data?.groups;
@@ -245,7 +246,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
   const aiHistoryLayerRef = useRef(null);
   const aiModelMenuRootRef = useRef(null);
   const aiModelMenuTimerRef = useRef(null);
-  const aiReplyTimerRef = useRef(null);
+  const aiChatAbortRef = useRef(null);
   const aiChatIdRef = useRef(aiChatId);
   useEffect(()=>{ aiChatIdRef.current = aiChatId; }, [aiChatId]);
   useEffect(()=>{
@@ -4508,11 +4509,6 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
     }
   };
 
-  const clearAiReplyTimer = () => {
-    if (!aiReplyTimerRef.current) return;
-    clearTimeout(aiReplyTimerRef.current);
-    aiReplyTimerRef.current = null;
-  };
   const clearAiModelMenuTimer = () => {
     if (!aiModelMenuTimerRef.current) return;
     clearTimeout(aiModelMenuTimerRef.current);
@@ -4539,7 +4535,8 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
   };
   const startNewAiChat = () => {
     archiveAiChat(getCurrentAiChat());
-    clearAiReplyTimer();
+    aiChatAbortRef.current?.abort();
+    aiChatAbortRef.current = null;
     const now = Date.now();
     setAiChatId(makeAiChatId());
     setAiChatCreatedAt(now);
@@ -4627,7 +4624,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
       </div>
     );
   };
-  const send = () => {
+  const send = async () => {
     if ((!aiIn.trim() && aiPendingFiles.length===0) || aiLoad) return;
     const m = getAiProvider(aiMod);
     const queuedFiles = aiPendingFiles.slice();
@@ -4638,7 +4635,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
       setAiPendingFiles([]);
       return;
     }
-    const q = buildAiOutgoingText(aiIn, queuedFiles);
+    const bodyText = buildAiOutgoingText(aiIn, queuedFiles);
     const modelAtSend = aiMod;
     const modelVariantAtSend = aiModelVariant;
     const chatIdAtSend = aiChatId;
@@ -4646,19 +4643,47 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
     setAiIn("");
     setAiPendingFiles([]);
     setAiLoad(true);
-    clearAiReplyTimer();
-    aiReplyTimerRef.current = setTimeout(()=>{
-      const rs = AIR[modelAtSend] || AIR.deepseek;
-      if (chatIdAtSend !== aiChatIdRef.current) {
-        setAiLoad(false);
-        aiReplyTimerRef.current = null;
+    aiChatAbortRef.current?.abort();
+    const ac = new AbortController();
+    aiChatAbortRef.current = ac;
+    const base = apiBaseUrl();
+    const url = base ? `${base}/api/ai/chat` : "/api/ai/chat";
+    try {
+      const headers = { "Content-Type": "application/json" };
+      if (authToken) headers.Authorization = `Bearer ${authToken}`;
+      const res = await fetch(url, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          message: bodyText,
+          groupSlug: modelAtSend,
+          variantSlug: modelVariantAtSend,
+        }),
+        signal: ac.signal,
+      });
+      if (chatIdAtSend !== aiChatIdRef.current) return;
+      if (!res.ok) {
+        let errMsg = "Ошибка сервера.";
+        try {
+          const j = await res.json();
+          if (j && j.error) errMsg = String(j.error);
+        } catch (e) {}
+        setMsgs(p=>[...p,{role:"ai",text:errMsg,model:modelAtSend,modelVariant:modelVariantAtSend}]);
         return;
       }
-      setMsgs(p=>[...p,{role:"ai",text:rs[Math.floor(Math.random()*rs.length)],model:modelAtSend,modelVariant:modelVariantAtSend}]);
-      setAiLoad(false);
-      aiReplyTimerRef.current = null;
+      const data = await res.json();
+      const reply = typeof data?.reply === "string" ? data.reply : "";
+      if (chatIdAtSend !== aiChatIdRef.current) return;
+      setMsgs(p=>[...p,{role:"ai",text:reply,model:modelAtSend,modelVariant:modelVariantAtSend}]);
       if (!m.free) setCredits(c=>Math.max(0,c-12));
-    },1400);
+    } catch (e) {
+      if (e && e.name === "AbortError") return;
+      if (chatIdAtSend !== aiChatIdRef.current) return;
+      setMsgs(p=>[...p,{role:"ai",text:"Не удалось связаться с сервером.",model:modelAtSend,modelVariant:modelVariantAtSend}]);
+    } finally {
+      if (aiChatAbortRef.current === ac) aiChatAbortRef.current = null;
+      if (chatIdAtSend === aiChatIdRef.current) setAiLoad(false);
+    }
   };
 
   const renderAiHistoryDropdown = () => aiHistoryOpen && (
@@ -4880,7 +4905,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
     };
   }, [aiModelMenuOpen]);
 
-  useEffect(()=>()=>{ clearAiReplyTimer(); clearAiModelMenuTimer(); },[]);
+  useEffect(()=>()=>{ aiChatAbortRef.current?.abort(); clearAiModelMenuTimer(); },[]);
 
   useEffect(()=>{ msgEnd.current?.scrollIntoView({behavior:"smooth"}); },[msgs]);
 

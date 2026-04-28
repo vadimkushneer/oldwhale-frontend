@@ -2,6 +2,13 @@ import { test, expect } from "@playwright/test";
 
 test.describe("editor / AI panel", () => {
   test("guest: model switch, send message, collapse panel", async ({ page }) => {
+    await page.route("**/api/ai/chat", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ reply: "HELLO FROM OLD WHALE" }),
+      });
+    });
     await page.addInitScript(() => {
       try {
         localStorage.clear();
@@ -23,7 +30,7 @@ test.describe("editor / AI panel", () => {
     const lastAiBubble = page.locator(".ai-message-list__bubble--ai").last();
     await expect(lastAiBubble).toBeVisible({ timeout: 12_000 });
     const reply = await lastAiBubble.innerText();
-    expect(reply.length).toBeGreaterThan(10);
+    expect(reply.trim()).toBe("HELLO FROM OLD WHALE");
 
     await page.getByTitle("Свернуть ИИ-панель").click();
     await expect(page.getByTitle("Развернуть ИИ-панель")).toBeVisible();

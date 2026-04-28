@@ -168,6 +168,12 @@ export function AdminPage() {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, gap: 12, flexWrap: "wrap" }}>
           <div style={{ letterSpacing: 4, fontSize: 12 }}>АДМИН · ПОЛЬЗОВАТЕЛИ</div>
           <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
+            <Link
+              to="/admin/ai-chat-logs"
+              style={{ color: T2, fontSize: 10, letterSpacing: 2, textDecoration: "none" }}
+            >
+              ЖУРНАЛ ИИ‑ЧАТА →
+            </Link>
             <Link to="/admin/ai-models" style={{ color: T2, fontSize: 10, letterSpacing: 2, textDecoration: "none" }}>
               ИИ · МОДЕЛИ →
             </Link>

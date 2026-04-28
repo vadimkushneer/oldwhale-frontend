@@ -282,6 +282,9 @@ export function useLeftSidebar({
         { id: "add-act", label: "+ АКТ", onClick: onInsertPlayAct },
       ];
     }
+    if (mode === "note") {
+      return [];
+    }
     return [{ id: "add-scene", label: "+ НОВАЯ СЦЕНА", onClick: onAddSceneAfterLast }];
   }, [mode, onAddSceneAfterLast, onInsertFilmAct, onInsertPlayAct]);
 

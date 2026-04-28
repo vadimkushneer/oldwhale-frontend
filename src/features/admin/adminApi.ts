@@ -1,7 +1,13 @@
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 import { clearAuth } from "../auth/authSlice";
 import { apiBaseUrl } from "../../api/env";
-import type { User, UserListResponse, UserWrapResponse } from "../../api/types";
+import type {
+  AiChatLogListParams,
+  AiChatLogListResponse,
+  User,
+  UserListResponse,
+  UserWrapResponse,
+} from "../../api/types";
 
 const rawBaseQuery = fetchBaseQuery({
   baseUrl: apiBaseUrl(),
@@ -19,8 +25,16 @@ export const adminApi = createApi({
     if (res.error?.status === 401) api.dispatch(clearAuth());
     return res;
   },
-  tagTypes: ["UserList"],
+  tagTypes: ["UserList", "AiChatLogs"],
   endpoints: (build) => ({
+    listAiChatLogs: build.query<AiChatLogListResponse, AiChatLogListParams | void>({
+      query: (params) => ({
+        url: "/api/admin/ai/chat-logs",
+        method: "GET",
+        params: params ?? {},
+      }),
+      providesTags: () => [{ type: "AiChatLogs", id: "LIST" }],
+    }),
     listUsers: build.query<User[], void>({
       query: () => ({ url: "/api/admin/users", method: "GET" }),
       transformResponse: (r: UserListResponse) => r.users,
@@ -53,5 +67,10 @@ export const adminApi = createApi({
   }),
 });
 
-export const { useListUsersQuery, useCreateUserMutation, usePatchUserMutation, useDeleteUserMutation } =
-  adminApi;
+export const {
+  useListAiChatLogsQuery,
+  useListUsersQuery,
+  useCreateUserMutation,
+  usePatchUserMutation,
+  useDeleteUserMutation,
+} = adminApi;

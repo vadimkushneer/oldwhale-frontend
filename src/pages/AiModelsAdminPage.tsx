@@ -264,6 +264,12 @@ export function AiModelsAdminPage() {
               ← ПОЛЬЗОВАТЕЛИ
             </Link>
             <Link
+              to="/admin/ai-chat-logs"
+              className="ai-models-admin__toolbar-link ai-models-admin__toolbar-link--muted text-[10px] tracking-[2px] text-[#9896b8] no-underline transition-colors duration-150 hover:text-[#e4e1f5]"
+            >
+              ЖУРНАЛ ИИ‑ЧАТА →
+            </Link>
+            <Link
               to="/editor"
               className="ai-models-admin__toolbar-link ai-models-admin__toolbar-link--accent text-[10px] tracking-[2px] text-[#7c6af7] no-underline transition-colors duration-150 hover:text-[#978bff]"
             >

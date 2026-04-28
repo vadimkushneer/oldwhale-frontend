@@ -8,6 +8,7 @@ import { OnboardingPage } from "../pages/OnboardingPage";
 import { LoginPage } from "../pages/LoginPage";
 import { EditorPage } from "../pages/EditorPage";
 import { AdminPage } from "../pages/AdminPage";
+import { AiChatLogsAdminPage } from "../pages/AiChatLogsAdminPage";
 import { AiModelsAdminPage } from "../pages/AiModelsAdminPage";
 
 function SessionInit() {
@@ -54,6 +55,7 @@ export default function App() {
         <Route path="/editor" element={<EditorPage />} />
         <Route path="/editor/:modeName" element={<EditorPage />} />
         <Route path="/admin" element={<AdminPage />} />
+        <Route path="/admin/ai-chat-logs" element={<AiChatLogsAdminPage />} />
         <Route path="/admin/ai-models" element={<AiModelsAdminPage />} />
       </Routes>
     </BrowserRouter>

@@ -162,7 +162,7 @@ describe("LeftSidebar", () => {
 
     const noteProps = makeProps({ mode: "note" });
     rerender(<LeftSidebar {...noteProps} />);
-    expect(screen.getByText("+ НОВАЯ СЦЕНА")).toBeInTheDocument();
+    expect(screen.queryByText("+ НОВАЯ СЦЕНА")).not.toBeInTheDocument();
     expect(screen.queryByText("АКТ")).not.toBeInTheDocument();
   });
 

@@ -480,7 +480,7 @@ export function LeftSidebar(props: LeftSidebarProps) {
       </div>
 
       <div className="left-sidebar__footer">
-        <AddControls actions={addActions} />
+        {addActions.length > 0 ? <AddControls actions={addActions} /> : null}
         <CreditsPanel credits={props.credits} creditsLow={creditsLow} creditsValue={creditsValue} onLogout={onLogout} />
       </div>
     </div>

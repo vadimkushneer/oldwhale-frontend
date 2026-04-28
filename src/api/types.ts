@@ -103,3 +103,50 @@ export interface AiVariantWrapResponse {
 export interface AiReorderRequest {
   ids: number[];
 }
+
+/** Admin `GET /api/admin/ai/chat-logs` */
+export interface AiChatLogUser {
+  id: number;
+  login: string;
+  email: string;
+}
+
+export interface AiChatLogItem {
+  id: number;
+  created_at: string;
+  user_id: number | null;
+  message: string;
+  group_slug: string;
+  variant_slug: string;
+  reply: string;
+  user_message_id: string;
+  assistant_message_id: string;
+  client_ip: string | null;
+  user_agent: string | null;
+  user: AiChatLogUser | null;
+}
+
+export interface AiChatLogListResponse {
+  items: AiChatLogItem[];
+  total: number;
+}
+
+/** Query params for admin chat log listing (optional fields). */
+export interface AiChatLogListParams {
+  limit?: number;
+  offset?: number;
+  id?: number;
+  from?: string;
+  to?: string;
+  user_id?: number;
+  group_slug?: string;
+  variant_slug?: string;
+  message_contains?: string;
+  reply_contains?: string;
+  user_message_id?: string;
+  assistant_message_id?: string;
+  client_ip?: string;
+  user_agent?: string;
+  login_contains?: string;
+  email_contains?: string;
+}

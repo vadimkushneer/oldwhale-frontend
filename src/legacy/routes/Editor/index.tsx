@@ -101,6 +101,16 @@ import { MarkerContextMenu } from "./MarkerContextMenu";
 import { EditorDocument } from "./EditorDocument/EditorDocument";
 import { EditorTopBar } from "./EditorTopBar/EditorTopBar";
 
+const AI_COMPOSER_H_DEFAULT = 158;
+
+function normalizeAiComposerHeight(raw, fallback) {
+  const vh = typeof window !== "undefined" ? window.innerHeight : 900;
+  const maxH = Math.floor(vh * 0.5);
+  const n = Number(raw);
+  const base = Number.isFinite(n) ? n : fallback;
+  return Math.min(maxH, base);
+}
+
 function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode, onModeRouteChange }) {
   void useAppSelector((s) => s.aiCatalog.revision);
   const authToken = useAppSelector((s) => s.auth.token);
@@ -220,7 +230,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
   const [aiW,          setAiW]          = useState(_lay.aiW || 255);
   const [leftPanelOpen, setLeftPanelOpen] = useState(_lay.leftPanelOpen !== undefined ? _lay.leftPanelOpen : true);
   const [rightPanelOpen, setRightPanelOpen] = useState(_lay.rightPanelOpen !== undefined ? _lay.rightPanelOpen : true);
-  const [aiComposerH,  setAiComposerH]  = useState(56);
+  const [aiComposerH,  setAiComposerH]  = useState(() => normalizeAiComposerHeight(_lay.aiComposerH, AI_COMPOSER_H_DEFAULT));
   const DESKTOP_PANEL_PEEK_W = 44;
   useEffect(() => {
     try {
@@ -228,9 +238,10 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
         leftW, rightW, aiW,
         leftPanelOpen, rightPanelOpen, aiOpen,
         sceneCardsOpen, sceneCardsMiniMode, sceneCardsRect,
+        aiComposerH,
       }));
     } catch(e) {}
-  }, [leftW, rightW, aiW, leftPanelOpen, rightPanelOpen, aiOpen, sceneCardsOpen, sceneCardsMiniMode, sceneCardsRect]);
+  }, [leftW, rightW, aiW, leftPanelOpen, rightPanelOpen, aiOpen, sceneCardsOpen, sceneCardsMiniMode, sceneCardsRect, aiComposerH]);
   const leftSidebarW = leftPanelOpen ? leftW : DESKTOP_PANEL_PEEK_W;
   const rightSidebarW = rightPanelOpen ? rightW : DESKTOP_PANEL_PEEK_W;
   const aiSidebarW = aiOpen ? aiW : DESKTOP_PANEL_PEEK_W;

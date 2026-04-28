@@ -1,0 +1,20 @@
+/* BEM block `ai-chat-logs-admin-blocking-screen` */
+.ai-chat-logs-admin-blocking-screen {
+  @apply box-border flex min-h-screen w-screen items-center justify-center bg-[#1a1b2e] font-mono text-[#5a587a];
+}
+
+.ai-chat-logs-admin-blocking-screen--session {
+  @apply tracking-[2px] text-[11px];
+}
+
+.ai-chat-logs-admin-blocking-screen--forbidden {
+  @apply flex-col p-6 text-[#e4e1f5];
+}
+
+.ai-chat-logs-admin-blocking-screen__title {
+  @apply mb-3 text-sm tracking-[2px];
+}
+
+.ai-chat-logs-admin-blocking-screen--session .ai-chat-logs-admin-blocking-screen__title {
+  @apply mb-0;
+}

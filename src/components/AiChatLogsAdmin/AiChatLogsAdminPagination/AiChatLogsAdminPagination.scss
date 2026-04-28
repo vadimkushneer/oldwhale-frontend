@@ -1,0 +1,19 @@
+/* BEM block `ai-chat-logs-admin-pagination` */
+.ai-chat-logs-admin-pagination {
+  @apply mt-5 flex items-center justify-center gap-4 text-[11px] text-[#9896b8];
+}
+
+.ai-chat-logs-admin-pagination__btn {
+  @apply cursor-pointer rounded-lg border-0 bg-[#1f2040] px-3.5 py-2 font-[inherit] text-[#e4e1f5];
+  box-shadow:
+    8px 8px 22px rgba(0, 0, 0, 0.5),
+    -4px -4px 12px rgba(255, 255, 255, 0.038);
+}
+
+.ai-chat-logs-admin-pagination__btn:focus-visible {
+  @apply outline-none ring-1 ring-[#7c6af7];
+}
+
+.ai-chat-logs-admin-pagination__btn--disabled {
+  @apply cursor-not-allowed bg-[#333];
+}

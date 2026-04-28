@@ -1,0 +1,54 @@
+/* BEM block `ai-chat-logs-admin-filters` */
+.ai-chat-logs-admin-filters {
+  @apply mb-5 grid items-end gap-2.5 rounded-2xl bg-[#1f2040] p-4;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  box-shadow:
+    8px 8px 22px rgba(0, 0, 0, 0.5),
+    -4px -4px 12px rgba(255, 255, 255, 0.038);
+}
+
+.ai-chat-logs-admin-filters__field {
+  @apply min-w-0;
+}
+
+.ai-chat-logs-admin-filters__label {
+  @apply mb-1 text-[9px] tracking-wide text-[#5a587a];
+}
+
+.ai-chat-logs-admin-filters__input {
+  @apply w-full rounded-lg border-0 bg-[#1a1b2e] px-2.5 py-2 font-[inherit] text-[10px] text-[#e4e1f5] caret-[#7c6af7] placeholder:text-[#5a587a];
+  box-shadow:
+    inset 3px 3px 10px rgba(0, 0, 0, 0.5),
+    inset -2px -2px 6px rgba(255, 255, 255, 0.035);
+}
+
+.ai-chat-logs-admin-filters__input:focus-visible {
+  @apply outline-none ring-1 ring-[#7c6af7];
+}
+
+.ai-chat-logs-admin-filters__actions {
+  @apply flex items-end gap-2;
+}
+
+.ai-chat-logs-admin-filters__btn {
+  @apply cursor-pointer rounded-lg border-0 px-4 py-2.5 font-[inherit] text-[10px];
+}
+
+.ai-chat-logs-admin-filters__btn:focus-visible {
+  @apply outline-none ring-1 ring-[#7c6af7];
+}
+
+.ai-chat-logs-admin-filters__btn--primary {
+  @apply bg-[#7c6af7] tracking-[2px] text-white;
+}
+
+.ai-chat-logs-admin-filters__btn--neutral {
+  @apply bg-[#5a587a] tracking-wide text-[#e4e1f5];
+}
+
+.ai-chat-logs-admin-filters__btn--refresh {
+  @apply bg-[#1a1b2e] text-[#9896b8];
+  box-shadow:
+    inset 3px 3px 10px rgba(0, 0, 0, 0.5),
+    inset -2px -2px 6px rgba(255, 255, 255, 0.035);
+}

@@ -1,0 +1,63 @@
+/* BEM block `ai-chat-logs-admin-column-bar` */
+.ai-chat-logs-admin-column-bar {
+  @apply mb-4 flex flex-wrap items-center gap-y-2.5 rounded-2xl bg-[#1f2040] p-3;
+  box-shadow:
+    8px 8px 22px rgba(0, 0, 0, 0.5),
+    -4px -4px 12px rgba(255, 255, 255, 0.038);
+}
+
+.ai-chat-logs-admin-column-bar__legend {
+  @apply shrink-0 pr-2 text-[9px] tracking-wide text-[#5a587a];
+}
+
+.ai-chat-logs-admin-column-bar__items {
+  @apply flex min-w-0 flex-1 flex-wrap items-stretch divide-x divide-[#5a587a]/45;
+}
+
+.ai-chat-logs-admin-column-bar__item {
+  @apply inline-flex cursor-pointer items-center gap-1.5 px-3 py-1 text-[9px] tracking-[0.5px] transition-colors duration-150;
+}
+
+.ai-chat-logs-admin-column-bar__item:focus-within {
+  @apply outline-none;
+}
+
+.ai-chat-logs-admin-column-bar__item:focus-visible {
+  @apply rounded-md ring-1 ring-[#7c6af7] ring-offset-2 ring-offset-[#1f2040];
+}
+
+.ai-chat-logs-admin-column-bar__item--visible {
+  @apply text-[#e4e1f5];
+}
+
+.ai-chat-logs-admin-column-bar__item--hidden {
+  @apply text-[#6b6988];
+}
+
+.ai-chat-logs-admin-column-bar__input {
+  @apply sr-only;
+}
+
+.ai-chat-logs-admin-column-bar__eye {
+  @apply inline-flex shrink-0 items-center justify-center;
+}
+
+.ai-chat-logs-admin-column-bar__svg {
+  @apply h-[14px] w-[14px] shrink-0;
+}
+
+.ai-chat-logs-admin-column-bar__item--visible .ai-chat-logs-admin-column-bar__svg {
+  @apply text-[#7c6af7];
+}
+
+.ai-chat-logs-admin-column-bar__item--hidden .ai-chat-logs-admin-column-bar__svg {
+  @apply text-[#5a587a];
+}
+
+.ai-chat-logs-admin-column-bar__text {
+  @apply select-none whitespace-nowrap;
+}
+
+.ai-chat-logs-admin-column-bar__item--hidden .ai-chat-logs-admin-column-bar__text {
+  @apply line-through decoration-[#5a587a]/80 decoration-[0.08em];
+}

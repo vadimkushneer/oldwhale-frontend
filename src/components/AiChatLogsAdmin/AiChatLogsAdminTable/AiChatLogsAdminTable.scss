@@ -1,0 +1,71 @@
+/* BEM block `ai-chat-logs-admin-table` — wrapper scroll */
+.ai-chat-logs-admin-table-scroll {
+  @apply overflow-x-auto rounded-2xl bg-[#1f2040] p-3;
+  box-shadow:
+    8px 8px 22px rgba(0, 0, 0, 0.5),
+    -4px -4px 12px rgba(255, 255, 255, 0.038);
+}
+
+.ai-chat-logs-admin-table__loading {
+  @apply text-[11px] text-[#5a587a];
+}
+
+.ai-chat-logs-admin-table__grid {
+  @apply w-full border-collapse text-[10px];
+}
+
+.ai-chat-logs-admin-table__head-row {
+  @apply text-left tracking-wide text-[#5a587a];
+}
+
+.ai-chat-logs-admin-table__th {
+  @apply p-2;
+}
+
+.ai-chat-logs-admin-table__th--nowrap {
+  @apply whitespace-nowrap;
+}
+
+.ai-chat-logs-admin-table__row {
+  border-top: 1px solid #1a1b2e;
+}
+
+.ai-chat-logs-admin-table__td {
+  @apply align-top p-2;
+}
+
+.ai-chat-logs-admin-table__td--nowrap {
+  @apply whitespace-nowrap;
+}
+
+.ai-chat-logs-admin-table__td--secondary {
+  @apply text-[#9896b8];
+}
+
+.ai-chat-logs-admin-table__td--muted {
+  @apply text-[9px] text-[#5a587a];
+}
+
+.ai-chat-logs-admin-table__email {
+  @apply text-[9px] text-[#5a587a];
+}
+
+.ai-chat-logs-admin-table__td--message {
+  max-width: 280px;
+}
+
+.ai-chat-logs-admin-table__td--model {
+  max-width: 140px;
+}
+
+.ai-chat-logs-admin-table__td--ids {
+  max-width: 160px;
+}
+
+.ai-chat-logs-admin-table__td--ip {
+  max-width: 200px;
+}
+
+.ai-chat-logs-admin-table__td--note {
+  max-width: 220px;
+}

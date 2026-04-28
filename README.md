@@ -14,7 +14,8 @@ Single-page application for **OldWhale**: the screenplay / notebook / media edit
 
 | Variable | Purpose |
 |----------|---------|
-| `VITE_API_URL` | Backend origin, e.g. `http://127.0.0.1:8080` (no `/api` suffix). |
+| `VITE_API_URL` | Backend origin, e.g. `http://127.0.0.1:8080` (no `/api` suffix). If **unset**, the app calls same-origin `/api/...` and **`npm run dev` proxies `/api` → `VITE_DEV_API_PROXY_TARGET`** (default `http://127.0.0.1:8080`). |
+| `VITE_DEV_API_PROXY_TARGET` | Optional. Used only when `VITE_API_URL` is empty during `vite` dev; where to forward `/api` (e.g. API in Docker on another port: `http://127.0.0.1:18080`). |
 | `VITE_BASE_PATH` | Vite `base` + router basename. Use `/` locally; for GitHub Pages set to `/<repo>/` (trailing slash). |
 
 Copy [`.env.example`](./.env.example) to `.env` or rely on `.env.development` / `.env.production`.
@@ -22,12 +23,25 @@ Copy [`.env.example`](./.env.example) to `.env` or rely on `.env.development` / 
 ## Local development (host)
 
 ```bash
+cd oldwhale-backend
+# set DATABASE_URL, then:
+go run ./cmd/server
+# API listens on :8080 by default (HTTP_ADDR / PORT).
+
 cd oldwhale-frontend
 npm ci
 npm run dev
 ```
 
-Open the URL Vite prints (default `http://localhost:5173`). The API must match `VITE_API_URL` (CORS on the backend should allow this origin in Docker: `http://localhost:5173`).
+Open the URL Vite prints (default `http://localhost:5173`).
+
+**Calling the API from the browser**
+
+1. **Recommended:** set `VITE_API_URL=http://127.0.0.1:8080` in `.env` (see [`.env.example`](./.env.example)). The SPA issues requests directly to the Go server; **CORS** on the backend must allow `http://localhost:5173` (see root `docker-compose.yml` → `CORS_ORIGIN`).
+
+2. **Without `VITE_API_URL`:** requests use relative URLs (`/api/...`, including `GET/PUT /api/admin/me/ui-settings`). Vite **proxies** `/api` to **`VITE_DEV_API_PROXY_TARGET`** (default `http://127.0.0.1:8080`). Start the Go API first, then restart `npm run dev` after changing [`vite.config.ts`](./vite.config.ts) proxy settings.
+
+If admin routes (e.g. `/api/admin/me/ui-settings`) return **404** in the browser, you are usually hitting **Vite** (no proxy / wrong target), not Go — fix `VITE_API_URL` or the proxy target, confirm the API is listening, and hard-refresh.
 
 ## Docker (full stack from repo parent)
 

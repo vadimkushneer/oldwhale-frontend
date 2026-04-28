@@ -16,7 +16,8 @@
 
 | Переменная | Назначение |
 |------------|------------|
-| `VITE_API_URL` | Origin бэкенда, напр. `http://127.0.0.1:8080` (без суффикса `/api`). |
+| `VITE_API_URL` | Origin бэкенда, напр. `http://127.0.0.1:8080` (без суффикса `/api`). Если **не задана**, запросы идут на тот же origin с префиксом `/api`, а **`npm run dev` проксирует `/api` → `VITE_DEV_API_PROXY_TARGET`** (по умолчанию `http://127.0.0.1:8080`). |
+| `VITE_DEV_API_PROXY_TARGET` | Необязательно. Только при пустой `VITE_API_URL` в режиме `vite dev`: куда проксировать `/api`. |
 | `VITE_BASE_PATH` | `base` в Vite + basename роутера. Локально `/`; для GitHub Pages — `/<repo>/` (с завершающим слэшем). |
 
 Скопируйте [`.env.example`](./.env.example) в `.env` или используйте `.env.development` / `.env.production`.
@@ -24,12 +25,18 @@
 ## Локальная разработка (хост)
 
 ```bash
+cd oldwhale-backend
+# задайте DATABASE_URL, затем:
+go run ./cmd/server
+
 cd oldwhale-frontend
 npm ci
 npm run dev
 ```
 
-Откройте URL, который выводит Vite (по умолчанию `http://localhost:5173`). Значение `VITE_API_URL` должно соответствовать API (на бэкенде в CORS нужно разрешить этот origin в Docker: `http://localhost:5173`).
+Откройте URL, который выводит Vite (по умолчанию `http://localhost:5173`).
+
+**Запросы к API из браузера:** (1) задайте в `.env` **`VITE_API_URL=http://127.0.0.1:8080`** — браузер ходит на Go напрямую, на бэкенде в CORS разрешите `http://localhost:5173`; или (2) **не задавайте `VITE_API_URL`** — используются относительные **`/api/...`**, Vite **проксирует** их на **`VITE_DEV_API_PROXY_TARGET`** (по умолчанию `127.0.0.1:8080`). Если **`/api/admin/me/ui-settings` отдаёт 404**, чаще всего отвечает **Vite** (нет прокси / неверный порт), а не Go; проверка: `curl -i http://127.0.0.1:8080/api/admin/me/ui-settings` — ожидается **401** без JWT, не 404. После смены `.env` или `vite.config.ts` перезапустите **`npm run dev`**.
 
 ## Docker (полный стек из родительского каталога)
 

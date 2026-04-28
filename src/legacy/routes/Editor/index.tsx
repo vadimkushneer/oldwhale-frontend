@@ -62,6 +62,7 @@ import {
   getAiSpeakerLabel,
   buildAiPreviewText,
   newAiMessageId,
+  ensureAiMessageId,
 } from "../../domain/ai";
 import {
   SCENE_CARD_COLOR_OPTIONS,
@@ -4675,6 +4676,31 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
     const modelAtSend = aiMod;
     const modelVariantAtSend = aiModelVariant;
     const chatIdAtSend = aiChatId;
+    const conversationHistory = msgs
+      .filter((m) => m && typeof m.text === "string")
+      .map((m) => {
+        const withId = ensureAiMessageId({ ...m });
+        const role =
+          withId.role === "user" || withId.role === "ai" || withId.role === "sys" ? withId.role : "sys";
+        const row = { id: withId.id, role, text: String(withId.text ?? "") };
+        if (withId.model) row.model = withId.model;
+        if (withId.modelVariant) row.modelVariant = withId.modelVariant;
+        return row;
+      });
+    const rawNoteHtml = noteEditorRef.current?.innerHTML ?? noteTextRef.current ?? "";
+    const workfieldHtml = normalizeNoteHtml(rawNoteHtml);
+    const chatPayload = {
+      message: bodyText,
+      groupSlug: modelAtSend,
+      variantSlug: modelVariantAtSend,
+      editorMode: mode,
+    };
+    if (mode === "note") {
+      chatPayload.noteContext = {
+        conversationHistory,
+        workfieldHtml,
+      };
+    }
     setMsgs((p) => [...p, { id: newAiMessageId(), role: "user", text: userText }]);
     setAiIn("");
     setAiPendingFiles([]);
@@ -4690,11 +4716,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
       const res = await fetch(url, {
         method: "POST",
         headers,
-        body: JSON.stringify({
-          message: bodyText,
-          groupSlug: modelAtSend,
-          variantSlug: modelVariantAtSend,
-        }),
+        body: JSON.stringify(chatPayload),
         signal: ac.signal,
       });
       if (chatIdAtSend !== aiChatIdRef.current) return;

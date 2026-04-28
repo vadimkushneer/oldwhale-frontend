@@ -2,6 +2,8 @@ import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 import { clearAuth } from "../auth/authSlice";
 import { apiBaseUrl } from "../../api/env";
 import type {
+  AdminUiSettingsPutRequest,
+  AdminUiSettingsResponse,
   AiChatLogListParams,
   AiChatLogListResponse,
   User,
@@ -25,7 +27,7 @@ export const adminApi = createApi({
     if (res.error?.status === 401) api.dispatch(clearAuth());
     return res;
   },
-  tagTypes: ["UserList", "AiChatLogs"],
+  tagTypes: ["UserList", "AiChatLogs", "AdminUiSettings"],
   endpoints: (build) => ({
     listAiChatLogs: build.query<AiChatLogListResponse, AiChatLogListParams | void>({
       query: (params) => ({
@@ -64,6 +66,14 @@ export const adminApi = createApi({
       query: ({ id }) => ({ url: `/api/admin/users/${id}`, method: "DELETE" }),
       invalidatesTags: () => [{ type: "UserList", id: "LIST" }],
     }),
+    getAdminUiSettings: build.query<AdminUiSettingsResponse, void>({
+      query: () => ({ url: "/api/admin/me/ui-settings", method: "GET" }),
+      providesTags: () => [{ type: "AdminUiSettings", id: "ME" }],
+    }),
+    putAdminUiSettings: build.mutation<AdminUiSettingsResponse, AdminUiSettingsPutRequest>({
+      query: (body) => ({ url: "/api/admin/me/ui-settings", method: "PUT", body }),
+      invalidatesTags: () => [{ type: "AdminUiSettings", id: "ME" }],
+    }),
   }),
 });
 
@@ -73,4 +83,6 @@ export const {
   useCreateUserMutation,
   usePatchUserMutation,
   useDeleteUserMutation,
+  useLazyGetAdminUiSettingsQuery,
+  usePutAdminUiSettingsMutation,
 } = adminApi;

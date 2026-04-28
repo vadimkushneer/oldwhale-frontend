@@ -50,11 +50,29 @@ export interface AiCatalogPublicResponse {
   groups: AiGroupPublic[];
 }
 
+export type EditorMode = "note" | "media" | "short" | "play" | "film";
+
+/** One message in the AI panel thread (POST /api/ai/chat noteContext). */
+export interface AiChatConversationMessage {
+  id: string;
+  role: "user" | "ai" | "sys";
+  text: string;
+  model?: string;
+  modelVariant?: string;
+}
+
+export interface AiChatNoteContextRequest {
+  conversationHistory: AiChatConversationMessage[];
+  workfieldHtml: string;
+}
+
 /** POST /api/ai/chat */
 export interface AiChatRequest {
   message: string;
   groupSlug: string;
   variantSlug: string;
+  editorMode?: EditorMode;
+  noteContext?: AiChatNoteContextRequest;
 }
 
 export interface AiChatResponse {
@@ -111,6 +129,19 @@ export interface AiChatLogUser {
   email: string;
 }
 
+/** Admin AI chat log table column visibility keys. */
+export type AiChatLogColumnKey =
+  | "id"
+  | "time"
+  | "user"
+  | "message"
+  | "reply"
+  | "model"
+  | "message_ids"
+  | "ip_ua"
+  | "editor_mode"
+  | "note_context";
+
 export interface AiChatLogItem {
   id: number;
   created_at: string;
@@ -124,6 +155,8 @@ export interface AiChatLogItem {
   client_ip: string | null;
   user_agent: string | null;
   user: AiChatLogUser | null;
+  editor_mode?: string | null;
+  note_context?: Record<string, unknown> | null;
 }
 
 export interface AiChatLogListResponse {
@@ -149,4 +182,20 @@ export interface AiChatLogListParams {
   user_agent?: string;
   login_contains?: string;
   email_contains?: string;
+  editor_mode?: EditorMode;
+}
+
+export interface AiChatLogTableSettings {
+  columns: Partial<Record<AiChatLogColumnKey, boolean>>;
+  updated_at?: string | null;
+}
+
+export interface AdminUiSettingsResponse {
+  aiChatLogTable: AiChatLogTableSettings;
+}
+
+export interface AdminUiSettingsPutRequest {
+  aiChatLogTable: {
+    columns: Partial<Record<AiChatLogColumnKey, boolean>>;
+  };
 }

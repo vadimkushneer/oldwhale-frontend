@@ -3,6 +3,15 @@ import { test, expect } from "@playwright/test";
 test.describe("editor / AI panel", () => {
   test("guest: model switch, send message, collapse panel", async ({ page }) => {
     await page.route("**/api/ai/chat", async (route) => {
+      const postData = route.request().postDataJSON() as Record<string, unknown>;
+      expect(postData.editorMode).toBe("note");
+      expect(postData.noteContext).toBeTruthy();
+      expect(Array.isArray((postData.noteContext as { conversationHistory?: unknown }).conversationHistory)).toBe(
+        true,
+      );
+      expect(
+        typeof (postData.noteContext as { workfieldHtml?: unknown }).workfieldHtml,
+      ).toBe("string");
       await route.fulfill({
         status: 200,
         contentType: "application/json",

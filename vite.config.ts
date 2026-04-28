@@ -7,10 +7,13 @@ export default defineConfig(({ mode }) => {
   const raw = env.VITE_BASE_PATH?.trim();
   const base = raw && raw.length > 0 ? raw : "/";
   const pwaDisabled = env.VITE_PWA_DISABLED === "1";
+  const viteApiUrl = env.VITE_API_URL?.trim() ?? "";
+  /** When `VITE_API_URL` is unset, the app uses same-origin `/api/...` and Vite must proxy to the Go server. */
+  const devApiProxyTarget = (env.VITE_DEV_API_PROXY_TARGET ?? "http://127.0.0.1:8080").trim();
 
   let apiOriginPattern: RegExp | null = null;
   try {
-    const apiUrl = env.VITE_API_URL?.trim();
+    const apiUrl = viteApiUrl;
     if (apiUrl) {
       const origin = new URL(apiUrl).origin;
       const escaped = origin.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -112,6 +115,16 @@ export default defineConfig(({ mode }) => {
       host: "0.0.0.0",
       port: 5173,
       watch: process.env.DOCKER === "1" ? { usePolling: true } : undefined,
+      ...(viteApiUrl
+        ? {}
+        : {
+            proxy: {
+              "/api": {
+                target: devApiProxyTarget,
+                changeOrigin: true,
+              },
+            },
+          }),
     },
   };
 });

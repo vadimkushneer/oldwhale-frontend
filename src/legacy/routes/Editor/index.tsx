@@ -41,7 +41,6 @@ import {
   AI_DEFAULT_MODEL_VARIANTS,
   AI_FILE_EXTS,
   AI_FILE_ACCEPT,
-  AI_CAN_USE_EMOJI,
   getAiProvider,
   getAiVariants,
   getDefaultAiVariant,
@@ -2516,15 +2515,10 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
     const fileLabel = files.length ? `📎 ${files.map(f => f.name).join(", ")}` : "";
     return [trimmed, fileLabel].filter(Boolean).join(trimmed && fileLabel ? "\n" : "").trim();
   };
-  const buildAiStyleInstruction = () => {
-    if (!AI_CAN_USE_EMOJI) return "";
-    return "СТИЛЬ ИИ: смайлики разрешены, но только уместно и умеренно.";
-  };
   const buildAiOutgoingText = (inputText, files=[]) => {
     const trimmed = String(inputText || "").trim();
-    const styleInstruction = buildAiStyleInstruction();
     const fileChunks = files.map(f => `ФАЙЛ: ${f.name}\n${f.text}`);
-    return [styleInstruction, trimmed, ...fileChunks].filter(Boolean).join("\n\n").trim();
+    return [trimmed, ...fileChunks].filter(Boolean).join("\n\n").trim();
   };
   const handleAiDragEnter = (e) => {
     const items = Array.from(e.dataTransfer?.items || []);

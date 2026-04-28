@@ -113,7 +113,6 @@ export const AI_HISTORY_LIMIT = 60;
 export const AI_DEFAULT_MODEL = "deepseek";
 export const AI_FILE_EXTS = ["txt", "docx", "fdx", "whale"];
 export const AI_FILE_ACCEPT = ".txt,.docx,.fdx,.whale,text/plain,application/json,application/xml,application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-export const AI_CAN_USE_EMOJI = true;
 export const getAiProvider = (providerId=AI_DEFAULT_MODEL) => AIM.find(x=>x.id===providerId) || AIM.find(x=>x.id===AI_DEFAULT_MODEL) || AIM[0];
 export const getAiVariants = (providerId=AI_DEFAULT_MODEL) => AI_MODEL_VARIANTS[providerId] || AI_MODEL_VARIANTS[AI_DEFAULT_MODEL] || [];
 export const getDefaultAiVariant = (providerId=AI_DEFAULT_MODEL) => AI_DEFAULT_MODEL_VARIANTS[providerId] || getAiVariants(providerId)[0]?.id || "";

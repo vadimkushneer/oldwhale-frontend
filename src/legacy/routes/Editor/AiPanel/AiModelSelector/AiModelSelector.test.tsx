@@ -1,6 +1,7 @@
 import { createRef } from "react";
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { AIM } from "../../../../domain/ai";
 import { AiModelSelector } from "./AiModelSelector";
 
@@ -92,5 +93,33 @@ describe("AiModelSelector", () => {
     );
     const chevron = document.querySelector(".ai-model-selector__chevron--open");
     expect(chevron).toBeTruthy();
+  });
+
+  it("folds and expands the model list from the section heading", async () => {
+    const user = userEvent.setup();
+    const { container } = render(
+      <AiModelSelector
+        models={AIM}
+        activeModelId="deepseek"
+        activeVariantId={undefined}
+        menuOpen={false}
+        rootRef={rootRef}
+        onSelectProvider={vi.fn()}
+        renderVariantPicker={() => null}
+        getVariantLabel={() => undefined}
+      />,
+    );
+    const sectionToggle = screen.getByRole("button", {
+      name: "Список ИИ-моделей: показать или скрыть",
+    });
+    const list = container.querySelector(".ai-model-selector__list");
+    expect(list).toBeTruthy();
+    expect(list).not.toHaveAttribute("hidden");
+    await user.click(sectionToggle);
+    expect(list).toHaveAttribute("hidden");
+    expect(sectionToggle).toHaveAttribute("aria-expanded", "false");
+    await user.click(sectionToggle);
+    expect(list).not.toHaveAttribute("hidden");
+    expect(sectionToggle).toHaveAttribute("aria-expanded", "true");
   });
 });

@@ -7,8 +7,34 @@
   @apply shrink-0 border-b px-2.5 pb-2.5 pt-3;
   border-color: var(--ams-t3-22);
 
+  &--list-collapsed {
+    @apply pb-2;
+  }
+
+  &__heading-toggle {
+    @apply mb-0 flex w-full cursor-pointer items-center justify-between gap-2 rounded-md border-none bg-transparent py-0.5 text-left transition-colors;
+    font-family: inherit;
+    box-shadow: none;
+
+    &:hover .ai-model-selector__heading {
+      @apply text-[var(--ams-t2)];
+    }
+  }
+
   &__heading {
-    @apply mb-2.5 text-[9px] tracking-[0.2em] text-[var(--ams-t3)];
+    @apply text-[9px] tracking-[0.2em] text-[var(--ams-t3)];
+  }
+
+  &__section-chevron {
+    @apply shrink-0 text-[11px] leading-none text-[var(--ams-t3)] transition-transform duration-100;
+
+    &--open {
+      @apply rotate-180;
+    }
+  }
+
+  &__list:not([hidden]) {
+    @apply mt-2.5;
   }
 
   &__list-item {

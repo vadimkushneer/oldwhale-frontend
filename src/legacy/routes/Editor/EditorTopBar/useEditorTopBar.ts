@@ -1,22 +1,9 @@
 import { useCallback, useMemo, type MouseEventHandler, type ReactNode } from "react";
 import { MODES } from "../../../domain/blocks";
-
-const KNOWN_ACCENT_TONES = {
-  "#4ade80": "green",
-  "#7c6af7": "violet",
-  "#f472b6": "pink",
-  "#f59e0b": "amber",
-  "#60a5fa": "blue",
-} as const;
-
-type AccentTone = (typeof KNOWN_ACCENT_TONES)[keyof typeof KNOWN_ACCENT_TONES];
+import { accentToneFromHex, type AccentTone } from "../../../ui/accentTone";
 
 function cx(...values: Array<string | false | null | undefined>) {
   return values.filter(Boolean).join(" ");
-}
-
-function normalizeAccent(value: string) {
-  return String(value || "").trim().toLowerCase();
 }
 
 export type EditorTopBarStats = {
@@ -55,9 +42,7 @@ export function useEditorTopBar({
   aiOpen,
   accent,
 }: Pick<EditorTopBarProps, "mode" | "stats" | "saved" | "sheetOn" | "aiOpen" | "accent">) {
-  const accentTone = useMemo<AccentTone>(() => {
-    return KNOWN_ACCENT_TONES[normalizeAccent(accent) as keyof typeof KNOWN_ACCENT_TONES] ?? "violet";
-  }, [accent]);
+  const accentTone = useMemo<AccentTone>(() => accentToneFromHex(accent), [accent]);
 
   const modeOption = useMemo(() => MODES.find((item) => item.id === mode), [mode]);
 

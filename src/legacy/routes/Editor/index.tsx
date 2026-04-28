@@ -100,6 +100,7 @@ import { LeftSidebar } from "./LeftSidebar/LeftSidebar";
 import { MarkerContextMenu } from "./MarkerContextMenu";
 import { EditorDocument } from "./EditorDocument/EditorDocument";
 import { EditorTopBar } from "./EditorTopBar/EditorTopBar";
+import { EditorSideMenu } from "./EditorSideMenu/EditorSideMenu";
 
 const AI_COMPOSER_H_DEFAULT = 158;
 
@@ -111,7 +112,7 @@ function normalizeAiComposerHeight(raw, fallback) {
   return Math.min(maxH, base);
 }
 
-function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode, onModeRouteChange }) {
+function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode, onModeRouteChange, showAdminLink }) {
   void useAppSelector((s) => s.aiCatalog.revision);
   const authToken = useAppSelector((s) => s.auth.token);
   const aiCatalogQuery = useGetPublicCatalogQuery();
@@ -5876,139 +5877,55 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
 
         {/* Боковое меню */}
         {menuOpen && (
-          <div style={{
-            position:"absolute",top:0,left:0,bottom:0,right:0,zIndex:100,
-            display:"flex",
-          }}>
-            {/* Оверлей */}
-            <div onClick={()=>setMenuOpen(false)} style={{position:"absolute",inset:0,background:"rgba(0,0,0,0.5)"}}/>
-            {/* Панель */}
-            <div style={{
-              position:"relative",width:"260px",background:SURF,height:"100%",
-              boxShadow:"4px 0 24px rgba(0,0,0,0.5)",display:"flex",flexDirection:"column",
-              padding:"0",zIndex:1,overflowY:"auto",
-            }}>
-              {/* Лого */}
-              <div style={{padding:"16px 14px 12px",display:"flex",alignItems:"center",columnGap:"12px",borderBottom:`1px solid ${T3}22`}}>
-                <div style={{
-                  width:"36px", height:"36px", borderRadius:"10px",
-                  background: BG, boxShadow: SH_SM,
-                  display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0,
-                }}>
-                  <Whale size={22}/>
-                </div>
-                <div style={{flex:1}}>
-                  <div style={{color:T1, fontSize:"12px", letterSpacing:"3px"}}>OLD WHALE</div>
-                  <div style={{color:T3, fontSize:"9px", letterSpacing:"2px"}}>РЕДАКТОР</div>
-                </div>
-              </div>
-
-              {/* Секция: Проект */}
-              <div style={{padding:"12px 0"}}>
-                <div style={{padding:"4px 20px 8px",color:T3,fontSize:"9px",letterSpacing:"3px"}}>ПРОЕКТ</div>
-                {[
-                  {label:"Новый проект",  action: newProject,      svg:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M5 12h14"/></svg>},
-                  {label:"Сохранить",    action: saveNow,          svg:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>},
-                  {label:"Сохранить как", action: saveAs,           svg:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>},
-                  {label:"История",       action: openProjectsList, svg:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>},
-                  {label:"Мои проекты",   action: ()=>{openProjectsList();setMenuOpen(false);}, svg:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/><line x1="12" y1="12" x2="12" y2="16"/><line x1="10" y1="14" x2="14" y2="14"/></svg>},
-                ].map(({label,action,svg})=>(
-                  <button key={label} onClick={action} style={{
-                    display:"flex",alignItems:"center",width:"100%",
-                    padding:"11px 20px",background:"transparent",border:"none",
-                    color:T1,fontSize:"13px",cursor:"pointer",fontFamily:"inherit",textAlign:"left",
-                  }}>
-                    <span style={{width:"20px",display:"flex",alignItems:"center",justifyContent:"center",color:T2,flexShrink:0,marginRight:"12px"}}>{svg}</span>
-                    {label}
-                  </button>
-                ))}
-              </div>
-
-              {/* Секция: Импорт / Экспорт */}
-              <div style={{padding:"12px 0",borderTop:`1px solid ${T3}22`}}>
-                <div style={{padding:"4px 20px 8px",color:T3,fontSize:"9px",letterSpacing:"3px"}}>ФАЙЛЫ</div>
-                <input id="whale-import" type="file" accept=".whale,.fdx,application/json,application/xml" capture={false} onChange={importWhale} style={{display:"none"}}/>
-                {[
-                  {label:"Экспорт PDF",  sub:"Титульный лист + сценарий", action:()=>{setTitlePageOpen("pdf");setMenuOpen(false);}, locked:false,     svg:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>},
-                  {label:"Экспорт DOCX", sub:"Word документ",              action:()=>{if(!isGuest){setTitlePageOpen("docx");setMenuOpen(false);}}, locked:isGuest, hidden:mode==="note",  svg:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>},
-                  {label:"Экспорт FDX",  sub:"Final Draft",                action:()=>{if(!isGuest){setTitlePageOpen("fdx");setMenuOpen(false);}},  locked:isGuest, hidden:mode==="note"||mode==="media"||mode==="play"||mode==="short", svg:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="2" width="20" height="20" rx="3"/><line x1="7" y1="2" x2="7" y2="22"/><line x1="17" y1="2" x2="17" y2="22"/><line x1="2" y1="12" x2="22" y2="12"/></svg>},
-                  {label:"Экспорт TXT",  sub:"Простой текст",              action:()=>{if(!isGuest){setTitlePageOpen("txt");setMenuOpen(false);}},  locked:isGuest, svg:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>},
-                ].map(({label,svg,sub,action,locked,hidden})=>( hidden ? null :
-                  <button key={label} onClick={action} style={{
-                    display:"flex",alignItems:"flex-start",width:"100%",
-                    padding:"11px 20px",background:"transparent",border:"none",
-                    color:locked?"#f472b6":T1,fontSize:"13px",
-                    cursor:locked?"default":"pointer",fontFamily:"inherit",textAlign:"left",
-                    opacity:locked?0.5:1,
-                  }}>
-                    <span style={{width:"20px",display:"flex",alignItems:"center",justifyContent:"center",color:locked?"#f472b6":T2,flexShrink:0,marginRight:"12px",paddingTop:"2px"}}>{svg}</span>
-                    <div style={{flex:1}}>
-                      <div>{label}</div>
-                      <div style={{color:locked?"#f472b6":T3,fontSize:"10px",marginTop:"2px"}}>{locked?"Войдите чтобы использовать":sub}</div>
-                    </div>
-                  </button>
-                ))}
-                <button onClick={()=>openOpenFilePicker("whale-import")} style={{
-                  display:"flex",alignItems:"flex-start",width:"100%",
-                  padding:"11px 20px",background:"transparent",border:"none",
-                  color:T1,fontSize:"13px",cursor:"pointer",fontFamily:"inherit",textAlign:"left",
-                }}>
-                  <span style={{width:"20px",display:"flex",alignItems:"center",justifyContent:"center",color:T2,flexShrink:0,marginRight:"12px",paddingTop:"2px"}}>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                  </span>
-                  <div>
-                    <div>Открыть</div>
-                    <div style={{color:T3,fontSize:"10px",marginTop:"2px"}}>{(mode==="film"?".whale / .fdx / .docx":".whale / .fdx")}</div>
-                  </div>
-                </button>
-              </div>
-
-              {/* Секция: Режим */}
-              <div style={{padding:"12px 0",borderTop:`1px solid ${T3}22`}}>
-                <div style={{padding:"4px 20px 8px",color:T3,fontSize:"9px",letterSpacing:"3px"}}>РЕЖИМ</div>
-                {MODES.map(m=>{
-                  const locked = isGuest && m.id!=="note";
-                  return (
-                  <button key={m.id} onClick={()=>{ if(locked) return; switchMode(m.id);setMenuOpen(false);}} style={{
-                    display:"flex",alignItems:"center",width:"100%",
-                    padding:"11px 20px",background:mode===m.id?`${mc}18`:"transparent",border:"none",
-                    color:locked?"#f472b6":mode===m.id?mc:T1,fontSize:"13px",
-                    cursor:locked?"default":"pointer",fontFamily:"inherit",textAlign:"left",
-                    opacity:locked?0.5:1,
-                  }}>
-                    <span style={{fontSize:"16px",width:"20px",display:"flex",alignItems:"center",justifyContent:"center",marginRight:"12px"}}>{m.icon}</span>
-                    {m.label}
-                    {locked && <span style={{marginLeft:"auto",color:"#f472b6",fontSize:"9px",letterSpacing:"1px"}}>ВОЙТИ</span>}
-                    {!locked && mode===m.id && <span style={{marginLeft:"auto",color:mc,fontSize:"11px"}}>✓</span>}
-                  </button>
-                  );
-                })}
-              </div>
-
-              {/* Секция: Прочее */}
-              <div style={{padding:"12px 0",borderTop:`1px solid ${T3}22`,marginTop:"auto"}}>
-                <div style={{padding:"4px 20px 8px",color:T3,fontSize:"9px",letterSpacing:"3px"}}>ПРОЧЕЕ</div>
-                <button onClick={()=>{shareProject();setMenuOpen(false);}} style={{
-                  display:"flex",alignItems:"center",width:"100%",
-                  padding:"11px 20px",background:"transparent",border:"none",
-                  color:T1,fontSize:"13px",cursor:"pointer",fontFamily:"inherit",textAlign:"left",
-                }}>
-                  <span style={{width:"20px",display:"flex",alignItems:"center",justifyContent:"center",color:T2,flexShrink:0,marginRight:"12px"}}>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
-                  </span>
-                  Поделиться
-                </button>
-                <button onClick={goHome} style={{
-                  display:"flex",alignItems:"center",width:"100%",
-                  padding:"11px 20px",background:"transparent",border:"none",
-                  color:T1,fontSize:"13px",cursor:"pointer",fontFamily:"inherit",textAlign:"left",
-                }}>
-                  <span style={{width:"20px",display:"flex",alignItems:"center",justifyContent:"center",color:T2,flexShrink:0,marginRight:"12px"}}>⏻</span>
-                  На главную
-                </button>
-              </div>
-            </div>
-          </div>
+          <EditorSideMenu
+            variant="mobile"
+            accent={mc}
+            mode={mode}
+            isGuest={isGuest}
+            onClose={() => setMenuOpen(false)}
+            onNewProject={newProject}
+            onSave={saveNow}
+            onSaveAs={saveAs}
+            onOpenHistory={openProjectsList}
+            onOpenMyProjects={() => {
+              openProjectsList();
+              setMenuOpen(false);
+            }}
+            onExportPdf={() => {
+              setTitlePageOpen("pdf");
+              setMenuOpen(false);
+            }}
+            onExportDocx={() => {
+              if (!isGuest) {
+                setTitlePageOpen("docx");
+                setMenuOpen(false);
+              }
+            }}
+            onExportFdx={() => {
+              if (!isGuest) {
+                setTitlePageOpen("fdx");
+                setMenuOpen(false);
+              }
+            }}
+            onExportTxt={() => {
+              if (!isGuest) {
+                setTitlePageOpen("txt");
+                setMenuOpen(false);
+              }
+            }}
+            onOpenImportPicker={() => openOpenFilePicker("whale-import")}
+            onImportFileChange={importWhale}
+            onSwitchMode={(id) => {
+              switchMode(id);
+              setMenuOpen(false);
+            }}
+            onShare={() => {
+              shareProject();
+              setMenuOpen(false);
+            }}
+            onGoHome={goHome}
+            showAdminLink={showAdminLink}
+          />
         )}
 
         {/* Модальное окно: Титульный лист */}
@@ -7156,121 +7073,53 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
         </div>
       )}
       {menuOpen && (
-        <div style={{
-          position:"fixed",inset:0,zIndex:200,
-          display:"flex",
-        }}>
-          <div onClick={()=>setMenuOpen(false)} style={{position:"absolute",inset:0,background:"rgba(0,0,0,0.5)"}}/>
-          <div style={{
-            position:"relative",width:"260px",background:SURF,height:"100%",
-            boxShadow:"4px 0 24px rgba(0,0,0,0.5)",display:"flex",flexDirection:"column",
-            padding:"0",zIndex:1,overflowY:"auto",
-          }}>
-            {/* Лого */}
-            <div style={{padding:"16px 14px 12px",display:"flex",alignItems:"center",columnGap:"12px",borderBottom:`1px solid ${T3}22`}}>
-              <div style={{
-                width:"36px", height:"36px", borderRadius:"10px",
-                background: BG, boxShadow: SH_SM,
-                display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0,
-              }}>
-                <Whale size={22}/>
-              </div>
-              <div style={{flex:1}}>
-                <div style={{color:T1, fontSize:"12px", letterSpacing:"3px"}}>OLD WHALE</div>
-                <div style={{color:T3, fontSize:"9px", letterSpacing:"2px"}}>РЕДАКТОР</div>
-              </div>
-              <button onClick={()=>setMenuOpen(false)} style={{
-                width:"28px",height:"28px",borderRadius:"8px",background:BG,boxShadow:SH_SM,
-                border:"none",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",
-                flexShrink:0,padding:"0",color:T2,fontSize:"18px",lineHeight:1,
-              }}>✕</button>
-            </div>
-            {/* Секция: Проект */}
-            <div style={{padding:"12px 0",borderBottom:`1px solid ${T3}22`}}>
-              <div style={{padding:"4px 20px 8px",color:T3,fontSize:"9px",letterSpacing:"3px"}}>ПРОЕКТ</div>
-              {[
-                {label:"Новый проект", action:()=>{newProject();setMenuOpen(false);}, svg:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M5 12h14"/></svg>},
-                {label:"Сохранить", action: saveNow, svg:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>},
-                {label:"Сохранить как", action: saveAs, svg:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>},
-                {label:"История", action:()=>{openProjectsList();setMenuOpen(false);}, svg:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>},
-              ].map(({label,action,svg})=>(
-                <button key={label} onClick={action} style={{
-                  display:"flex",alignItems:"center",width:"100%",
-                  padding:"11px 20px",background:"transparent",border:"none",
-                  color:T1,fontSize:"13px",cursor:"pointer",fontFamily:"inherit",textAlign:"left",
-                }}>
-                  <span style={{width:"20px",display:"flex",alignItems:"center",justifyContent:"center",color:T2,flexShrink:0,marginRight:"12px",paddingTop:"1px"}}>{svg}</span>
-                  {label}
-                </button>
-              ))}
-            </div>
-            {/* Секция: Файлы */}
-            <div style={{padding:"12px 0",borderBottom:`1px solid ${T3}22`}}>
-              <div style={{padding:"4px 20px 8px",color:T3,fontSize:"9px",letterSpacing:"3px"}}>ФАЙЛЫ</div>
-              <input id="whale-import-desk" type="file" accept=".whale,.fdx,application/json,application/xml" capture={false} onChange={importWhale} style={{display:"none"}}/>
-              {[
-                {label:"Экспорт PDF",  sub:"Титульный лист + сценарий", action:()=>{setTitlePageOpen("pdf");setMenuOpen(false);}, locked:false,
-                  svg:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>},
-                {label:"Экспорт DOCX", sub:"Word документ", action:()=>{if(!isGuest){setTitlePageOpen("docx");setMenuOpen(false);}}, locked:isGuest, hidden:mode==="note",
-                  svg:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>},
-                {label:"Экспорт FDX",  sub:"Final Draft", action:()=>{if(!isGuest){setTitlePageOpen("fdx");setMenuOpen(false);}}, locked:isGuest, hidden:mode==="note"||mode==="media"||mode==="play"||mode==="short",
-                  svg:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="2" width="20" height="20" rx="3"/><line x1="7" y1="2" x2="7" y2="22"/><line x1="17" y1="2" x2="17" y2="22"/><line x1="2" y1="12" x2="22" y2="12"/></svg>},
-                {label:"Экспорт TXT",  sub:"Простой текст", action:()=>{if(!isGuest){setTitlePageOpen("txt");setMenuOpen(false);}}, locked:isGuest,
-                  svg:<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>},
-              ].map(({label,sub,action,locked,hidden,svg})=>( hidden ? null :
-                <button key={label} onClick={action} style={{
-                  display:"flex",alignItems:"flex-start",width:"100%",
-                  padding:"11px 20px",background:"transparent",border:"none",
-                  color:locked?"#f472b6":T1,fontSize:"13px",cursor:locked?"default":"pointer",fontFamily:"inherit",textAlign:"left",opacity:locked?0.5:1,
-                }}>
-                  <span style={{width:"20px",display:"flex",alignItems:"center",justifyContent:"center",color:locked?"#f472b6":T2,flexShrink:0,marginRight:"12px",paddingTop:"2px"}}>{svg}</span>
-                  <div style={{flex:1}}>
-                    <div>{label}</div>
-                    <div style={{color:locked?"#f472b6":T3,fontSize:"10px",marginTop:"2px"}}>{locked?"Войдите чтобы использовать":sub}</div>
-                  </div>
-                </button>
-              ))}
-              <button onClick={()=>openOpenFilePicker("whale-import-desk")} style={{
-                display:"flex",alignItems:"flex-start",width:"100%",
-                padding:"11px 20px",background:"transparent",border:"none",
-                color:T1,fontSize:"13px",cursor:"pointer",fontFamily:"inherit",textAlign:"left",
-              }}>
-                <span style={{width:"20px",display:"flex",alignItems:"center",justifyContent:"center",color:T2,flexShrink:0,marginRight:"12px",paddingTop:"2px"}}>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                </span>
-                <div><div>Открыть</div><div style={{color:T3,fontSize:"10px",marginTop:"2px"}}>{(mode==="film"?".whale / .fdx / .docx":".whale / .fdx")}</div></div>
-              </button>
-            </div>
-            {/* Секция: Режим */}
-            <div style={{padding:"12px 0",borderBottom:`1px solid ${T3}22`}}>
-              <div style={{padding:"4px 20px 8px",color:T3,fontSize:"9px",letterSpacing:"3px"}}>РЕЖИМ</div>
-              {MODES.map(m=>{
-                const locked = isGuest && m.id!=="note";
-                return (
-                  <button key={m.id} onClick={()=>{if(locked) return; switchMode(m.id);setMenuOpen(false);}} style={{
-                    display:"flex",alignItems:"center",width:"100%",
-                    padding:"11px 20px",background:mode===m.id?`${mc}18`:"transparent",border:"none",
-                    color:locked?"#f472b6":mode===m.id?mc:T1,fontSize:"13px",
-                    cursor:locked?"default":"pointer",fontFamily:"inherit",textAlign:"left",opacity:locked?0.5:1,
-                  }}>
-                    <span style={{fontSize:"16px",width:"20px",display:"flex",alignItems:"center",justifyContent:"center",marginRight:"12px",paddingTop:"1px",flexShrink:0}}>{m.icon}</span>
-                    {m.label}
-                    {mode===m.id && <span style={{marginLeft:"auto",color:mc}}>✓</span>}
-                  </button>
-                );
-              })}
-            </div>
-            {/* Прочее */}
-            <div style={{padding:"12px 0",borderTop:`1px solid ${T3}22`,marginTop:"auto"}}>
-              <div style={{padding:"4px 20px 8px",color:T3,fontSize:"9px",letterSpacing:"3px"}}>ПРОЧЕЕ</div>
-              <button onClick={goHome} style={{
-                display:"flex",alignItems:"center",width:"100%",
-                padding:"11px 20px",background:"transparent",border:"none",
-                color:T1,fontSize:"13px",cursor:"pointer",fontFamily:"inherit",textAlign:"left",
-              }}><span style={{fontSize:"16px",width:"20px",display:"flex",alignItems:"center",justifyContent:"center",marginRight:"12px",paddingTop:"1px",flexShrink:0}}>⏻</span>На главную</button>
-            </div>
-          </div>
-        </div>
+        <EditorSideMenu
+          variant="desktop"
+          accent={mc}
+          mode={mode}
+          isGuest={isGuest}
+          onClose={() => setMenuOpen(false)}
+          onNewProject={() => {
+            newProject();
+            setMenuOpen(false);
+          }}
+          onSave={saveNow}
+          onSaveAs={saveAs}
+          onOpenHistory={() => {
+            openProjectsList();
+            setMenuOpen(false);
+          }}
+          onExportPdf={() => {
+            setTitlePageOpen("pdf");
+            setMenuOpen(false);
+          }}
+          onExportDocx={() => {
+            if (!isGuest) {
+              setTitlePageOpen("docx");
+              setMenuOpen(false);
+            }
+          }}
+          onExportFdx={() => {
+            if (!isGuest) {
+              setTitlePageOpen("fdx");
+              setMenuOpen(false);
+            }
+          }}
+          onExportTxt={() => {
+            if (!isGuest) {
+              setTitlePageOpen("txt");
+              setMenuOpen(false);
+            }
+          }}
+          onOpenImportPicker={() => openOpenFilePicker("whale-import-desk")}
+          onImportFileChange={importWhale}
+          onSwitchMode={(id) => {
+            switchMode(id);
+            setMenuOpen(false);
+          }}
+          onGoHome={goHome}
+          showAdminLink={showAdminLink}
+        />
       )}
 
       {/* ══ DESKTOP: titlePageOpen ══ */}

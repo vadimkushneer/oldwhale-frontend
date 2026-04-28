@@ -1,4 +1,5 @@
 import type { CSSProperties, ReactNode, Ref } from "react";
+import { useId, useState } from "react";
 import { BG, SH_IN, T1, T2, T3 } from "../../../../ui/tokens";
 import { useAiModelSelector, type AiModelSelectorRowModel } from "./useAiModelSelector";
 import "./AiModelSelector.scss";
@@ -34,46 +35,69 @@ export function AiModelSelector({
   getVariantLabel: (providerId: string, variantId?: string) => string | undefined;
 }) {
   const { rows } = useAiModelSelector({ models, activeModelId, menuOpen });
+  const [listExpanded, setListExpanded] = useState(true);
+  const listRegionId = useId();
 
   return (
-    <div ref={rootRef} className="ai-model-selector" style={cssVars}>
-      <div className="ai-model-selector__heading">ИИ МОДЕЛИ</div>
-      {rows.map(({ model: m, expanded, active }) => {
-        const variantLabel = active ? getVariantLabel(m.id, activeVariantId) : undefined;
-        return (
-          <div key={m.id} className="ai-model-selector__list-item">
-            <button
-              type="button"
-              data-provider={m.id}
-              className={`ai-model-selector__row ${active ? "ai-model-selector__row--active" : ""}`}
-              onClick={() => onSelectProvider(m.id)}
-            >
-              <div className="ai-model-selector__row-inner">
-                <div className="ai-model-selector__left">
-                  <div className="ai-model-selector__dot" aria-hidden />
-                  <span className="ai-model-selector__label">{m.label}</span>
-                  <span className="ai-model-selector__role">{m.role}</span>
+    <div
+      ref={rootRef}
+      className={`ai-model-selector${listExpanded ? "" : " ai-model-selector--list-collapsed"}`}
+      style={cssVars}
+    >
+      <button
+        type="button"
+        className="ai-model-selector__heading-toggle"
+        aria-label="Список ИИ-моделей: показать или скрыть"
+        aria-expanded={listExpanded}
+        aria-controls={listRegionId}
+        onClick={() => setListExpanded((v) => !v)}
+      >
+        <span className="ai-model-selector__heading">ИИ МОДЕЛИ</span>
+        <span
+          className={`ai-model-selector__section-chevron ${listExpanded ? "ai-model-selector__section-chevron--open" : ""}`}
+          aria-hidden
+        >
+          ▾
+        </span>
+      </button>
+      <div id={listRegionId} className="ai-model-selector__list" hidden={!listExpanded}>
+        {rows.map(({ model: m, expanded, active }) => {
+          const variantLabel = active ? getVariantLabel(m.id, activeVariantId) : undefined;
+          return (
+            <div key={m.id} className="ai-model-selector__list-item">
+              <button
+                type="button"
+                data-provider={m.id}
+                className={`ai-model-selector__row ${active ? "ai-model-selector__row--active" : ""}`}
+                onClick={() => onSelectProvider(m.id)}
+              >
+                <div className="ai-model-selector__row-inner">
+                  <div className="ai-model-selector__left">
+                    <div className="ai-model-selector__dot" aria-hidden />
+                    <span className="ai-model-selector__label">{m.label}</span>
+                    <span className="ai-model-selector__role">{m.role}</span>
+                  </div>
+                  <div className="ai-model-selector__right">
+                    {active && variantLabel ? (
+                      <span className="ai-model-selector__variant-label">{variantLabel}</span>
+                    ) : null}
+                    {m.free && !expanded ? (
+                      <span className="ai-model-selector__free-badge">FREE</span>
+                    ) : null}
+                    <span
+                      className={`ai-model-selector__chevron ${expanded ? "ai-model-selector__chevron--open" : ""}`}
+                      aria-hidden
+                    >
+                      ▾
+                    </span>
+                  </div>
                 </div>
-                <div className="ai-model-selector__right">
-                  {active && variantLabel ? (
-                    <span className="ai-model-selector__variant-label">{variantLabel}</span>
-                  ) : null}
-                  {m.free && !expanded ? (
-                    <span className="ai-model-selector__free-badge">FREE</span>
-                  ) : null}
-                  <span
-                    className={`ai-model-selector__chevron ${expanded ? "ai-model-selector__chevron--open" : ""}`}
-                    aria-hidden
-                  >
-                    ▾
-                  </span>
-                </div>
-              </div>
-            </button>
-            {expanded ? renderVariantPicker(m.id) : null}
-          </div>
-        );
-      })}
+              </button>
+              {expanded ? renderVariantPicker(m.id) : null}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

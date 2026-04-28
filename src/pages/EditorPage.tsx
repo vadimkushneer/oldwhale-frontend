@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from "react";
-import { Link, Navigate, useLocation, useNavigate, useParams } from "react-router-dom";
+import { Navigate, useLocation, useNavigate, useParams } from "react-router-dom";
 import { MODES } from "../legacy/domain/blocks";
 import { EditorScreen } from "../legacy/routes/Editor";
 import { useAppDispatch, useAppSelector } from "../hooks";
@@ -159,28 +159,6 @@ export function EditorPage() {
 
   return (
     <div style={{ position: "relative", width: "100%", height: "100%" }}>
-      {user?.role === "admin" ? (
-        <Link
-          to="/admin"
-          style={{
-            position: "fixed",
-            top: 12,
-            right: 12,
-            zIndex: 2147483000,
-            fontFamily: "'Courier New',monospace",
-            fontSize: "10px",
-            letterSpacing: "2px",
-            color: "#7c6af7",
-            textDecoration: "none",
-            padding: "6px 10px",
-            background: "#1f2040",
-            boxShadow: "4px 4px 12px rgba(0,0,0,0.4), -2px -2px 7px rgba(255,255,255,0.032)",
-            borderRadius: "8px",
-          }}
-        >
-          АДМИН
-        </Link>
-      ) : null}
       <EditorScreen
         profile={profile}
         isGuest={Boolean(isGuest)}
@@ -189,6 +167,7 @@ export function EditorPage() {
         onLogin={onLogin}
         routeMode={resolvedMode}
         onModeRouteChange={onModeRouteChange}
+        showAdminLink={user?.role === "admin"}
       />
     </div>
   );

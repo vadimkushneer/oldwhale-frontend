@@ -96,6 +96,9 @@ export function AiChatLogsAdminPage() {
 
   const { data, isLoading, isFetching, error, refetch } = useListAiChatLogsQuery(queryParams, {
     skip: !token || user?.role !== "admin",
+    refetchOnMountOrArgChange: true,
+    refetchOnFocus: true,
+    refetchOnReconnect: true,
   });
 
   const onApply = useCallback(

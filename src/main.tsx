@@ -5,8 +5,11 @@ import { jsPDF } from "jspdf";
 import * as mammoth from "mammoth";
 import * as docx from "docx";
 import { Provider } from "react-redux";
+import { setupListeners } from "@reduxjs/toolkit/query/react";
 import { registerSW } from "virtual:pwa-register";
 import { store } from "./store";
+
+setupListeners(store.dispatch);
 import App from "./app/App";
 import "./legacy/global.css";
 import "./legacy/textarea-scrollbars.scss";

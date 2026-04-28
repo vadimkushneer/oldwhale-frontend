@@ -1,17 +1,19 @@
 import { useMemo } from "react";
-
-export type AiMessageListItem = {
-  key: number;
-  align: "user" | "assistant";
-  bubbleModifier: "user" | "ai" | "neutral";
-  borderLeftColor: string | undefined;
-  text: string;
-};
+import { aiMessageTypeFromRole, type ChatMessageType } from "../../../../domain/aiMessageTypes";
 
 export type AiMessageListMessage = {
+  id: string;
   role: string;
   text: string;
   model?: string;
+  modelVariant?: string;
+};
+
+export type AiMessageListRow = {
+  id: string;
+  type: ChatMessageType;
+  text: string;
+  accentColor?: string;
 };
 
 export function useAiMessageList({
@@ -20,18 +22,17 @@ export function useAiMessageList({
 }: {
   messages: readonly AiMessageListMessage[];
   getProviderColor: (modelId?: string) => string;
-}): { rows: AiMessageListItem[] } {
+}): { rows: AiMessageListRow[] } {
   const rows = useMemo(
     () =>
-      messages.map((m, i) => {
-        const isUser = m.role === "user";
+      messages.map((m) => {
+        const type = aiMessageTypeFromRole(m.role);
         const isAi = m.role === "ai";
         return {
-          key: i,
-          align: isUser ? ("user" as const) : ("assistant" as const),
-          bubbleModifier: isUser ? ("user" as const) : isAi ? ("ai" as const) : ("neutral" as const),
-          borderLeftColor: isAi ? getProviderColor(m.model) : undefined,
+          id: m.id,
+          type,
           text: m.text,
+          accentColor: isAi ? getProviderColor(m.model) : undefined,
         };
       }),
     [messages, getProviderColor],

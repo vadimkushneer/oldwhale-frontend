@@ -6,7 +6,11 @@ test.describe("editor / AI panel", () => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({ reply: "HELLO FROM OLD WHALE" }),
+        body: JSON.stringify({
+          reply: "HELLO FROM OLD WHALE",
+          userMessageId: "11111111-1111-4111-8111-111111111111",
+          assistantMessageId: "22222222-2222-4222-8222-222222222222",
+        }),
       });
     });
     await page.addInitScript(() => {
@@ -27,9 +31,9 @@ test.describe("editor / AI panel", () => {
     await page.locator(".ai-composer__flat-button--send").click();
 
     await expect(page.getByText("Hello e2e")).toBeVisible();
-    const lastAiBubble = page.locator(".ai-message-list__bubble--ai").last();
-    await expect(lastAiBubble).toBeVisible({ timeout: 12_000 });
-    const reply = await lastAiBubble.innerText();
+    const lastAiMsg = page.locator('article[data-chat-message-type="ai"]').last();
+    await expect(lastAiMsg).toBeVisible({ timeout: 12_000 });
+    const reply = await lastAiMsg.locator(".chat-message__body").innerText();
     expect(reply.trim()).toBe("HELLO FROM OLD WHALE");
 
     await page.getByTitle("Свернуть ИИ-панель").click();

@@ -1,0 +1,67 @@
+/*
+ * ChatMessage — BEM block `chat-message`.
+ * Uses CSS variables from ancestor `.ai-message-list` (--aml-*).
+ */
+
+.chat-message {
+  @apply mb-3;
+
+  &--selected .chat-message__bubble {
+    @apply ring-2 ring-[var(--aml-t3)] ring-opacity-60;
+  }
+
+  &__row {
+    @apply flex;
+
+    &--user {
+      @apply justify-end;
+    }
+
+    &--assistant {
+      @apply justify-start;
+    }
+  }
+
+  &__inner {
+    @apply flex max-w-[90%] items-stretch gap-0;
+  }
+
+  &__accent-swatch {
+    @apply mr-0.5 shrink-0 self-stretch;
+  }
+
+  &__bubble {
+    @apply min-w-0 flex-1 px-3 py-2 text-[11px] leading-[1.7];
+
+    &--user {
+      @apply rounded-[12px_12px_2px_12px] text-[var(--aml-t2)];
+      background: var(--aml-bg);
+      box-shadow: var(--aml-sh-sm);
+    }
+
+    &--ai {
+      @apply rounded-[12px_12px_12px_2px] text-[var(--aml-t1)];
+      background: var(--aml-surf);
+      box-shadow: var(--aml-sh-sm);
+    }
+
+    &--sys {
+      @apply rounded-[12px_12px_12px_2px] text-[var(--aml-t1)];
+      background: var(--aml-surf);
+      box-shadow: var(--aml-sh-sm);
+    }
+  }
+
+  &__body {
+    @apply whitespace-pre-wrap break-words;
+  }
+
+  &__toolbar {
+    @apply mt-1.5 flex justify-end gap-1;
+  }
+
+  &__delete {
+    @apply rounded px-1.5 py-0.5 text-[9px] uppercase tracking-wide text-[var(--aml-t3)] transition-colors;
+    @apply hover:text-[var(--aml-t1)] focus:outline-none focus-visible:ring-1 focus-visible:ring-[var(--aml-t3)];
+  }
+}

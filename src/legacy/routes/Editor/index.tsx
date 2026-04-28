@@ -62,6 +62,7 @@ import {
   formatAiChatStamp,
   getAiSpeakerLabel,
   buildAiPreviewText,
+  newAiMessageId,
 } from "../../domain/ai";
 import {
   SCENE_CARD_COLOR_OPTIONS,
@@ -94,6 +95,7 @@ import {
 import { PlayHeaderEditor } from "./PlayHeader";
 import { AiComposer } from "./AiComposer";
 import { AiPanel } from "./AiPanel";
+import { AiMessageList } from "./AiPanel/AiMessageList/AiMessageList";
 import { LeftSidebar } from "./LeftSidebar/LeftSidebar";
 import { MarkerContextMenu } from "./MarkerContextMenu";
 import { EditorDocument } from "./EditorDocument/EditorDocument";
@@ -143,6 +145,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
   const [credits, setCredits]         = useState(340);
   const [aiIn, setAiIn]               = useState("");
   const [msgs, setMsgs]               = useState(()=>cloneAiMessages(aiStoreSeedRef.current.current.messages));
+  const [aiSelectedMessageIds, setAiSelectedMessageIds] = useState(() => new Set());
   const [aiHistory, setAiHistory]     = useState(()=>aiStoreSeedRef.current.history || []);
   const [aiHistoryOpen, setAiHistoryOpen] = useState(false);
   const [aiPreviewChat, setAiPreviewChat] = useState(null);
@@ -4518,6 +4521,28 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
     clearAiModelMenuTimer();
     aiModelMenuTimerRef.current = setTimeout(()=>setAiModelMenuOpen(false), 60000);
   };
+  const toggleAiMessageSelect = useCallback((id, e) => {
+    setAiSelectedMessageIds((prev) => {
+      if (e.metaKey || e.ctrlKey) {
+        const next = new Set(prev);
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+        return next;
+      }
+      if (prev.size === 1 && prev.has(id)) return new Set();
+      return new Set([id]);
+    });
+  }, []);
+
+  const deleteAiMessageById = useCallback((id) => {
+    setMsgs((p) => p.filter((m) => m.id !== id));
+    setAiSelectedMessageIds((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+  }, []);
+
   const getCurrentAiChat = () => normalizeAiChat({
     id: aiChatId,
     createdAt: aiChatCreatedAt,
@@ -4541,6 +4566,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
     setAiChatId(makeAiChatId());
     setAiChatCreatedAt(now);
     setMsgs([makeAiGreeting()]);
+    setAiSelectedMessageIds(new Set());
     setAiIn("");
     setAiLoad(false);
     setAiHistoryOpen(false);
@@ -4630,7 +4656,11 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
     const queuedFiles = aiPendingFiles.slice();
     const userText = buildAiUserVisibleText(aiIn, queuedFiles);
     if (!m.free && credits<10) {
-      setMsgs(p=>[...p,{role:"user",text:userText},{role:"ai",text:"Недостаточно кредитов.",model:aiMod,modelVariant:aiModelVariant}]);
+      setMsgs((p)=>[
+        ...p,
+        { id: newAiMessageId(), role: "user", text: userText },
+        { id: newAiMessageId(), role: "ai", text: "Недостаточно кредитов.", model: aiMod, modelVariant: aiModelVariant },
+      ]);
       setAiIn("");
       setAiPendingFiles([]);
       return;
@@ -4639,7 +4669,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
     const modelAtSend = aiMod;
     const modelVariantAtSend = aiModelVariant;
     const chatIdAtSend = aiChatId;
-    setMsgs(p=>[...p,{role:"user",text:userText}]);
+    setMsgs((p) => [...p, { id: newAiMessageId(), role: "user", text: userText }]);
     setAiIn("");
     setAiPendingFiles([]);
     setAiLoad(true);
@@ -4668,18 +4698,62 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
           const j = await res.json();
           if (j && j.error) errMsg = String(j.error);
         } catch (e) {}
-        setMsgs(p=>[...p,{role:"ai",text:errMsg,model:modelAtSend,modelVariant:modelVariantAtSend}]);
+        setMsgs((p) => [
+          ...p,
+          {
+            id: newAiMessageId(),
+            role: "ai",
+            text: errMsg,
+            model: modelAtSend,
+            modelVariant: modelVariantAtSend,
+          },
+        ]);
         return;
       }
       const data = await res.json();
       const reply = typeof data?.reply === "string" ? data.reply : "";
+      const userMessageId =
+        typeof data?.userMessageId === "string" && data.userMessageId ? data.userMessageId : newAiMessageId();
+      const assistantMessageId =
+        typeof data?.assistantMessageId === "string" && data.assistantMessageId
+          ? data.assistantMessageId
+          : newAiMessageId();
       if (chatIdAtSend !== aiChatIdRef.current) return;
-      setMsgs(p=>[...p,{role:"ai",text:reply,model:modelAtSend,modelVariant:modelVariantAtSend}]);
+      setMsgs((p) => {
+        const next = [...p];
+        let lastUser = -1;
+        for (let i = next.length - 1; i >= 0; i--) {
+          if (next[i].role === "user") {
+            lastUser = i;
+            break;
+          }
+        }
+        if (lastUser >= 0) {
+          next[lastUser] = { ...next[lastUser], id: userMessageId };
+        }
+        next.push({
+          id: assistantMessageId,
+          role: "ai",
+          text: reply,
+          model: modelAtSend,
+          modelVariant: modelVariantAtSend,
+        });
+        return next;
+      });
       if (!m.free) setCredits(c=>Math.max(0,c-12));
     } catch (e) {
       if (e && e.name === "AbortError") return;
       if (chatIdAtSend !== aiChatIdRef.current) return;
-      setMsgs(p=>[...p,{role:"ai",text:"Не удалось связаться с сервером.",model:modelAtSend,modelVariant:modelVariantAtSend}]);
+      setMsgs((p) => [
+        ...p,
+        {
+          id: newAiMessageId(),
+          role: "ai",
+          text: "Не удалось связаться с сервером.",
+          model: modelAtSend,
+          modelVariant: modelVariantAtSend,
+        },
+      ]);
     } finally {
       if (aiChatAbortRef.current === ac) aiChatAbortRef.current = null;
       if (chatIdAtSend === aiChatIdRef.current) setAiLoad(false);
@@ -6848,19 +6922,16 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
                 </div>
                 {aiModelMenuOpen && renderAiVariantPicker(aiMod, true)}
               </div>
-              <div style={{flex:1,minHeight:0,overflow:"auto",padding:"8px 12px",display:"flex",flexDirection:"column"}}>
-                {msgs.map((m,i)=>(
-                  <div key={i} style={{display:"flex",justifyContent:m.role==="user"?"flex-end":"flex-start"}}>
-                    <div style={{maxWidth:"85%",padding:"10px 14px",background:m.role==="user"?BG:SURF,boxShadow:SH_SM,
-                      borderRadius:m.role==="user"?"14px 14px 2px 14px":"14px 14px 14px 2px",
-                      borderLeft:m.role==="ai"?`2px solid ${getAiProvider(m.model).color||T3}`:"none",
-                      fontSize:"13px",lineHeight:"1.7",color:m.role==="user"?T2:T1}}>
-                      {m.text}
-                    </div>
-                  </div>
-                ))}
-                {aiLoad && <div style={{display:"flex",alignItems:"center"}}><Whale size={20}/><span style={{color:T3,fontSize:"11px"}}>ДУМАЕТ...</span></div>}
-                <div ref={msgEnd}/>
+              <div className="flex min-h-0 flex-1 flex-col px-3 py-2">
+                <AiMessageList
+                  messages={msgs}
+                  loading={aiLoad}
+                  endRef={msgEnd}
+                  getProviderColor={(id) => getAiProvider(id).color || T3}
+                  selectedMessageIds={aiSelectedMessageIds}
+                  onToggleMessageSelect={toggleAiMessageSelect}
+                  onDeleteMessage={deleteAiMessageById}
+                />
               </div>
               <div style={{padding:"10px 12px",flexShrink:0}}>
                 <div ref={aiHistoryLayerRef} style={{position:"relative"}}>
@@ -8797,6 +8868,9 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
           loading={aiLoad}
           messagesEndRef={msgEnd}
           getProviderColor={(id) => getAiProvider(id).color || T3}
+          selectedMessageIds={aiSelectedMessageIds}
+          onToggleMessageSelect={toggleAiMessageSelect}
+          onDeleteMessage={deleteAiMessageById}
           accent={mc}
           creditsLabel={getAiProvider(aiMod).free ? "БЕСПЛАТНО" : "≈ 12 КРЕДИТОВ"}
           composer={

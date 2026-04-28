@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactNode, Ref } from "react";
+import type { CSSProperties, MouseEvent, ReactNode, Ref } from "react";
 import { AiMessageList, type AiMessageListMessage } from "./AiMessageList";
 import { AiModelSelector, type AiModelSelectorRowModel } from "./AiModelSelector";
 import { useAiPanel } from "./useAiPanel";
@@ -48,6 +48,9 @@ export function AiPanel({
   loading,
   messagesEndRef,
   getProviderColor,
+  selectedMessageIds,
+  onToggleMessageSelect,
+  onDeleteMessage,
   composer,
   creditsLabel,
   previewOverlay,
@@ -72,6 +75,9 @@ export function AiPanel({
   loading: boolean;
   messagesEndRef: Ref<HTMLDivElement>;
   getProviderColor: (modelId?: string) => string;
+  selectedMessageIds: ReadonlySet<string>;
+  onToggleMessageSelect: (id: string, event: MouseEvent) => void;
+  onDeleteMessage: (id: string) => void;
   composer: ReactNode;
   creditsLabel: string;
   previewOverlay?: ReactNode;
@@ -122,6 +128,9 @@ export function AiPanel({
           loading={loading}
           endRef={messagesEndRef}
           getProviderColor={getProviderColor}
+          selectedMessageIds={selectedMessageIds}
+          onToggleMessageSelect={onToggleMessageSelect}
+          onDeleteMessage={onDeleteMessage}
         />
 
         <div className="ai-panel__composer-wrap">

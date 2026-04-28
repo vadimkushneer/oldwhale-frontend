@@ -59,6 +59,8 @@ export interface AiChatRequest {
 
 export interface AiChatResponse {
   reply: string;
+  userMessageId: string;
+  assistantMessageId: string;
 }
 
 /** Admin nested variant row */

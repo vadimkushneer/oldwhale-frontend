@@ -1,4 +1,8 @@
 // @ts-nocheck
+import { ensureAiMessageId, newAiMessageId } from "./aiMessageTypes";
+
+export { aiMessageTypeFromRole, ensureAiMessageId, newAiMessageId } from "./aiMessageTypes";
+
 /**
  * AI provider catalog + chat-store helpers.
  *
@@ -133,11 +137,15 @@ export const getAiModelDisplayLabel = (providerId=AI_DEFAULT_MODEL, variantId, o
   if (!variant?.label) return provider?.label || "ИИ";
   return withProvider ? `${provider.label} · ${variant.label}` : variant.label;
 };
-export const makeAiGreeting = () => ({ role:"sys", text:"Привет. Готов помочь с твоим сценарием. Что хочешь улучшить?" });
+export const makeAiGreeting = () => ({
+  id: newAiMessageId(),
+  role: "sys",
+  text: "Привет. Готов помочь с твоим сценарием. Что хочешь улучшить?",
+});
 export const makeAiChatId = () => `aichat_${Date.now().toString(36)}_${Math.random().toString(36).slice(2,8)}`;
 export const cloneAiMessages = (messages) => {
   const safe = Array.isArray(messages)
-    ? messages.filter(m=>m && typeof m.text === "string").map(m=>({ ...m }))
+    ? messages.filter(m=>m && typeof m.text === "string").map(m=>ensureAiMessageId({ ...m }))
     : [];
   return safe.length ? safe : [makeAiGreeting()];
 };

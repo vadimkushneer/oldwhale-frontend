@@ -1,10 +1,18 @@
 /* BEM block `ai-chat-logs-admin` — page shell */
 .ai-chat-logs-admin {
-  @apply box-border min-h-screen bg-[#1a1b2e] px-5 pb-10 pt-6 font-mono text-[#e4e1f5];
+  @apply box-border flex h-[100dvh] max-h-[100dvh] flex-col overflow-hidden bg-[#1a1b2e] px-5 pb-10 pt-6 font-mono text-[#e4e1f5];
 }
 
 .ai-chat-logs-admin__inner {
-  @apply mx-auto max-w-[1400px];
+  @apply mx-auto flex w-full max-w-[1400px] flex-1 min-h-0 flex-col overflow-hidden;
+}
+
+.ai-chat-logs-admin__table-region {
+  @apply flex min-h-0 flex-1 flex-col overflow-hidden;
+}
+
+.ai-chat-logs-admin__inner > :not(.ai-chat-logs-admin__table-region) {
+  @apply shrink-0;
 }
 
 .ai-chat-logs-admin__stats {

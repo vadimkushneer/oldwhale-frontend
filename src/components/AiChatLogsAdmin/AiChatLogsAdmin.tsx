@@ -59,11 +59,13 @@ export function AiChatLogsAdmin() {
           onToggleColumn={vm.onToggleColumn}
         />
 
-        <AiChatLogsAdminTable
-          rows={vm.rows}
-          columnVisibility={vm.columnVisibility}
-          isLoading={vm.isLoading}
-        />
+        <div className="ai-chat-logs-admin__table-region">
+          <AiChatLogsAdminTable
+            rows={vm.rows}
+            columnVisibility={vm.columnVisibility}
+            isLoading={vm.isLoading}
+          />
+        </div>
 
         <AiChatLogsAdminPagination
           page={vm.page}

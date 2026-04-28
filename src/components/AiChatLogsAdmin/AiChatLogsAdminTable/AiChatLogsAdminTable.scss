@@ -1,6 +1,6 @@
-/* BEM block `ai-chat-logs-admin-table` — wrapper scroll */
+/* BEM block `ai-chat-logs-admin-table` — wrapper scroll (see `ow-app-scrollbar` in TSX) */
 .ai-chat-logs-admin-table-scroll {
-  @apply overflow-x-auto rounded-2xl bg-[#1f2040] p-3;
+  @apply min-h-0 flex-1 overflow-auto rounded-2xl bg-[#1f2040] p-3;
   box-shadow:
     8px 8px 22px rgba(0, 0, 0, 0.5),
     -4px -4px 12px rgba(255, 255, 255, 0.038);
@@ -10,8 +10,9 @@
   @apply text-[11px] text-[#5a587a];
 }
 
+/* `border-separate` so `position: sticky` on `th` works reliably (collapse breaks sticky in WebKit). */
 .ai-chat-logs-admin-table__grid {
-  @apply w-full border-collapse text-[10px];
+  @apply w-full border-separate border-spacing-0 text-[10px];
 }
 
 .ai-chat-logs-admin-table__head-row {
@@ -22,11 +23,19 @@
   @apply p-2;
 }
 
+.ai-chat-logs-admin-table__grid thead .ai-chat-logs-admin-table__th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background-color: #1f2040;
+  box-shadow: inset 0 -1px 0 #1a1b2e;
+}
+
 .ai-chat-logs-admin-table__th--nowrap {
   @apply whitespace-nowrap;
 }
 
-.ai-chat-logs-admin-table__row {
+.ai-chat-logs-admin-table__grid tbody .ai-chat-logs-admin-table__row td {
   border-top: 1px solid #1a1b2e;
 }
 

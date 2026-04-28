@@ -13,7 +13,7 @@ export function AiChatLogsAdminTable({ rows, columnVisibility, isLoading }: AiCh
   const c = useAiChatLogsAdminTable();
 
   return (
-    <div className={c.scrollClassName}>
+    <div className={`${c.scrollClassName} ow-app-scrollbar`}>
       {isLoading ? (
         <div className={c.loadingClassName}>ЗАГРУЗКА…</div>
       ) : (

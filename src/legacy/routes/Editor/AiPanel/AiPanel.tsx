@@ -127,6 +127,7 @@ export function AiPanel({
           messages={messages}
           loading={loading}
           endRef={messagesEndRef}
+          composerHeight={composerHeight}
           getProviderColor={getProviderColor}
           selectedMessageIds={selectedMessageIds}
           onToggleMessageSelect={onToggleMessageSelect}

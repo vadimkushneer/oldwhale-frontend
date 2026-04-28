@@ -4981,8 +4981,6 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
 
   useEffect(()=>()=>{ aiChatAbortRef.current?.abort(); clearAiModelMenuTimer(); },[]);
 
-  useEffect(()=>{ msgEnd.current?.scrollIntoView({behavior:"smooth"}); },[msgs]);
-
   useEffect(()=>{
     const el = sceneListRef.current;
     if (!el) return;

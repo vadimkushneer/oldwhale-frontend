@@ -11,6 +11,7 @@ import {
   usePatchAiVariantMutation,
   useReorderAiGroupsMutation,
   useReorderAiVariantsMutation,
+  useVerifyAdminEnvVarMutation,
 } from "../features/ai-catalog/aiCatalogApi";
 import { useAppSelector } from "../hooks";
 import { useOnlineStatus } from "../hooks/useOnlineStatus";
@@ -68,6 +69,11 @@ const inputBaseClassName = cx(
   "disabled:cursor-not-allowed disabled:opacity-60",
 );
 const inputClassName = cx(inputBaseClassName, "text-[11px]");
+const apiKeyInputShellClassName = cx(
+  "relative w-full min-w-0 overflow-hidden rounded-lg border-0 bg-[#1a1b2e]",
+  insetShadowClassName,
+  "focus-within:outline-none focus-within:ring-1 focus-within:ring-[#7c6af7]",
+);
 const denseInputClassName = cx(inputBaseClassName, "min-w-0 text-[10px]");
 const buttonBaseClassName = cx(
   "inline-flex cursor-pointer items-center justify-center border-0 font-mono transition-colors duration-150",
@@ -521,6 +527,9 @@ export function AiModelsAdminPage() {
   );
 }
 
+const envVarIconButtonClassName =
+  "flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-[#ffffff14] bg-[#232438] text-[15px] leading-none text-[#e4e1f5] transition-colors hover:border-[#7c6af766] disabled:pointer-events-none disabled:opacity-35";
+
 function GroupRow({
   group,
   busy,
@@ -545,8 +554,15 @@ function GroupRow({
   const [color, setColor] = useState(group.color);
   const [free, setFree] = useState(group.free);
   const [apiKey, setApiKey] = useState(group.apiKey ?? "");
+  const [envPreview, setEnvPreview] = useState(false);
+  const [resolvedValue, setResolvedValue] = useState<string | null>(null);
+  const [revealValue, setRevealValue] = useState(false);
+  type VerifyUi = "idle" | "loading" | "ok" | "missing" | "error";
+  const [verifyUi, setVerifyUi] = useState<VerifyUi>("idle");
   const colorInputRef = useRef<HTMLInputElement>(null);
   const apiKeyFieldId = useId();
+  const [verifyEnv, verifyEnvState] = useVerifyAdminEnvVarMutation();
+  const verifyLoading = verifyEnvState.isLoading;
 
   useEffect(() => {
     setSlug(group.slug);
@@ -555,7 +571,64 @@ function GroupRow({
     setColor(group.color);
     setFree(group.free);
     setApiKey(group.apiKey ?? "");
+    setEnvPreview(false);
+    setResolvedValue(null);
+    setRevealValue(false);
+    setVerifyUi("idle");
   }, [group.id, group.slug, group.label, group.role, group.color, group.free, group.apiKey]);
+
+  const resetEnvVerify = useCallback(() => {
+    setEnvPreview(false);
+    setResolvedValue(null);
+    setRevealValue(false);
+    setVerifyUi("idle");
+  }, []);
+
+  const onApiKeyNameChange = useCallback(
+    (v: string) => {
+      setApiKey(v);
+      resetEnvVerify();
+    },
+    [resetEnvVerify],
+  );
+
+  const runVerify = useCallback(async () => {
+    const name = apiKey.trim();
+    if (!name || busy) return;
+    setVerifyUi("loading");
+    try {
+      const r = await verifyEnv({ name }).unwrap();
+      if (r.found) {
+        setResolvedValue(r.value ?? "");
+        setEnvPreview(true);
+        setRevealValue(true);
+        setVerifyUi("ok");
+      } else {
+        setEnvPreview(false);
+        setResolvedValue(null);
+        setRevealValue(false);
+        setVerifyUi("missing");
+      }
+    } catch {
+      setEnvPreview(false);
+      setResolvedValue(null);
+      setRevealValue(false);
+      setVerifyUi("error");
+    }
+  }, [apiKey, busy, verifyEnv]);
+
+  const verifyEmoji =
+    verifyUi === "loading" || verifyLoading
+      ? "⏳"
+      : verifyUi === "ok"
+        ? "✅"
+        : verifyUi === "missing" || verifyUi === "error"
+          ? "❌"
+          : "🔎";
+
+  /** After verify, toggle between env var name (false) and resolved value from server (true). */
+  const envPreviewShowsValue = envPreview && revealValue;
+  const envKeyInputValue = envPreview ? (revealValue ? (resolvedValue ?? "") : apiKey) : apiKey;
 
   const hasUnsavedChanges = useMemo(() => {
     return (
@@ -645,22 +718,94 @@ function GroupRow({
             className="ai-models-admin__group-editor-label ai-models-admin__group-editor-label--api-key text-[9px] tracking-[1px] text-[#5a587a]"
             htmlFor={apiKeyFieldId}
           >
-            КЛЮЧ API
+            Переменная окружения, содержащая ключ API
           </label>
-          <input
-            id={apiKeyFieldId}
-            type="password"
+          <div
             className={cx(
-              "ai-models-admin__group-editor-input ai-models-admin__group-editor-input--api-key",
-              inputClassName,
+              "ai-models-admin__group-editor-api-key-wrap",
+              apiKeyInputShellClassName,
             )}
-            value={apiKey}
-            onChange={(e) => setApiKey(e.target.value)}
-            placeholder="Секретный ключ провайдера (sk-...)"
-            autoComplete="off"
-            spellCheck={false}
-            disabled={busy}
-          />
+          >
+            <div
+              className="pointer-events-none absolute inset-y-0 left-0 z-[1] flex w-9 shrink-0 items-center justify-center text-[15px] leading-none"
+              aria-hidden={apiKey.trim() === ""}
+            >
+              {apiKey.trim() !== "" ? (
+                <span className="select-none" aria-live="polite">
+                  {verifyEmoji}
+                </span>
+              ) : null}
+            </div>
+            <input
+              id={apiKeyFieldId}
+              type="text"
+              className={cx(
+                "ai-models-admin__group-editor-input ai-models-admin__group-editor-input--api-key min-w-0 w-full border-0 bg-transparent py-2 pl-9 font-mono text-[11px] text-[#e4e1f5] caret-[#7c6af7] outline-none ring-0 placeholder:text-[#5a587a]",
+                "focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0",
+                "disabled:cursor-not-allowed disabled:opacity-60",
+                envPreview ? "pr-[6.75rem]" : "pr-12",
+              )}
+              value={envKeyInputValue}
+              onChange={
+                envPreviewShowsValue
+                  ? undefined
+                  : (e) => {
+                      onApiKeyNameChange(e.target.value);
+                    }
+              }
+              onKeyDown={(e) => {
+                if (e.key !== "Enter") return;
+                e.preventDefault();
+                if (busy || verifyLoading || apiKey.trim() === "" || envPreviewShowsValue) return;
+                void runVerify();
+              }}
+              placeholder="название переменной окружения"
+              autoComplete="off"
+              spellCheck={false}
+              readOnly={envPreviewShowsValue}
+              disabled={busy}
+            />
+            <div className="pointer-events-none absolute inset-y-0 right-0 flex w-max items-center gap-0.5 pr-1">
+              <div className="pointer-events-auto flex items-center gap-0.5">
+                {envPreview ? (
+                  <>
+                    <button
+                      type="button"
+                      className={envVarIconButtonClassName}
+                      title={
+                        revealValue
+                          ? "Показать имя переменной окружения"
+                          : "Показать значение из окружения сервера"
+                      }
+                      disabled={busy || verifyLoading}
+                      onClick={() => setRevealValue((x) => !x)}
+                    >
+                      {revealValue ? "🙈" : "👁️"}
+                    </button>
+                    <button
+                      type="button"
+                      className={envVarIconButtonClassName}
+                      title="Редактировать имя переменной"
+                      disabled={busy || verifyLoading}
+                      onClick={resetEnvVerify}
+                    >
+                      ✏️
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    className={envVarIconButtonClassName}
+                    title="Проверить переменную окружения на сервере"
+                    disabled={busy || verifyLoading || apiKey.trim() === ""}
+                    onClick={() => void runVerify()}
+                  >
+                    🔎
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
       <label className="ai-models-admin__group-editor-toggle flex items-center gap-1.5 text-[10px] text-[#9896b8]">

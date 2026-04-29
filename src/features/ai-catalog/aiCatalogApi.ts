@@ -2,6 +2,8 @@ import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 import { clearAuth } from "../auth/authSlice";
 import { apiBaseUrl } from "../../api/env";
 import type {
+  AdminEnvLookupRequest,
+  AdminEnvLookupResponse,
   AiCatalogPublicResponse,
   AiGroupAdmin,
   AiGroupListAdminResponse,
@@ -39,6 +41,9 @@ export const aiCatalogApi = createApi({
       query: () => ({ url: "/api/admin/ai/groups", method: "GET" }),
       transformResponse: (r: AiGroupListAdminResponse) => r.groups,
       providesTags: () => [{ type: "AiAdminGroups", id: "LIST" }],
+    }),
+    verifyAdminEnvVar: build.mutation<AdminEnvLookupResponse, AdminEnvLookupRequest>({
+      query: (body) => ({ url: "/api/admin/ai/env-lookup", method: "POST", body }),
     }),
     createAiGroup: build.mutation<
       AiGroupAdmin,
@@ -158,6 +163,7 @@ export const {
   useGetPublicCatalogQuery,
   useLazyGetPublicCatalogQuery,
   useGetAdminAiGroupsQuery,
+  useVerifyAdminEnvVarMutation,
   useCreateAiGroupMutation,
   usePatchAiGroupMutation,
   useDeleteAiGroupMutation,

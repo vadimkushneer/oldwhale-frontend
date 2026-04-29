@@ -122,6 +122,16 @@ export interface AiReorderRequest {
   ids: number[];
 }
 
+/** Admin `POST /api/admin/ai/env-lookup` */
+export interface AdminEnvLookupRequest {
+  name: string;
+}
+
+export interface AdminEnvLookupResponse {
+  found: boolean;
+  value?: string;
+}
+
 /** Admin `GET /api/admin/ai/chat-logs` */
 export interface AiChatLogUser {
   id: number;

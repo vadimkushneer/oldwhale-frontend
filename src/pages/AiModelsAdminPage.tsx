@@ -240,19 +240,19 @@ export function AiModelsAdminPage() {
   }
 
   return (
-    <div className="ai-models-admin min-h-screen bg-[#1a1b2e] px-5 pb-10 pt-6 font-mono text-[#e4e1f5]">
-      <div className="ai-models-admin__container mx-auto max-w-[1100px]">
+    <div className="ai-models-admin flex h-[100dvh] max-h-[100dvh] flex-col overflow-hidden bg-[#1a1b2e] px-5 pb-10 pt-6 font-mono text-[#e4e1f5]">
+      <div className="ai-models-admin__container mx-auto flex w-full max-w-[1100px] flex-1 min-h-0 flex-col overflow-hidden">
         {!online ? (
           <div
             className={cx(
-              "ai-models-admin__status-banner ai-models-admin__status-banner--offline mb-4 rounded-xl bg-[#1f2040] px-[14px] py-[10px] text-[11px] tracking-[1px] text-[#f472b6]",
+              "ai-models-admin__status-banner ai-models-admin__status-banner--offline mb-4 shrink-0 rounded-xl bg-[#1f2040] px-[14px] py-[10px] text-[11px] tracking-[1px] text-[#f472b6]",
               surfaceShadowClassName,
             )}
           >
             НЕТ ПОДКЛЮЧЕНИЯ — ОПЕРАЦИИ НЕДОСТУПНЫ
           </div>
         ) : null}
-        <div className="ai-models-admin__toolbar mb-5 flex flex-wrap items-center justify-between gap-3">
+        <div className="ai-models-admin__toolbar mb-5 flex shrink-0 flex-wrap items-center justify-between gap-3">
           <div className="ai-models-admin__title text-[12px] tracking-[4px]">
             АДМИН · ИИ МОДЕЛИ
           </div>
@@ -278,22 +278,22 @@ export function AiModelsAdminPage() {
           </div>
         </div>
 
-        <div className="ai-models-admin__content grid grid-cols-2 items-start gap-4">
+        <div className="ai-models-admin__content grid min-h-0 flex-1 grid-cols-2 grid-rows-[minmax(0,1fr)] items-stretch gap-4 overflow-hidden">
           <div
             className={cx(
-              "ai-models-admin__panel ai-models-admin__panel--groups",
+              "ai-models-admin__panel ai-models-admin__panel--groups flex min-h-0 flex-col overflow-hidden",
               panelClassName,
             )}
           >
-            <div className="ai-models-admin__panel-title mb-3 text-[10px] tracking-[2px] text-[#5a587a]">
+            <div className="ai-models-admin__panel-title mb-3 shrink-0 text-[10px] tracking-[2px] text-[#5a587a]">
               ГРУППЫ (ПРОВАЙДЕРЫ)
             </div>
             {isLoading ? (
-              <div className="ai-models-admin__loading-state text-[11px] text-[#5a587a]">
+              <div className="ai-models-admin__loading-state shrink-0 text-[11px] text-[#5a587a]">
                 ЗАГРУЗКА…
               </div>
             ) : (
-              <div className="ai-models-admin__groups-list flex flex-col gap-2">
+              <div className="ai-models-admin__groups-list ow-app-scrollbar flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto">
                 {groups.map((g) => (
                   <AiGroupCard
                     key={g.id}
@@ -326,7 +326,7 @@ export function AiModelsAdminPage() {
             )}
             <form
               onSubmit={onCreateGroup}
-              className="ai-models-admin__group-create-form mt-4 grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-2"
+              className="ai-models-admin__group-create-form mt-4 shrink-0 grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-2"
             >
               <input
                 className={cx(
@@ -366,27 +366,27 @@ export function AiModelsAdminPage() {
 
           <div
             className={cx(
-              "ai-models-admin__panel ai-models-admin__panel--variants min-h-[320px]",
+              "ai-models-admin__panel ai-models-admin__panel--variants flex min-h-0 flex-col overflow-hidden",
               panelClassName,
             )}
           >
-            <div className="ai-models-admin__panel-title mb-3 text-[10px] tracking-[2px] text-[#5a587a]">
+            <div className="ai-models-admin__panel-title mb-3 shrink-0 text-[10px] tracking-[2px] text-[#5a587a]">
               ВАРИАНТЫ
             </div>
             {!selected ? (
-              <div className="ai-models-admin__empty-state text-[11px] text-[#9896b8]">
+              <div className="ai-models-admin__empty-state shrink-0 text-[11px] text-[#9896b8]">
                 Выберите группу слева
               </div>
             ) : (
               <>
-                <div className="ai-models-admin__variants-group mb-3 text-[11px] text-[#9896b8]">
+                <div className="ai-models-admin__variants-group mb-3 shrink-0 text-[11px] text-[#9896b8]">
                   Группа:{" "}
                   <span className="ai-models-admin__variants-group-label text-[#e4e1f5]">
                     {selected.label}
                   </span>{" "}
                   ({selected.slug})
                 </div>
-                <div className="ai-models-admin__variants-list flex flex-col gap-2">
+                <div className="ai-models-admin__variants-list ow-app-scrollbar flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto">
                   {selectedVariants.map((v) => (
                     <div
                       key={v.id}
@@ -476,7 +476,7 @@ export function AiModelsAdminPage() {
                 </div>
                 <form
                   onSubmit={onCreateVariant}
-                  className="ai-models-admin__variant-create-form mt-3.5 grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-2"
+                  className="ai-models-admin__variant-create-form mt-3.5 shrink-0 grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-2"
                 >
                   <input
                     className={cx(

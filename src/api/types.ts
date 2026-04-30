@@ -132,6 +132,31 @@ export interface AdminEnvLookupResponse {
   value?: string;
 }
 
+/** Admin `GET /api/admin/ai/model-providers` */
+export interface AiModelProvider {
+  id: string;
+  label: string;
+  modelsUrl: string;
+}
+
+export interface AiModelProviderListResponse {
+  providers: AiModelProvider[];
+}
+
+/** Admin `POST /api/admin/ai/groups/{groupId}/models/import` */
+export interface AiModelsImportRequest {
+  groupId: number;
+  providerId: string;
+  modelsUrl: string;
+  envVarName: string;
+}
+
+export interface AiModelsImportResponse {
+  group: AiGroupAdmin;
+  imported: number;
+  modelsUrl: string;
+}
+
 /** Admin `GET /api/admin/ai/chat-logs` */
 export interface AiChatLogUser {
   id: number;

@@ -7,6 +7,8 @@ import {
   useDeleteAiGroupMutation,
   useDeleteAiVariantMutation,
   useGetAdminAiGroupsQuery,
+  useGetAdminAiModelProvidersQuery,
+  useImportAdminAiModelsMutation,
   usePatchAiGroupMutation,
   usePatchAiVariantMutation,
   useReorderAiGroupsMutation,
@@ -49,6 +51,17 @@ function hexForSwatch(raw: string): string | undefined {
 
 function cx(...parts: Array<string | false | null | undefined>) {
   return parts.filter(Boolean).join(" ");
+}
+
+function isValidHttpUrl(raw: string): boolean {
+  const s = raw.trim();
+  if (!s) return false;
+  try {
+    const u = new URL(s);
+    return (u.protocol === "http:" || u.protocol === "https:") && u.hostname.trim() !== "";
+  } catch {
+    return false;
+  }
 }
 
 const surfaceShadowClassName =
@@ -108,6 +121,7 @@ export function AiModelsAdminPage() {
   const online = useOnlineStatus();
   const { data: rawGroups = [], isLoading, refetch } = useGetAdminAiGroupsQuery(undefined, {
     skip: !token || user?.role !== "admin",
+    refetchOnFocus: false,
   });
   const groups = useMemo(() => sortGroups(rawGroups), [rawGroups]);
 
@@ -392,7 +406,7 @@ export function AiModelsAdminPage() {
                   </span>{" "}
                   ({selected.slug})
                 </div>
-                <div className="ai-models-admin__variants-list ow-app-scrollbar flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto">
+                <div className="ai-models-admin__variants-list ai-models-admin__available-models-list ow-app-scrollbar flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto">
                   {selectedVariants.map((v) => (
                     <div
                       key={v.id}
@@ -528,7 +542,7 @@ export function AiModelsAdminPage() {
 }
 
 const envVarIconButtonClassName =
-  "flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-[#ffffff14] bg-[#232438] text-[15px] leading-none text-[#e4e1f5] transition-colors hover:border-[#7c6af766] disabled:pointer-events-none disabled:opacity-35";
+  "flex h-full aspect-square shrink-0 items-center justify-center rounded-md border border-[#ffffff14] bg-[#232438] text-[15px] leading-none text-[#e4e1f5] transition-colors hover:border-[#7c6af766] disabled:pointer-events-none disabled:opacity-35";
 
 function GroupRow({
   group,
@@ -561,8 +575,21 @@ function GroupRow({
   const [verifyUi, setVerifyUi] = useState<VerifyUi>("idle");
   const colorInputRef = useRef<HTMLInputElement>(null);
   const apiKeyFieldId = useId();
+  const modelsUrlFieldId = useId();
   const [verifyEnv, verifyEnvState] = useVerifyAdminEnvVarMutation();
+  const [importModels, importModelsState] = useImportAdminAiModelsMutation();
   const verifyLoading = verifyEnvState.isLoading;
+  const importLoading = importModelsState.isLoading;
+  const { data: aiModelProvidersData } = useGetAdminAiModelProvidersQuery(undefined, {
+    skip: !envPreview,
+    refetchOnFocus: false,
+  });
+  const aiModelProviders = aiModelProvidersData?.providers ?? [];
+  const [selectedProviderId, setSelectedProviderId] = useState("");
+  const [modelsUrl, setModelsUrl] = useState("");
+  type ModelsUrlStatus = "idle" | "unchecked" | "ok" | "error";
+  const [modelsUrlStatus, setModelsUrlStatus] = useState<ModelsUrlStatus>("idle");
+  const [modelsImportMessage, setModelsImportMessage] = useState<string | null>(null);
 
   useEffect(() => {
     setSlug(group.slug);
@@ -575,7 +602,24 @@ function GroupRow({
     setResolvedValue(null);
     setRevealValue(false);
     setVerifyUi("idle");
+    setModelsUrlStatus("idle");
+    setModelsImportMessage(null);
   }, [group.id, group.slug, group.label, group.role, group.color, group.free, group.apiKey]);
+
+  useEffect(() => {
+    if (aiModelProviders.length === 0) return;
+    const matchedByUrl = aiModelProviders.find((p) => p.modelsUrl === modelsUrl);
+    if (matchedByUrl) {
+      if (selectedProviderId !== matchedByUrl.id) {
+        setSelectedProviderId(matchedByUrl.id);
+      }
+      return;
+    }
+    if (selectedProviderId || modelsUrl.trim() !== "") return;
+    const first = aiModelProviders[0];
+    setSelectedProviderId(first.id);
+    setModelsUrl(first.modelsUrl);
+  }, [aiModelProviders, modelsUrl, selectedProviderId]);
 
   const resetEnvVerify = useCallback(() => {
     setEnvPreview(false);
@@ -588,6 +632,8 @@ function GroupRow({
     (v: string) => {
       setApiKey(v);
       resetEnvVerify();
+      setModelsUrlStatus("idle");
+      setModelsImportMessage(null);
     },
     [resetEnvVerify],
   );
@@ -596,13 +642,25 @@ function GroupRow({
     const name = apiKey.trim();
     if (!name || busy) return;
     setVerifyUi("loading");
+    setModelsUrlStatus("idle");
+    setModelsImportMessage(null);
     try {
       const r = await verifyEnv({ name }).unwrap();
       if (r.found) {
-        setResolvedValue(r.value ?? "");
+        const resolved = r.value ?? "";
+        setResolvedValue(resolved);
         setEnvPreview(true);
         setRevealValue(true);
         setVerifyUi("ok");
+        const urlFromEnv = resolved.trim();
+        if (urlFromEnv !== "") {
+          setModelsUrl(urlFromEnv);
+          setModelsUrlStatus(isValidHttpUrl(urlFromEnv) ? "idle" : "unchecked");
+          const matchedByUrl = aiModelProviders.find((p) => p.modelsUrl === urlFromEnv);
+          if (matchedByUrl) {
+            setSelectedProviderId(matchedByUrl.id);
+          }
+        }
       } else {
         setEnvPreview(false);
         setResolvedValue(null);
@@ -615,7 +673,7 @@ function GroupRow({
       setRevealValue(false);
       setVerifyUi("error");
     }
-  }, [apiKey, busy, verifyEnv]);
+  }, [aiModelProviders, apiKey, busy, verifyEnv]);
 
   const verifyEmoji =
     verifyUi === "loading" || verifyLoading
@@ -629,6 +687,51 @@ function GroupRow({
   /** After verify, toggle between env var name (false) and resolved value from server (true). */
   const envPreviewShowsValue = envPreview && revealValue;
   const envKeyInputValue = envPreview ? (revealValue ? (resolvedValue ?? "") : apiKey) : apiKey;
+  const modelsUrlValid = isValidHttpUrl(modelsUrl);
+  const canImportModels =
+    verifyUi === "ok" &&
+    envPreview &&
+    modelsUrl.trim() !== "" &&
+    modelsUrlValid &&
+    !busy &&
+    !verifyLoading &&
+    !importLoading;
+
+  const onModelsUrlChange = useCallback(
+    (value: string) => {
+      setModelsUrl(value);
+      setModelsImportMessage(null);
+      const matched = aiModelProviders.find((p) => p.modelsUrl === value);
+      if (matched) {
+        setSelectedProviderId(matched.id);
+      }
+      setModelsUrlStatus("unchecked");
+    },
+    [aiModelProviders],
+  );
+
+  const runImportModels = useCallback(async () => {
+    if (!canImportModels) return;
+    setModelsUrlStatus("unchecked");
+    setModelsImportMessage(null);
+    try {
+      const r = await importModels({
+        groupId: group.id,
+        providerId: selectedProviderId,
+        modelsUrl: modelsUrl.trim(),
+        envVarName: apiKey.trim(),
+      }).unwrap();
+      setModelsUrlStatus("ok");
+      setModelsImportMessage(`Импортировано моделей: ${r.imported}`);
+    } catch (err: unknown) {
+      setModelsUrlStatus("error");
+      setModelsImportMessage(
+        err && typeof err === "object" && "data" in err
+          ? String((err as { data?: { error?: string } }).data?.error || "Не удалось получить модели")
+          : "Не удалось получить модели",
+      );
+    }
+  }, [apiKey, canImportModels, group.id, importModels, modelsUrl, selectedProviderId]);
 
   const hasUnsavedChanges = useMemo(() => {
     return (
@@ -728,9 +831,9 @@ function GroupRow({
           >
             <div
               className="pointer-events-none absolute inset-y-0 left-0 z-[1] flex w-9 shrink-0 items-center justify-center text-[15px] leading-none"
-              aria-hidden={apiKey.trim() === ""}
+              aria-hidden={verifyUi === "idle"}
             >
-              {apiKey.trim() !== "" ? (
+              {verifyUi !== "idle" ? (
                 <span className="select-none" aria-live="polite">
                   {verifyEmoji}
                 </span>
@@ -740,10 +843,11 @@ function GroupRow({
               id={apiKeyFieldId}
               type="text"
               className={cx(
-                "ai-models-admin__group-editor-input ai-models-admin__group-editor-input--api-key min-w-0 w-full border-0 bg-transparent py-2 pl-9 font-mono text-[11px] text-[#e4e1f5] caret-[#7c6af7] outline-none ring-0 placeholder:text-[#5a587a]",
+                "ai-models-admin__group-editor-input ai-models-admin__group-editor-input--api-key min-w-0 w-full border-0 bg-transparent py-2 font-mono text-[11px] text-[#e4e1f5] caret-[#7c6af7] outline-none ring-0 placeholder:text-[#5a587a]",
                 "focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0",
                 "disabled:cursor-not-allowed disabled:opacity-60",
-                envPreview ? "pr-[6.75rem]" : "pr-12",
+                verifyUi === "idle" ? "pl-3" : "pl-9",
+                envPreview ? "pr-[4.75rem]" : "pr-10",
               )}
               value={envKeyInputValue}
               onChange={
@@ -765,47 +869,97 @@ function GroupRow({
               readOnly={envPreviewShowsValue}
               disabled={busy}
             />
-            <div className="pointer-events-none absolute inset-y-0 right-0 flex w-max items-center gap-0.5 pr-1">
-              <div className="pointer-events-auto flex items-center gap-0.5">
+            <div className="pointer-events-none absolute inset-y-0 right-0 flex w-max items-stretch gap-0.5 p-0.5">
+              <div className="pointer-events-auto flex items-stretch gap-0.5">
+                <button
+                  type="button"
+                  className={envVarIconButtonClassName}
+                  title="Проверить переменную окружения на сервере"
+                  disabled={busy || verifyLoading || apiKey.trim() === "" || envPreviewShowsValue}
+                  onClick={() => void runVerify()}
+                >
+                  🔎
+                </button>
                 {envPreview ? (
-                  <>
-                    <button
-                      type="button"
-                      className={envVarIconButtonClassName}
-                      title={
-                        revealValue
-                          ? "Показать имя переменной окружения"
-                          : "Показать значение из окружения сервера"
-                      }
-                      disabled={busy || verifyLoading}
-                      onClick={() => setRevealValue((x) => !x)}
-                    >
-                      {revealValue ? "🙈" : "👁️"}
-                    </button>
-                    <button
-                      type="button"
-                      className={envVarIconButtonClassName}
-                      title="Редактировать имя переменной"
-                      disabled={busy || verifyLoading}
-                      onClick={resetEnvVerify}
-                    >
-                      ✏️
-                    </button>
-                  </>
-                ) : (
                   <button
                     type="button"
                     className={envVarIconButtonClassName}
-                    title="Проверить переменную окружения на сервере"
-                    disabled={busy || verifyLoading || apiKey.trim() === ""}
-                    onClick={() => void runVerify()}
+                    title={
+                      revealValue
+                        ? "Показать имя переменной окружения"
+                        : "Показать значение из окружения сервера"
+                    }
+                    disabled={busy || verifyLoading}
+                    onClick={() => setRevealValue((x) => !x)}
                   >
-                    🔎
+                    {revealValue ? "🙈" : "👁️"}
                   </button>
-                )}
+                ) : null}
               </div>
             </div>
           </div>
+          {envPreview ? (
+            <div className="ai-models-admin__group-editor-models-check mt-1 grid grid-cols-[minmax(0,1fr)_auto] gap-2">
+              <div className="min-w-0">
+                <label
+                  className="ai-models-admin__group-editor-label ai-models-admin__group-editor-label--models-url mb-1 block text-[9px] tracking-[1px] text-[#5a587a]"
+                  htmlFor={modelsUrlFieldId}
+                >
+                  URL списка моделей (models)
+                </label>
+                <input
+                  id={modelsUrlFieldId}
+                  list={`${modelsUrlFieldId}-options`}
+                  className={cx(
+                    "ai-models-admin__group-editor-input ai-models-admin__group-editor-input--models-url",
+                    inputClassName,
+                    !modelsUrlValid && modelsUrl.trim() !== "" ? "text-[#f472b6]" : undefined,
+                  )}
+                  value={modelsUrl}
+                  onChange={(e) => onModelsUrlChange(e.target.value)}
+                  placeholder="https://api.anthropic.com/v1/models"
+                  autoComplete="off"
+                  disabled={busy || verifyLoading || importLoading}
+                />
+                <datalist id={`${modelsUrlFieldId}-options`}>
+                  {aiModelProviders.map((p) => (
+                    <option key={p.id} value={p.modelsUrl} label={p.label} />
+                  ))}
+                </datalist>
+              </div>
+              <button
+                type="button"
+                className={cx(
+                  "ai-models-admin__group-editor-button ai-models-admin__group-editor-button--check-api-key self-end",
+                  primaryButtonClassName,
+                )}
+                disabled={!canImportModels}
+                onClick={() => void runImportModels()}
+              >
+                {importLoading ? "ПРОВЕРКА…" : "Проверить API-ключ 🔑"}
+              </button>
+              <div
+                className={cx(
+                  "ai-models-admin__group-editor-models-status col-[1/-1] text-[10px]",
+                  modelsUrlStatus === "ok"
+                    ? "text-[#34d399]"
+                    : modelsUrlStatus === "error" || (!modelsUrlValid && modelsUrl.trim() !== "")
+                      ? "text-[#f472b6]"
+                      : "text-[#9896b8]",
+                )}
+              >
+                {!modelsUrlValid && modelsUrl.trim() !== ""
+                  ? "Введите корректный URL"
+                  : modelsUrlStatus === "unchecked"
+                    ? "URL не проверен"
+                    : modelsUrlStatus === "ok"
+                      ? (modelsImportMessage ?? "URL проверен")
+                      : modelsUrlStatus === "error"
+                        ? (modelsImportMessage ?? "Ошибка проверки")
+                        : null}
+              </div>
+            </div>
+          ) : null}
         </div>
       </div>
       <label className="ai-models-admin__group-editor-toggle flex items-center gap-1.5 text-[10px] text-[#9896b8]">

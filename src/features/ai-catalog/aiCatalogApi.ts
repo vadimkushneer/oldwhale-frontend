@@ -8,6 +8,9 @@ import type {
   AiGroupAdmin,
   AiGroupListAdminResponse,
   AiGroupWrapResponse,
+  AiModelProviderListResponse,
+  AiModelsImportRequest,
+  AiModelsImportResponse,
   AiReorderRequest,
   AiVariantAdmin,
   AiVariantWrapResponse,
@@ -44,6 +47,20 @@ export const aiCatalogApi = createApi({
     }),
     verifyAdminEnvVar: build.mutation<AdminEnvLookupResponse, AdminEnvLookupRequest>({
       query: (body) => ({ url: "/api/admin/ai/env-lookup", method: "POST", body }),
+    }),
+    getAdminAiModelProviders: build.query<AiModelProviderListResponse, void>({
+      query: () => ({ url: "/api/admin/ai/model-providers", method: "GET" }),
+    }),
+    importAdminAiModels: build.mutation<AiModelsImportResponse, AiModelsImportRequest>({
+      query: ({ groupId, ...body }) => ({
+        url: `/api/admin/ai/groups/${groupId}/models/import`,
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: () => [
+        { type: "AiCatalog", id: "PUBLIC" },
+        { type: "AiAdminGroups", id: "LIST" },
+      ],
     }),
     createAiGroup: build.mutation<
       AiGroupAdmin,
@@ -164,6 +181,8 @@ export const {
   useLazyGetPublicCatalogQuery,
   useGetAdminAiGroupsQuery,
   useVerifyAdminEnvVarMutation,
+  useGetAdminAiModelProvidersQuery,
+  useImportAdminAiModelsMutation,
   useCreateAiGroupMutation,
   usePatchAiGroupMutation,
   useDeleteAiGroupMutation,

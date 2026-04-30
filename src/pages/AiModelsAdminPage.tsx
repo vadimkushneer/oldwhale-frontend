@@ -19,6 +19,7 @@ import { detectLLMProvider, findDetectedLLMModelProvider } from "../features/ai-
 import { useAppSelector } from "../hooks";
 import { useOnlineStatus } from "../hooks/useOnlineStatus";
 import { AiGroupCard } from "../components/AiGroupCard/AiGroupCard";
+import { AiModelVariantsPanel } from "../components/AiModelVariantsPanel/AiModelVariantsPanel";
 
 function sortGroups(gs: AiGroupAdmin[]) {
   return [...gs].sort((a, b) => a.position - b.position || a.id - b.id);
@@ -88,7 +89,6 @@ const apiKeyInputShellClassName = cx(
   insetShadowClassName,
   "focus-within:outline-none focus-within:ring-1 focus-within:ring-[#7c6af7]",
 );
-const denseInputClassName = cx(inputBaseClassName, "min-w-0 text-[10px]");
 const buttonBaseClassName = cx(
   "inline-flex cursor-pointer items-center justify-center border-0 font-mono transition-colors duration-150",
   focusRingClassName,
@@ -101,10 +101,6 @@ const primaryButtonClassName = cx(
 const smallButtonClassName = cx(
   buttonBaseClassName,
   "rounded-[6px] px-2 py-1 text-[9px]",
-);
-const neutralButtonClassName = cx(
-  smallButtonClassName,
-  "bg-[#5a587a] text-[#1a1b2e] hover:bg-[#6a6890]",
 );
 const successButtonClassName = cx(
   smallButtonClassName,
@@ -149,10 +145,6 @@ export function AiModelsAdminPage() {
   const [gLabel, setGLabel] = useState("");
   const [gErr, setGErr] = useState<string | null>(null);
 
-  const [vSlug, setVSlug] = useState("");
-  const [vLabel, setVLabel] = useState("");
-  const [vErr, setVErr] = useState<string | null>(null);
-
   const busy =
     createGroupState.isLoading ||
     patchGroupState.isLoading ||
@@ -185,6 +177,42 @@ export function AiModelsAdminPage() {
       }
     },
     [reorderVariants, refetch],
+  );
+
+  const onCreateVariant = useCallback(
+    async (groupId: number, body: { slug: string; label: string }) => {
+      await createVariant({
+        groupId,
+        slug: body.slug,
+        label: body.label,
+      }).unwrap();
+      await refetch();
+    },
+    [createVariant, refetch],
+  );
+
+  const onPatchVariant = useCallback(
+    async (id: number, body: { slug?: string; label?: string; is_default?: boolean }) => {
+      try {
+        await patchVariant({ id, ...body }).unwrap();
+        await refetch();
+      } catch (e: unknown) {
+        console.error(e);
+      }
+    },
+    [patchVariant, refetch],
+  );
+
+  const onDeleteVariant = useCallback(
+    async (id: number) => {
+      try {
+        await deleteVariant({ id }).unwrap();
+        await refetch();
+      } catch (e: unknown) {
+        console.error(e);
+      }
+    },
+    [deleteVariant, refetch],
   );
 
   if (!token) {
@@ -235,28 +263,6 @@ export function AiModelsAdminPage() {
       await refetch();
     } catch (err: unknown) {
       setGErr(err && typeof err === "object" && "data" in err ? String((err as { data?: { error?: string } }).data?.error || err) : String(err));
-    }
-  }
-
-  async function onCreateVariant(e: FormEvent) {
-    e.preventDefault();
-    setVErr(null);
-    if (!selected) return;
-    if (vSlug.trim().length < 2) {
-      setVErr("slug варианта ≥2");
-      return;
-    }
-    try {
-      await createVariant({
-        groupId: selected.id,
-        slug: vSlug.trim(),
-        label: vLabel,
-      }).unwrap();
-      setVSlug("");
-      setVLabel("");
-      await refetch();
-    } catch (err: unknown) {
-      setVErr(err && typeof err === "object" && "data" in err ? String((err as { data?: { error?: string } }).data?.error || err) : String(err));
     }
   }
 
@@ -399,141 +405,17 @@ export function AiModelsAdminPage() {
                 Выберите группу слева
               </div>
             ) : (
-              <>
-                <div className="ai-models-admin__variants-group mb-3 shrink-0 text-[11px] text-[#9896b8]">
-                  Группа:{" "}
-                  <span className="ai-models-admin__variants-group-label text-[#e4e1f5]">
-                    {selected.label}
-                  </span>{" "}
-                  ({selected.slug})
-                </div>
-                <div className="ai-models-admin__variants-list ai-models-admin__available-models-list ow-app-scrollbar flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto">
-                  {selectedVariants.map((v) => (
-                    <div
-                      key={v.id}
-                      className={cx(
-                        "ai-models-admin__variant-row grid grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)_auto_auto] items-center gap-2 rounded-[10px] bg-[#1a1b2e] p-2 text-[10px]",
-                        insetShadowClassName,
-                      )}
-                      draggable={!busy}
-                      onDragStart={() => setDragVariantId(v.id)}
-                      onDragOver={(e) => e.preventDefault()}
-                      onDrop={() => {
-                        if (dragVariantId == null || dragVariantId === v.id) return;
-                        const ids = selectedVariants.map((x) => x.id);
-                        const from = ids.indexOf(dragVariantId);
-                        const to = ids.indexOf(v.id);
-                        if (from < 0 || to < 0) return;
-                        const next = [...ids];
-                        next.splice(from, 1);
-                        next.splice(to, 0, dragVariantId);
-                        void onReorderVariants(selected.id, next);
-                        setDragVariantId(null);
-                      }}
-                    >
-                      <input
-                        type="radio"
-                        name={`def-${selected.id}`}
-                        className={cx(
-                          "ai-models-admin__variant-default-radio h-4 w-4 accent-[#7c6af7]",
-                          focusRingClassName,
-                        )}
-                        checked={v.is_default}
-                        onChange={() => void patchVariant({ id: v.id, is_default: true }).then(() => refetch())}
-                        disabled={busy}
-                      />
-                      <input
-                        defaultValue={v.slug}
-                        key={`${v.id}-slug`}
-                        className={cx(
-                          "ai-models-admin__variant-input ai-models-admin__variant-input--slug",
-                          denseInputClassName,
-                        )}
-                        onBlur={(e) => {
-                          const nv = e.target.value.trim();
-                          if (nv && nv !== v.slug) void patchVariant({ id: v.id, slug: nv }).then(() => refetch());
-                        }}
-                      />
-                      <input
-                        defaultValue={v.label}
-                        key={`${v.id}-lab`}
-                        className={cx(
-                          "ai-models-admin__variant-input ai-models-admin__variant-input--label",
-                          denseInputClassName,
-                        )}
-                        onBlur={(e) => {
-                          const nv = e.target.value;
-                          if (nv !== v.label) void patchVariant({ id: v.id, label: nv }).then(() => refetch());
-                        }}
-                      />
-                      <button
-                        type="button"
-                        disabled={busy}
-                        onClick={() => void patchVariant({ id: v.id, is_default: true }).then(() => refetch())}
-                        className={cx(
-                          "ai-models-admin__variant-button ai-models-admin__variant-button--default",
-                          neutralButtonClassName,
-                        )}
-                      >
-                        DEF
-                      </button>
-                      <button
-                        type="button"
-                        disabled={busy}
-                        onClick={async () => {
-                          if (!window.confirm(`Удалить вариант ${v.slug}?`)) return;
-                          await deleteVariant({ id: v.id }).unwrap();
-                          await refetch();
-                        }}
-                        className={cx(
-                          "ai-models-admin__variant-button ai-models-admin__variant-button--delete",
-                          dangerButtonClassName,
-                        )}
-                      >
-                        ×
-                      </button>
-                    </div>
-                  ))}
-                </div>
-                <form
-                  onSubmit={onCreateVariant}
-                  className="ai-models-admin__variant-create-form mt-3.5 shrink-0 grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-2"
-                >
-                  <input
-                    className={cx(
-                      "ai-models-admin__variant-create-input ai-models-admin__variant-create-input--slug",
-                      inputClassName,
-                    )}
-                    placeholder="slug варианта"
-                    value={vSlug}
-                    onChange={(e) => setVSlug(e.target.value)}
-                  />
-                  <input
-                    className={cx(
-                      "ai-models-admin__variant-create-input ai-models-admin__variant-create-input--label",
-                      inputClassName,
-                    )}
-                    placeholder="label"
-                    value={vLabel}
-                    onChange={(e) => setVLabel(e.target.value)}
-                  />
-                  <button
-                    type="submit"
-                    disabled={busy}
-                    className={cx(
-                      "ai-models-admin__variant-create-button ai-models-admin__variant-create-button--primary",
-                      primaryButtonClassName,
-                    )}
-                  >
-                    + ВАРИАНТ
-                  </button>
-                  {vErr ? (
-                    <div className="ai-models-admin__variant-create-error col-[1/-1] text-[11px] text-[#f472b6]">
-                      {vErr}
-                    </div>
-                  ) : null}
-                </form>
-              </>
+              <AiModelVariantsPanel
+                group={selected}
+                variants={selectedVariants}
+                busy={busy}
+                dragVariantId={dragVariantId}
+                onDragVariantIdChange={setDragVariantId}
+                onCreateVariant={onCreateVariant}
+                onPatchVariant={onPatchVariant}
+                onDeleteVariant={onDeleteVariant}
+                onReorderVariantIds={onReorderVariants}
+              />
             )}
           </div>
         </div>

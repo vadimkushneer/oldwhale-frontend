@@ -71,6 +71,8 @@ export default defineConfig(({ mode }) => {
           ],
         },
         workbox: {
+          /** Main bundle can exceed Workbox’s 2 MiB default after feature growth. */
+          maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
           globPatterns: [
             "**/*.{js,css,html,ico,png,svg,webp,woff,woff2,json,webmanifest}",
           ],

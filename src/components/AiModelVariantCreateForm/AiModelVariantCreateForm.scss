@@ -1,0 +1,23 @@
+/* BEM block `ai-model-variant-create-form` — create variant controls */
+.ai-model-variant-create-form {
+  @apply mt-3.5 grid shrink-0 grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-2;
+}
+
+.ai-model-variant-create-form__input {
+  @apply w-full rounded-lg border-0 bg-[#1a1b2e] px-[10px] py-2 font-mono text-[11px] text-[#e4e1f5] caret-[#7c6af7] placeholder:text-[#5a587a] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#7c6af7] disabled:cursor-not-allowed disabled:opacity-60;
+  box-shadow:
+    inset 3px 3px 10px rgba(0, 0, 0, 0.5),
+    inset -2px -2px 6px rgba(255, 255, 255, 0.035);
+}
+
+.ai-model-variant-create-form__button {
+  @apply inline-flex cursor-pointer items-center justify-center rounded-lg border-0 px-3 py-2 font-mono text-[9px] tracking-[1px] text-white transition-colors duration-150 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#7c6af7] disabled:cursor-not-allowed disabled:opacity-60;
+}
+
+.ai-model-variant-create-form__button--primary {
+  @apply bg-[#7c6af7] hover:bg-[#8a7bff];
+}
+
+.ai-model-variant-create-form__error {
+  @apply col-[1/-1] text-[11px] text-[#f472b6];
+}

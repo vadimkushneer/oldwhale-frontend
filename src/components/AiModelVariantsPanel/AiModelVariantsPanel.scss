@@ -1,0 +1,16 @@
+/* BEM block `ai-model-variants-panel` — selected AI provider variants area */
+.ai-model-variants-panel {
+  @apply flex min-h-0 flex-1 flex-col;
+}
+
+.ai-model-variants-panel__group {
+  @apply mb-3 shrink-0 text-[11px] text-[#9896b8];
+}
+
+.ai-model-variants-panel__group-label {
+  @apply text-[#e4e1f5];
+}
+
+.ai-model-variants-panel__list {
+  @apply flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto;
+}

@@ -51,14 +51,15 @@ export function AiModelSelector({
         aria-expanded={listExpanded}
         aria-controls={listRegionId}
         onClick={() => setListExpanded((v) => !v)}
+        disabled={!rows.length}
       >
-        <span className="ai-model-selector__heading">ИИ МОДЕЛИ</span>
-        <span
+        <span className="ai-model-selector__heading">ИИ МОДЕЛИ{!rows.length && " — Нет доступных ИИ-моделей"}</span>
+        {rows.length && <span
           className={`ai-model-selector__section-chevron ${listExpanded ? "ai-model-selector__section-chevron--open" : ""}`}
           aria-hidden
         >
           ▾
-        </span>
+        </span>}
       </button>
       <div id={listRegionId} className="ai-model-selector__list" hidden={!listExpanded}>
         {rows.map(({ model: m, expanded, active }) => {

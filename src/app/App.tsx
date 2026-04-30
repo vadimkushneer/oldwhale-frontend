@@ -38,8 +38,12 @@ function SessionInit() {
 }
 
 function CatalogInit() {
+  const token = useAppSelector((s) => s.auth.token);
   const skip = !apiBaseUrl();
-  useGetPublicCatalogQuery(undefined, { skip, refetchOnFocus: false });
+  const { refetch } = useGetPublicCatalogQuery(undefined, { skip, refetchOnFocus: false });
+  useEffect(() => {
+    if (!skip) void refetch();
+  }, [refetch, skip, token]);
   return null;
 }
 

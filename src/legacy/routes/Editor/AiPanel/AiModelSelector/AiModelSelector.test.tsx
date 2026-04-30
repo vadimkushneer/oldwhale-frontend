@@ -2,8 +2,12 @@ import { createRef } from "react";
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { AIM } from "../../../../domain/ai";
 import { AiModelSelector } from "./AiModelSelector";
+
+const BACKEND_MODELS = [
+  { id: "alpha", label: "Alpha", role: "Черновик", free: true },
+  { id: "beta", label: "Beta", role: "Идеи", free: false },
+];
 
 describe("AiModelSelector", () => {
   const rootRef = createRef<HTMLDivElement>();
@@ -11,8 +15,8 @@ describe("AiModelSelector", () => {
   it("renders one row per model with heading", () => {
     render(
       <AiModelSelector
-        models={AIM}
-        activeModelId="deepseek"
+        models={BACKEND_MODELS}
+        activeModelId="alpha"
         activeVariantId="x"
         menuOpen={false}
         rootRef={rootRef}
@@ -22,16 +26,17 @@ describe("AiModelSelector", () => {
       />,
     );
     expect(screen.getByText("ИИ МОДЕЛИ")).toBeInTheDocument();
-    for (const m of AIM) {
+    for (const m of BACKEND_MODELS) {
       expect(screen.getByText(m.label)).toBeInTheDocument();
     }
+    expect(screen.queryByText("DeepSeek")).not.toBeInTheDocument();
   });
 
   it("marks active row with BEM modifier", () => {
     render(
       <AiModelSelector
-        models={AIM}
-        activeModelId="claude"
+        models={BACKEND_MODELS}
+        activeModelId="beta"
         activeVariantId="v1"
         menuOpen={false}
         rootRef={rootRef}
@@ -40,7 +45,7 @@ describe("AiModelSelector", () => {
         getVariantLabel={() => "Opus"}
       />,
     );
-    const activeBtn = screen.getByText("Claude").closest("button");
+    const activeBtn = screen.getByText("Beta").closest("button");
     expect(activeBtn?.className).toContain("ai-model-selector__row--active");
   });
 
@@ -48,8 +53,8 @@ describe("AiModelSelector", () => {
     const onSelectProvider = vi.fn();
     render(
       <AiModelSelector
-        models={AIM}
-        activeModelId="deepseek"
+        models={BACKEND_MODELS}
+        activeModelId="alpha"
         activeVariantId={undefined}
         menuOpen={false}
         rootRef={rootRef}
@@ -58,15 +63,15 @@ describe("AiModelSelector", () => {
         getVariantLabel={() => undefined}
       />,
     );
-    screen.getByText("GPT").closest("button")?.click();
-    expect(onSelectProvider).toHaveBeenCalledWith("gpt");
+    screen.getByText("Beta").closest("button")?.click();
+    expect(onSelectProvider).toHaveBeenCalledWith("beta");
   });
 
   it("shows variant picker when expanded", () => {
     render(
       <AiModelSelector
-        models={AIM}
-        activeModelId="deepseek"
+        models={BACKEND_MODELS}
+        activeModelId="alpha"
         activeVariantId="a"
         menuOpen
         rootRef={rootRef}
@@ -81,8 +86,8 @@ describe("AiModelSelector", () => {
   it("rotates chevron when menu open", () => {
     render(
       <AiModelSelector
-        models={AIM}
-        activeModelId="deepseek"
+        models={BACKEND_MODELS}
+        activeModelId="alpha"
         activeVariantId="a"
         menuOpen
         rootRef={rootRef}
@@ -99,8 +104,8 @@ describe("AiModelSelector", () => {
     const user = userEvent.setup();
     const { container } = render(
       <AiModelSelector
-        models={AIM}
-        activeModelId="deepseek"
+        models={BACKEND_MODELS}
+        activeModelId="alpha"
         activeVariantId={undefined}
         menuOpen={false}
         rootRef={rootRef}

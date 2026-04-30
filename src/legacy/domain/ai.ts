@@ -72,7 +72,8 @@ export let AI_DEFAULT_MODEL_VARIANTS = defaultVariantsFromRecord(AI_MODEL_VARIAN
 
 /**
  * Apply catalog from `GET /api/ai/models` (or cache). Each group `slug` becomes provider id in `AIM` / variant map keys.
- * @param {Array<{ slug: string; label: string; role: string; color: string; free: boolean; variants: Array<{ slug: string; label: string; is_default?: boolean }> }>} groups
+ * Variant `id` is the public GUID; `slug` stays available for legacy localStorage upgrades and display/debugging.
+ * @param {Array<{ slug: string; label: string; role: string; color: string; free: boolean; variants: Array<{ guid?: string; slug: string; label: string; is_default?: boolean }> }>} groups
  */
 export function setAiCatalog(groups) {
   if (!Array.isArray(groups) || groups.length === 0) {
@@ -93,9 +94,14 @@ export function setAiCatalog(groups) {
   for (const g of groups) {
     const pid = g.slug;
     const vars = Array.isArray(g.variants) ? g.variants : [];
-    vmap[pid] = vars.map((v) => ({ id: v.slug, label: v.label != null ? String(v.label) : "" }));
+    vmap[pid] = vars.map((v) => ({
+      id: v.guid || v.slug,
+      guid: v.guid || "",
+      slug: v.slug,
+      label: v.label != null ? String(v.label) : "",
+    }));
     const def = vars.find((v) => v.is_default);
-    defmap[pid] = (def && def.slug) || vars[0]?.slug || "";
+    defmap[pid] = (def && (def.guid || def.slug)) || vars[0]?.guid || vars[0]?.slug || "";
   }
   AI_MODEL_VARIANTS = vmap;
   AI_DEFAULT_MODEL_VARIANTS = defmap;
@@ -116,13 +122,19 @@ export const AI_FILE_ACCEPT = ".txt,.docx,.fdx,.whale,text/plain,application/jso
 export const getAiProvider = (providerId=AI_DEFAULT_MODEL) => AIM.find(x=>x.id===providerId) || AIM.find(x=>x.id===AI_DEFAULT_MODEL) || AIM[0];
 export const getAiVariants = (providerId=AI_DEFAULT_MODEL) => AI_MODEL_VARIANTS[providerId] || AI_MODEL_VARIANTS[AI_DEFAULT_MODEL] || [];
 export const getDefaultAiVariant = (providerId=AI_DEFAULT_MODEL) => AI_DEFAULT_MODEL_VARIANTS[providerId] || getAiVariants(providerId)[0]?.id || "";
-export const isAiVariantForProvider = (variantId, providerId=AI_DEFAULT_MODEL) => getAiVariants(providerId).some(v=>v.id===variantId);
-export const normalizeAiModelVariant = (providerId=AI_DEFAULT_MODEL, variantId) => (
-  isAiVariantForProvider(variantId, providerId) ? variantId : getDefaultAiVariant(providerId)
-);
+const findAiVariant = (providerId=AI_DEFAULT_MODEL, variantId) => getAiVariants(providerId).find(v=>v.id===variantId || v.slug===variantId);
+export const isAiVariantForProvider = (variantId, providerId=AI_DEFAULT_MODEL) => Boolean(findAiVariant(providerId, variantId));
+export const normalizeAiModelVariant = (providerId=AI_DEFAULT_MODEL, variantId) => {
+  const matched = findAiVariant(providerId, variantId);
+  return matched?.id || getDefaultAiVariant(providerId);
+};
 export const getAiVariant = (providerId=AI_DEFAULT_MODEL, variantId) => {
   const safeId = normalizeAiModelVariant(providerId, variantId);
   return getAiVariants(providerId).find(v=>v.id===safeId) || null;
+};
+export const getAiVariantGuid = (providerId=AI_DEFAULT_MODEL, variantId) => {
+  const variant = getAiVariant(providerId, variantId);
+  return variant?.guid || (/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(variant?.id || "") ? variant.id : "");
 };
 export const getAiVariantMenuLabel = (providerId=AI_DEFAULT_MODEL, variant) => {
   if (!variant) return getAiProvider(providerId)?.label || "ИИ";

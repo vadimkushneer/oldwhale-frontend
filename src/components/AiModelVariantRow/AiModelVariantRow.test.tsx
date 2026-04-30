@@ -7,6 +7,7 @@ import { AiModelVariantRow } from "./AiModelVariantRow";
 function variant(overrides: Partial<AiVariantAdmin> = {}): AiVariantAdmin {
   return {
     id: 7,
+    guid: "11111111-1111-4111-8111-111111111111",
     group_id: 3,
     slug: "gpt-4",
     label: "GPT 4",

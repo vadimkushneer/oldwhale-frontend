@@ -6,6 +6,7 @@ import { useAppDispatch, useAppSelector } from "../hooks";
 import { clearAuth } from "../features/auth/authSlice";
 
 type Profile = { mode?: string; id?: string; label?: string; color?: string; desc?: string; num?: string };
+type EditorLocationState = { aiVariantGuid?: string; from?: { pathname?: string; search?: string } } | null;
 
 /** When JWT is valid but onboarding profile was never stored (or was cleared), editor still loads. */
 const FALLBACK_AUTH_PROFILE: Profile = { mode: "film" };
@@ -55,6 +56,7 @@ function RestoringSessionScreen() {
 export function EditorPage() {
   const navigate = useNavigate();
   const location = useLocation();
+  const locationState = location.state as EditorLocationState;
   const { modeName } = useParams<{ modeName?: string }>();
   const dispatch = useAppDispatch();
   const token = useAppSelector((s) => s.auth.token);
@@ -124,10 +126,31 @@ export function EditorPage() {
           search: location.search,
           hash: location.hash,
         },
-        { replace: false },
+        { replace: false, state: locationState },
       );
     },
-    [location.hash, location.pathname, location.search, navigate],
+    [location.hash, location.pathname, location.search, locationState, navigate],
+  );
+
+  const onAiVariantRouteStateChange = useCallback(
+    (aiVariantGuid: string) => {
+      if (!aiVariantGuid || locationState?.aiVariantGuid === aiVariantGuid) return;
+      navigate(
+        {
+          pathname: location.pathname,
+          search: location.search,
+          hash: location.hash,
+        },
+        {
+          replace: true,
+          state: {
+            ...(locationState ?? {}),
+            aiVariantGuid,
+          },
+        },
+      );
+    },
+    [location.hash, location.pathname, location.search, locationState, navigate],
   );
 
   if (location.pathname !== canonicalPath) {
@@ -135,6 +158,7 @@ export function EditorPage() {
       <Navigate
         to={{ pathname: canonicalPath, search: location.search, hash: location.hash }}
         replace
+        state={locationState}
       />
     );
   }
@@ -167,6 +191,8 @@ export function EditorPage() {
         onLogin={onLogin}
         routeMode={resolvedMode}
         onModeRouteChange={onModeRouteChange}
+        routeAiVariantGuid={locationState?.aiVariantGuid}
+        onAiVariantRouteStateChange={onAiVariantRouteStateChange}
         showAdminLink={user?.role === "admin"}
       />
     </div>

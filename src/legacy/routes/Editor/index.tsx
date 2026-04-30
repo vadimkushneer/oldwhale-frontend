@@ -47,6 +47,7 @@ import {
   isAiVariantForProvider,
   normalizeAiModelVariant,
   getAiVariant,
+  getAiVariantGuid,
   getAiVariantMenuLabel,
   getAiModelDisplayLabel,
   makeAiGreeting,
@@ -112,13 +113,13 @@ function normalizeAiComposerHeight(raw, fallback) {
   return Math.min(maxH, base);
 }
 
-function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode, onModeRouteChange, showAdminLink }) {
-  void useAppSelector((s) => s.aiCatalog.revision);
+function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode, onModeRouteChange, routeAiVariantGuid, onAiVariantRouteStateChange, showAdminLink }) {
+  const aiCatalogRevision = useAppSelector((s) => s.aiCatalog.revision);
   const authToken = useAppSelector((s) => s.auth.token);
-  const aiCatalogQuery = useGetPublicCatalogQuery();
+  const aiCatalogQuery = useGetPublicCatalogQuery(undefined, { refetchOnFocus: false });
   const activeProviders = useMemo(() => {
     const groups = aiCatalogQuery.data?.groups;
-    if (Array.isArray(groups) && groups.length > 0) {
+    if (Array.isArray(groups)) {
       return groups.map((g) => ({
         id: g.slug,
         label: g.label,
@@ -129,6 +130,8 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
     }
     return AIM;
   }, [aiCatalogQuery.data]);
+  const activeProviderIds = useMemo(() => new Set(activeProviders.map((p) => p.id)), [activeProviders]);
+  const firstActiveProviderId = activeProviders[0]?.id || AI_DEFAULT_MODEL;
   const goHome = onGoHome || onLogout;
   const initialMode = routeMode || profile?.mode || "film";
   const [mode, setMode] = useState(initialMode);
@@ -151,7 +154,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
   const [aiChatId, setAiChatId]       = useState(()=>aiStoreSeedRef.current.current.id);
   const [aiChatCreatedAt, setAiChatCreatedAt] = useState(()=>aiStoreSeedRef.current.current.createdAt);
   const [aiMod, setAiMod]             = useState(()=>aiStoreSeedRef.current.current.model || AI_DEFAULT_MODEL);
-  const [aiModelVariant, setAiModelVariant] = useState(()=>normalizeAiModelVariant(aiStoreSeedRef.current.current.model || AI_DEFAULT_MODEL, aiStoreSeedRef.current.current.modelVariant));
+  const [aiModelVariant, setAiModelVariant] = useState(()=>normalizeAiModelVariant(aiStoreSeedRef.current.current.model || AI_DEFAULT_MODEL, routeAiVariantGuid || aiStoreSeedRef.current.current.modelVariant));
   const [aiModelMenuOpen, setAiModelMenuOpen] = useState(false);
   const [credits, setCredits]         = useState(340);
   const [aiIn, setAiIn]               = useState("");
@@ -4601,13 +4604,13 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
     } catch (e) {}
   };
   const selectAiProvider = (providerId) => {
-    const safeProvider = AIM.some(x=>x.id===providerId) ? providerId : AI_DEFAULT_MODEL;
+    const safeProvider = activeProviderIds.has(providerId) ? providerId : firstActiveProviderId;
     setAiMod(safeProvider);
     setAiModelVariant(prev => normalizeAiModelVariant(safeProvider, safeProvider===aiMod ? prev : undefined));
     setAiModelMenuOpen(prev => safeProvider===aiMod ? !prev : true);
   };
   const selectAiVariant = (providerId, variantId) => {
-    const safeProvider = AIM.some(x=>x.id===providerId) ? providerId : AI_DEFAULT_MODEL;
+    const safeProvider = activeProviderIds.has(providerId) ? providerId : firstActiveProviderId;
     const safeVariant = normalizeAiModelVariant(safeProvider, variantId);
     setAiMod(safeProvider);
     setAiModelVariant(safeVariant);
@@ -4692,7 +4695,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
     const chatPayload = {
       message: bodyText,
       groupSlug: modelAtSend,
-      variantSlug: modelVariantAtSend,
+      variantGuid: modelVariantAtSend,
       editorMode: mode,
     };
     if (mode === "note") {
@@ -4968,6 +4971,29 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
   useEffect(()=>{
     setAiModelVariant(prev => normalizeAiModelVariant(aiMod, prev));
   }, [aiMod]);
+
+  useEffect(()=>{
+    if (!routeAiVariantGuid || !isAiVariantForProvider(routeAiVariantGuid, aiMod)) return;
+    const safeVariant = normalizeAiModelVariant(aiMod, routeAiVariantGuid);
+    if (safeVariant !== aiModelVariant) setAiModelVariant(safeVariant);
+  }, [aiMod, aiModelVariant, routeAiVariantGuid, aiCatalogRevision]);
+
+  useEffect(()=>{
+    const guid = getAiVariantGuid(aiMod, aiModelVariant);
+    if (guid) onAiVariantRouteStateChange?.(guid);
+  }, [aiMod, aiModelVariant, aiCatalogRevision, onAiVariantRouteStateChange]);
+
+  useEffect(()=>{
+    if (!activeProviders.length) return;
+    const providerStillAvailable = activeProviderIds.has(aiMod);
+    const safeProvider = providerStillAvailable ? aiMod : firstActiveProviderId;
+    const safeVariant = normalizeAiModelVariant(
+      safeProvider,
+      providerStillAvailable ? aiModelVariant : undefined,
+    );
+    if (safeProvider !== aiMod) setAiMod(safeProvider);
+    if (safeVariant !== aiModelVariant) setAiModelVariant(safeVariant);
+  }, [activeProviderIds, activeProviders.length, aiMod, aiModelVariant, firstActiveProviderId]);
 
   useEffect(()=>{
     const onDown = (e) => {

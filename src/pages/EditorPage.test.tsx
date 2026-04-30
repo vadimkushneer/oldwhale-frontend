@@ -72,7 +72,7 @@ function readLocation() {
   return JSON.parse(screen.getByTestId("location").textContent || "{}") as {
     pathname: string;
     search: string;
-    state?: { from?: { pathname?: string; search?: string } } | null;
+    state?: { aiVariantGuid?: string; from?: { pathname?: string; search?: string } } | null;
   };
 }
 
@@ -174,6 +174,33 @@ describe("EditorPage", () => {
     expect(editorScreenMock.mock.calls.at(-1)?.[0]).toMatchObject({
       profile: { mode: "short" },
       routeMode: "short",
+    });
+  });
+
+  it("stores the selected AI variant GUID in route state", () => {
+    authStateRef.current = {
+      token: "jwt",
+      user: { role: "user" },
+      restoreStatus: "ready",
+    };
+
+    renderAt("/editor/film");
+
+    const guid = "11111111-1111-4111-8111-111111111111";
+    const props = editorScreenMock.mock.calls.at(-1)?.[0] as {
+      onAiVariantRouteStateChange?: (guid: string) => void;
+    };
+
+    act(() => {
+      props.onAiVariantRouteStateChange?.(guid);
+    });
+
+    expect(readLocation()).toMatchObject({
+      pathname: "/editor/film",
+      state: { aiVariantGuid: guid },
+    });
+    expect(editorScreenMock.mock.calls.at(-1)?.[0]).toMatchObject({
+      routeAiVariantGuid: guid,
     });
   });
 });

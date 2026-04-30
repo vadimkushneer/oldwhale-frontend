@@ -28,9 +28,10 @@ export interface ApiErrorBody {
   error: string;
 }
 
-/** Public `GET /api/ai/models` */
+/** Current-user `GET /api/ai/models` (optional auth; guests receive free groups only). */
 export interface AiVariantPublic {
   id: number;
+  guid: string;
   slug: string;
   label: string;
   is_default: boolean;
@@ -70,7 +71,7 @@ export interface AiChatNoteContextRequest {
 export interface AiChatRequest {
   message: string;
   groupSlug: string;
-  variantSlug: string;
+  variantGuid: string;
   editorMode?: EditorMode;
   noteContext?: AiChatNoteContextRequest;
 }
@@ -84,6 +85,7 @@ export interface AiChatResponse {
 /** Admin nested variant row */
 export interface AiVariantAdmin {
   id: number;
+  guid: string;
   group_id: number;
   slug: string;
   label: string;

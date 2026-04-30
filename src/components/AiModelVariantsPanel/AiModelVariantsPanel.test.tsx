@@ -14,6 +14,7 @@ const group: Pick<AiGroupAdmin, "id" | "label" | "slug"> = {
 function variant(overrides: Partial<AiVariantAdmin> = {}): AiVariantAdmin {
   return {
     id: 1,
+    guid: "11111111-1111-4111-8111-111111111111",
     group_id: 10,
     slug: "gpt-4",
     label: "GPT 4",

@@ -187,7 +187,12 @@ export function EditorSideMenu(props: EditorSideMenuProps) {
           aria-label="Закрыть меню"
           onClick={vm.handleOverlayClick}
         />
-        <div className="editor-side-menu__panel" role="dialog" aria-modal="true" aria-label="Меню редактора">
+        <div
+          className="editor-side-menu__panel ow-app-scrollbar"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Меню редактора"
+        >
           <SideMenuHeader showClose={vm.showHeaderClose} onClose={onClose} />
 
           <SideMenuSection title="ПРОЕКТ" variantClass="project">

@@ -15,6 +15,7 @@ import {
   useReorderAiVariantsMutation,
   useVerifyAdminEnvVarMutation,
 } from "../features/ai-catalog/aiCatalogApi";
+import { detectLLMProvider, findDetectedLLMModelProvider } from "../features/ai-catalog/llmProviderDetection";
 import { useAppSelector } from "../hooks";
 import { useOnlineStatus } from "../hooks/useOnlineStatus";
 import { AiGroupCard } from "../components/AiGroupCard/AiGroupCard";
@@ -587,6 +588,7 @@ function GroupRow({
   const aiModelProviders = aiModelProvidersData?.providers ?? [];
   const [selectedProviderId, setSelectedProviderId] = useState("");
   const [modelsUrl, setModelsUrl] = useState("");
+  const [modelsUrlWasEdited, setModelsUrlWasEdited] = useState(false);
   type ModelsUrlStatus = "idle" | "unchecked" | "ok" | "error";
   const [modelsUrlStatus, setModelsUrlStatus] = useState<ModelsUrlStatus>("idle");
   const [modelsImportMessage, setModelsImportMessage] = useState<string | null>(null);
@@ -602,12 +604,15 @@ function GroupRow({
     setResolvedValue(null);
     setRevealValue(false);
     setVerifyUi("idle");
+    setSelectedProviderId("");
+    setModelsUrl("");
+    setModelsUrlWasEdited(false);
     setModelsUrlStatus("idle");
     setModelsImportMessage(null);
   }, [group.id, group.slug, group.label, group.role, group.color, group.free, group.apiKey]);
 
   useEffect(() => {
-    if (aiModelProviders.length === 0) return;
+    if (aiModelProviders.length === 0 || modelsUrlWasEdited) return;
     const matchedByUrl = aiModelProviders.find((p) => p.modelsUrl === modelsUrl);
     if (matchedByUrl) {
       if (selectedProviderId !== matchedByUrl.id) {
@@ -615,11 +620,18 @@ function GroupRow({
       }
       return;
     }
-    if (selectedProviderId || modelsUrl.trim() !== "") return;
-    const first = aiModelProviders[0];
-    setSelectedProviderId(first.id);
-    setModelsUrl(first.modelsUrl);
-  }, [aiModelProviders, modelsUrl, selectedProviderId]);
+    if (selectedProviderId || modelsUrl.trim() !== "" || !resolvedValue) return;
+
+    const detectedProvider = findDetectedLLMModelProvider(
+      aiModelProviders,
+      detectLLMProvider(resolvedValue),
+    );
+    if (!detectedProvider) return;
+
+    setSelectedProviderId(detectedProvider.id);
+    setModelsUrl(detectedProvider.modelsUrl);
+    setModelsUrlStatus("unchecked");
+  }, [aiModelProviders, modelsUrl, modelsUrlWasEdited, resolvedValue, selectedProviderId]);
 
   const resetEnvVerify = useCallback(() => {
     setEnvPreview(false);
@@ -632,6 +644,9 @@ function GroupRow({
     (v: string) => {
       setApiKey(v);
       resetEnvVerify();
+      setSelectedProviderId("");
+      setModelsUrl("");
+      setModelsUrlWasEdited(false);
       setModelsUrlStatus("idle");
       setModelsImportMessage(null);
     },
@@ -652,15 +667,6 @@ function GroupRow({
         setEnvPreview(true);
         setRevealValue(true);
         setVerifyUi("ok");
-        const urlFromEnv = resolved.trim();
-        if (urlFromEnv !== "") {
-          setModelsUrl(urlFromEnv);
-          setModelsUrlStatus(isValidHttpUrl(urlFromEnv) ? "idle" : "unchecked");
-          const matchedByUrl = aiModelProviders.find((p) => p.modelsUrl === urlFromEnv);
-          if (matchedByUrl) {
-            setSelectedProviderId(matchedByUrl.id);
-          }
-        }
       } else {
         setEnvPreview(false);
         setResolvedValue(null);
@@ -673,7 +679,7 @@ function GroupRow({
       setRevealValue(false);
       setVerifyUi("error");
     }
-  }, [aiModelProviders, apiKey, busy, verifyEnv]);
+  }, [apiKey, busy, verifyEnv]);
 
   const verifyEmoji =
     verifyUi === "loading" || verifyLoading
@@ -699,6 +705,7 @@ function GroupRow({
 
   const onModelsUrlChange = useCallback(
     (value: string) => {
+      setModelsUrlWasEdited(true);
       setModelsUrl(value);
       setModelsImportMessage(null);
       const matched = aiModelProviders.find((p) => p.modelsUrl === value);
@@ -909,6 +916,7 @@ function GroupRow({
                 </label>
                 <input
                   id={modelsUrlFieldId}
+                  type="url"
                   list={`${modelsUrlFieldId}-options`}
                   className={cx(
                     "ai-models-admin__group-editor-input ai-models-admin__group-editor-input--models-url",
@@ -919,6 +927,8 @@ function GroupRow({
                   onChange={(e) => onModelsUrlChange(e.target.value)}
                   placeholder="https://api.anthropic.com/v1/models"
                   autoComplete="off"
+                  inputMode="url"
+                  spellCheck={false}
                   disabled={busy || verifyLoading || importLoading}
                 />
                 <datalist id={`${modelsUrlFieldId}-options`}>

@@ -4945,8 +4945,8 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
   useEffect(()=>{
     if (!routeAiVariantGuid || !isAiVariantForProvider(routeAiVariantGuid, aiMod)) return;
     const safeVariant = normalizeAiModelVariant(aiMod, routeAiVariantGuid);
-    if (safeVariant !== aiModelVariant) setAiModelVariant(safeVariant);
-  }, [aiMod, aiModelVariant, routeAiVariantGuid, aiCatalogRevision]);
+    setAiModelVariant(prev => (safeVariant !== prev ? safeVariant : prev));
+  }, [aiMod, routeAiVariantGuid, aiCatalogRevision]);
 
   useEffect(()=>{
     const guid = getAiVariantGuid(aiMod, aiModelVariant);

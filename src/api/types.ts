@@ -76,6 +76,12 @@ export interface AiChatRequest {
   noteContext?: AiChatNoteContextRequest;
 }
 
+export interface AiChatAcceptedResponse {
+  requestId: string;
+  userMessageId: string;
+  assistantMessageId: string;
+}
+
 export interface AiChatResponse {
   reply: string;
   userMessageId: string;

@@ -61,13 +61,23 @@ test.describe("editor / AI panel", () => {
         typeof (postData.noteContext as { workfieldHtml?: unknown }).workfieldHtml,
       ).toBe("string");
       await route.fulfill({
-        status: 200,
+        status: 202,
         contentType: "application/json",
         body: JSON.stringify({
-          reply: "HELLO FROM OLD WHALE",
+          requestId: "33333333-3333-4333-8333-333333333333",
           userMessageId: "11111111-1111-4111-8111-111111111111",
           assistantMessageId: "22222222-2222-4222-8222-222222222222",
         }),
+      });
+    });
+    await page.route("**/api/ai/chat/events?**", async (route) => {
+      expect(route.request().url()).toContain("requestId=33333333-3333-4333-8333-333333333333");
+      await route.fulfill({
+        status: 200,
+        contentType: "text/event-stream",
+        body:
+          'event: ready\n' +
+          'data: {"requestId":"33333333-3333-4333-8333-333333333333","reply":"HELLO FROM OLD WHALE","userMessageId":"11111111-1111-4111-8111-111111111111","assistantMessageId":"22222222-2222-4222-8222-222222222222"}\n\n',
       });
     });
     await page.addInitScript(() => {

@@ -114,6 +114,46 @@ function normalizeAiComposerHeight(raw, fallback) {
   return Math.min(maxH, base);
 }
 
+function parseAiChatSseBlock(raw) {
+  let event = "message";
+  const dataLines = [];
+  for (const line of String(raw || "").split(/\r?\n/)) {
+    if (line.startsWith("event:")) {
+      event = line.slice("event:".length).trim() || event;
+    } else if (line.startsWith("data:")) {
+      dataLines.push(line.slice("data:".length).trimStart());
+    }
+  }
+  const data = dataLines.join("\n");
+  if (!data) return { event, data: null };
+  try {
+    return { event, data: JSON.parse(data) };
+  } catch (e) {
+    return { event, data: null };
+  }
+}
+
+async function readAiChatSseEvent(res) {
+  if (!res.body?.getReader) {
+    return parseAiChatSseBlock(await res.text());
+  }
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  while (true) {
+    const { done, value } = await reader.read();
+    if (value) buffer += decoder.decode(value, { stream: !done });
+    const sep = buffer.search(/\r?\n\r?\n/);
+    if (sep >= 0) {
+      return parseAiChatSseBlock(buffer.slice(0, sep));
+    }
+    if (done) {
+      buffer += decoder.decode();
+      return parseAiChatSseBlock(buffer);
+    }
+  }
+}
+
 function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode, onModeRouteChange, routeAiVariantGuid, onAiVariantRouteStateChange, showAdminLink }) {
   const aiCatalogRevision = useAppSelector((s) => s.aiCatalog.revision);
   const authToken = useAppSelector((s) => s.auth.token);
@@ -4728,14 +4768,20 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
         ]);
         return;
       }
-      const data = await res.json();
-      const reply = typeof data?.reply === "string" ? data.reply : "";
+      if (res.status !== 202) {
+        throw new Error("unexpected ai chat status");
+      }
+      const accepted = await res.json();
+      const requestId = typeof accepted?.requestId === "string" && accepted.requestId ? accepted.requestId : "";
       const userMessageId =
-        typeof data?.userMessageId === "string" && data.userMessageId ? data.userMessageId : newAiMessageId();
-      const assistantMessageId =
-        typeof data?.assistantMessageId === "string" && data.assistantMessageId
-          ? data.assistantMessageId
+        typeof accepted?.userMessageId === "string" && accepted.userMessageId ? accepted.userMessageId : newAiMessageId();
+      const acceptedAssistantMessageId =
+        typeof accepted?.assistantMessageId === "string" && accepted.assistantMessageId
+          ? accepted.assistantMessageId
           : newAiMessageId();
+      if (!requestId) {
+        throw new Error("missing ai chat request id");
+      }
       if (chatIdAtSend !== aiChatIdRef.current) return;
       setMsgs((p) => {
         const next = [...p];
@@ -4749,15 +4795,72 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
         if (lastUser >= 0) {
           next[lastUser] = { ...next[lastUser], id: userMessageId };
         }
-        next.push({
+        return next;
+      });
+      const eventsUrl = base
+        ? `${base}/api/ai/chat/events?requestId=${encodeURIComponent(requestId)}`
+        : `/api/ai/chat/events?requestId=${encodeURIComponent(requestId)}`;
+      const eventHeaders = {};
+      if (authToken) eventHeaders.Authorization = `Bearer ${authToken}`;
+      const eventRes = await fetch(eventsUrl, {
+        method: "GET",
+        headers: eventHeaders,
+        signal: ac.signal,
+      });
+      if (chatIdAtSend !== aiChatIdRef.current) return;
+      if (!eventRes.ok) {
+        let errMsg = "Ошибка сервера.";
+        try {
+          const j = await eventRes.json();
+          if (j && j.error) errMsg = String(j.error);
+        } catch (e) {}
+        setMsgs((p) => [
+          ...p,
+          {
+            id: acceptedAssistantMessageId,
+            role: "ai",
+            text: errMsg,
+            model: modelAtSend,
+            modelVariant: modelVariantAtSend,
+          },
+        ]);
+        return;
+      }
+      const aiEvent = await readAiChatSseEvent(eventRes);
+      if (chatIdAtSend !== aiChatIdRef.current) return;
+      if (aiEvent.event === "error") {
+        const errMsg = typeof aiEvent.data?.error === "string" && aiEvent.data.error ? aiEvent.data.error : "Ошибка сервера.";
+        setMsgs((p) => [
+          ...p,
+          {
+            id: acceptedAssistantMessageId,
+            role: "ai",
+            text: errMsg,
+            model: modelAtSend,
+            modelVariant: modelVariantAtSend,
+          },
+        ]);
+        return;
+      }
+      if (aiEvent.event !== "ready") {
+        throw new Error("unexpected ai chat event");
+      }
+      const data = aiEvent.data || {};
+      const reply = typeof data?.reply === "string" ? data.reply : "";
+      const assistantMessageId =
+        typeof data?.assistantMessageId === "string" && data.assistantMessageId
+          ? data.assistantMessageId
+          : acceptedAssistantMessageId;
+      setMsgs((p) => [
+        ...p,
+        {
           id: assistantMessageId,
           role: "ai",
           text: reply,
           model: modelAtSend,
           modelVariant: modelVariantAtSend,
-        });
-        return next;
-      });
+        },
+      ]);
       if (!m.free) setCredits(c=>Math.max(0,c-12));
     } catch (e) {
       if (e && e.name === "AbortError") return;

@@ -21,7 +21,10 @@ describe("AiPanel", () => {
     modelMenuOpen: false,
     modelMenuRootRef,
     onSelectProvider: vi.fn(),
-    renderVariantPicker: () => null,
+    onSelectVariant: vi.fn(),
+    variantsByProvider: {
+      deepseek: [{ id: "deepseek-v3-2", label: "V3.2" }],
+    },
     getVariantLabel: () => "V3.2",
     messages: [{ id: "g1", role: "sys", text: "Hi" }],
     loading: false,

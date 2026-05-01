@@ -1,6 +1,10 @@
 import type { CSSProperties, MouseEvent, ReactNode, Ref } from "react";
 import { AiMessageList, type AiMessageListMessage } from "./AiMessageList";
-import { AiModelSelector, type AiModelSelectorRowModel } from "./AiModelSelector";
+import {
+  AiModelSelector,
+  type AiModelSelectorRowModel,
+  type AiModelVariantPickerVariant,
+} from "./AiModelSelector";
 import { useAiPanel } from "./useAiPanel";
 import "./AiPanel.scss";
 
@@ -27,7 +31,7 @@ function AiPanelChevron({ dir }: { dir: "left" | "right" }) {
   );
 }
 
-export type { AiMessageListMessage, AiModelSelectorRowModel };
+export type { AiMessageListMessage, AiModelSelectorRowModel, AiModelVariantPickerVariant };
 
 export function AiPanel({
   width,
@@ -42,7 +46,8 @@ export function AiPanel({
   modelMenuOpen,
   modelMenuRootRef,
   onSelectProvider,
-  renderVariantPicker,
+  onSelectVariant,
+  variantsByProvider,
   getVariantLabel,
   messages,
   loading,
@@ -69,7 +74,8 @@ export function AiPanel({
   modelMenuOpen: boolean;
   modelMenuRootRef: Ref<HTMLDivElement>;
   onSelectProvider: (id: string) => void;
-  renderVariantPicker: (providerId: string) => ReactNode;
+  onSelectVariant: (providerId: string, variantId: string) => void;
+  variantsByProvider: Record<string, readonly AiModelVariantPickerVariant[]>;
   getVariantLabel: (providerId: string, variantId?: string) => string | undefined;
   messages: readonly AiMessageListMessage[];
   loading: boolean;
@@ -119,7 +125,8 @@ export function AiPanel({
           menuOpen={modelMenuOpen}
           rootRef={modelMenuRootRef}
           onSelectProvider={onSelectProvider}
-          renderVariantPicker={renderVariantPicker}
+          onSelectVariant={onSelectVariant}
+          variantsByProvider={variantsByProvider}
           getVariantLabel={getVariantLabel}
         />
 

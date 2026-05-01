@@ -97,6 +97,7 @@ import { PlayHeaderEditor } from "./PlayHeader";
 import { AiComposer } from "./AiComposer";
 import { AiPanel } from "./AiPanel";
 import { AiMessageList } from "./AiPanel/AiMessageList/AiMessageList";
+import { AiModelVariantPicker } from "./AiPanel/AiModelVariantPicker/AiModelVariantPicker";
 import { LeftSidebar } from "./LeftSidebar/LeftSidebar";
 import { MarkerContextMenu } from "./MarkerContextMenu";
 import { EditorDocument } from "./EditorDocument/EditorDocument";
@@ -129,9 +130,22 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
       }));
     }
     return AIM;
-  }, [aiCatalogQuery.data]);
+  }, [aiCatalogQuery.data, aiCatalogRevision]);
   const activeProviderIds = useMemo(() => new Set(activeProviders.map((p) => p.id)), [activeProviders]);
   const firstActiveProviderId = activeProviders[0]?.id || AI_DEFAULT_MODEL;
+  const aiVariantsByProvider = useMemo(
+    () =>
+      Object.fromEntries(
+        activeProviders.map((provider) => [
+          provider.id,
+          getAiVariants(provider.id).map((variant) => ({
+            id: variant.id,
+            label: getAiVariantMenuLabel(provider.id, variant),
+          })),
+        ]),
+      ),
+    [activeProviders, aiCatalogRevision],
+  );
   const goHome = onGoHome || onLogout;
   const initialMode = routeMode || profile?.mode || "film";
   const [mode, setMode] = useState(initialMode);
@@ -4616,50 +4630,6 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
     setAiModelVariant(safeVariant);
     setAiModelMenuOpen(false);
   };
-  const renderAiVariantPicker = (providerId, compact=false) => {
-    const variants = getAiVariants(providerId);
-    if (!variants.length) return null;
-    return (
-      <div style={{
-        marginTop: compact ? "8px" : "6px",
-        padding: compact ? "7px" : "8px",
-        borderRadius: compact ? "12px" : "10px",
-        background:BG,
-        boxShadow:SH_IN,
-        display:"flex",
-        flexDirection:"column",
-        gap: compact ? "4px" : "5px",
-      }}>
-        {variants.map(variant=>{
-          const active = aiMod===providerId && aiModelVariant===variant.id;
-          return (
-            <button
-              key={variant.id}
-              onClick={()=>selectAiVariant(providerId, variant.id)}
-              style={{
-                width:"100%",
-                display:"flex",
-                alignItems:"center",
-                justifyContent:"space-between",
-                padding: compact ? "8px 10px" : "7px 9px",
-                background: active ? SURF : "transparent",
-                boxShadow: active ? SH_SM : "none",
-                border:"none",
-                borderRadius:"10px",
-                cursor:"pointer",
-                fontFamily:"inherit",
-                color: active ? T1 : T2,
-                fontSize: compact ? "11px" : "10px",
-              }}
-            >
-              <span style={{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",paddingRight:"8px"}}>{getAiVariantMenuLabel(providerId, variant)}</span>
-              <span style={{color:active ? getAiProvider(providerId).color : T3, fontSize:"9px", flexShrink:0}}>{active ? "ВЫБРАНО" : ""}</span>
-            </button>
-          );
-        })}
-      </div>
-    );
-  };
   const send = async () => {
     if ((!aiIn.trim() && aiPendingFiles.length===0) || aiLoad) return;
     const m = getAiProvider(aiMod);
@@ -6888,7 +6858,16 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
                   <span style={{color:T2,fontSize:"10px",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{getAiModelDisplayLabel(aiMod, aiModelVariant)}</span>
                   <button onClick={()=>setAiModelMenuOpen(v=>!v)} style={{background:"transparent",border:"none",padding:0,color:getAiProvider(aiMod).color,cursor:"pointer",fontSize:"10px",fontFamily:"inherit",flexShrink:0}}>модели</button>
                 </div>
-                {aiModelMenuOpen && renderAiVariantPicker(aiMod, true)}
+                {aiModelMenuOpen && (
+                  <AiModelVariantPicker
+                    providerId={aiMod}
+                    variants={aiVariantsByProvider[aiMod] ?? []}
+                    activeModelId={aiMod}
+                    activeVariantId={aiModelVariant}
+                    compact
+                    onSelectVariant={selectAiVariant}
+                  />
+                )}
               </div>
               <div className="flex min-h-0 flex-1 flex-col px-3 py-2">
                 <AiMessageList
@@ -8762,7 +8741,8 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
           modelMenuOpen={aiModelMenuOpen}
           modelMenuRootRef={aiModelMenuRootRef}
           onSelectProvider={selectAiProvider}
-          renderVariantPicker={renderAiVariantPicker}
+          onSelectVariant={selectAiVariant}
+          variantsByProvider={aiVariantsByProvider}
           getVariantLabel={(pid, vid) => getAiVariant(pid, vid)?.label}
           messages={msgs}
           loading={aiLoad}

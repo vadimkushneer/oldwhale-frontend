@@ -4,6 +4,14 @@
  */
 
 .ai-model-selector {
+  --ams-bg: #1a1b2e;
+  --ams-sh-in: inset 3px 3px 10px rgba(0, 0, 0, 0.5), inset -2px -2px 6px rgba(255, 255, 255, 0.035);
+  --ams-t1: #e4e1f5;
+  --ams-t2: #9896b8;
+  --ams-t3: #5a587a;
+  --ams-t3-22: #5a587a22;
+  --ams-dot: #7c6af7;
+
   @apply shrink-0 border-b px-2.5 pb-2.5 pt-3;
   border-color: var(--ams-t3-22);
 
@@ -122,7 +130,7 @@
     }
   }
 
-  /* Provider palette for --ams-dot (must match ../../domain/ai AIM) */
+  /* Provider palette for --ams-dot (must match ../../domain/ai AIM when slugs are static). */
   &__row[data-provider="deepseek"] {
     --ams-dot: #4ade80;
   }

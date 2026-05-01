@@ -1,19 +1,14 @@
-import type { CSSProperties, ReactNode, Ref } from "react";
+import type { Ref } from "react";
 import { useId, useState } from "react";
-import { BG, SH_IN, T1, T2, T3 } from "../../../../ui/tokens";
+import {
+  AiModelVariantPicker,
+  type AiModelVariantPickerVariant as PickerVariant,
+} from "../AiModelVariantPicker/AiModelVariantPicker";
 import { useAiModelSelector, type AiModelSelectorRowModel } from "./useAiModelSelector";
 import "./AiModelSelector.scss";
 
-const cssVars = {
-  "--ams-bg": BG,
-  "--ams-sh-in": SH_IN,
-  "--ams-t1": T1,
-  "--ams-t2": T2,
-  "--ams-t3": T3,
-  "--ams-t3-22": `${T3}22`,
-} as CSSProperties;
-
 export type { AiModelSelectorRowModel };
+export type AiModelVariantPickerVariant = PickerVariant;
 
 export function AiModelSelector({
   models,
@@ -22,7 +17,8 @@ export function AiModelSelector({
   menuOpen,
   rootRef,
   onSelectProvider,
-  renderVariantPicker,
+  onSelectVariant,
+  variantsByProvider,
   getVariantLabel,
 }: {
   models: readonly AiModelSelectorRowModel[];
@@ -31,7 +27,8 @@ export function AiModelSelector({
   menuOpen: boolean;
   rootRef: Ref<HTMLDivElement>;
   onSelectProvider: (id: string) => void;
-  renderVariantPicker: (providerId: string) => ReactNode;
+  onSelectVariant: (providerId: string, variantId: string) => void;
+  variantsByProvider: Record<string, readonly AiModelVariantPickerVariant[]>;
   getVariantLabel: (providerId: string, variantId?: string) => string | undefined;
 }) {
   const { rows } = useAiModelSelector({ models, activeModelId, menuOpen });
@@ -42,7 +39,6 @@ export function AiModelSelector({
     <div
       ref={rootRef}
       className={`ai-model-selector${listExpanded ? "" : " ai-model-selector--list-collapsed"}`}
-      style={cssVars}
     >
       <button
         type="button"
@@ -94,7 +90,15 @@ export function AiModelSelector({
                   </div>
                 </div>
               </button>
-              {expanded ? renderVariantPicker(m.id) : null}
+              {expanded ? (
+                <AiModelVariantPicker
+                  providerId={m.id}
+                  variants={variantsByProvider[m.id] ?? []}
+                  activeModelId={activeModelId}
+                  activeVariantId={activeVariantId}
+                  onSelectVariant={onSelectVariant}
+                />
+              ) : null}
             </div>
           );
         })}

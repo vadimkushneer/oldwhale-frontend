@@ -1,0 +1,70 @@
+/*
+ * AiModelVariantPicker — BEM `ai-model-variant-picker`.
+ * Static layout uses Tailwind `@apply`; neumorphic shadows stay as CSS values.
+ */
+
+.ai-model-variant-picker {
+  --amvp-provider-color: #7c6af7;
+
+  @apply mt-1.5 flex flex-col gap-[5px] rounded-[10px] bg-[#1a1b2e] p-2;
+  box-shadow:
+    inset 3px 3px 10px rgba(0, 0, 0, 0.5),
+    inset -2px -2px 6px rgba(255, 255, 255, 0.035);
+
+  &--compact {
+    @apply mt-2 gap-1 rounded-xl p-[7px];
+  }
+
+  &__option {
+    @apply flex w-full cursor-pointer items-center justify-between rounded-[10px] border-0 bg-transparent px-[9px] py-[7px] text-[10px] text-[#9896b8] transition-colors duration-100;
+    box-shadow: none;
+    font-family: inherit;
+
+    &:hover {
+      @apply text-[#e4e1f5];
+    }
+
+    &--active {
+      @apply bg-[#1f2040] text-[#e4e1f5];
+      box-shadow:
+        4px 4px 12px rgba(0, 0, 0, 0.4),
+        -2px -2px 7px rgba(255, 255, 255, 0.032);
+    }
+  }
+
+  &--compact &__option {
+    @apply px-2.5 py-2 text-[11px];
+  }
+
+  &__label {
+    @apply min-w-0 overflow-hidden text-ellipsis whitespace-nowrap pr-2 text-left;
+  }
+
+  &__status {
+    @apply shrink-0 text-[9px] text-[#5a587a];
+  }
+
+  &__option--active &__status {
+    color: var(--amvp-provider-color);
+  }
+
+  &[data-provider="deepseek"] {
+    --amvp-provider-color: #4ade80;
+  }
+
+  &[data-provider="claude"] {
+    --amvp-provider-color: #7c6af7;
+  }
+
+  &[data-provider="gpt"] {
+    --amvp-provider-color: #f472b6;
+  }
+
+  &[data-provider="grok"] {
+    --amvp-provider-color: #f59e0b;
+  }
+
+  &[data-provider="gemini"] {
+    --amvp-provider-color: #60a5fa;
+  }
+}

@@ -9,6 +9,14 @@ const BACKEND_MODELS = [
   { id: "beta", label: "Beta", role: "Идеи", free: false },
 ];
 
+const VARIANTS_BY_PROVIDER = {
+  alpha: [
+    { id: "a", label: "Alpha A" },
+    { id: "b", label: "Alpha B" },
+  ],
+  beta: [{ id: "v1", label: "Beta One" }],
+};
+
 describe("AiModelSelector", () => {
   const rootRef = createRef<HTMLDivElement>();
 
@@ -21,7 +29,8 @@ describe("AiModelSelector", () => {
         menuOpen={false}
         rootRef={rootRef}
         onSelectProvider={vi.fn()}
-        renderVariantPicker={() => <div data-testid="picker">picker</div>}
+        onSelectVariant={vi.fn()}
+        variantsByProvider={VARIANTS_BY_PROVIDER}
         getVariantLabel={() => "Label"}
       />,
     );
@@ -41,7 +50,8 @@ describe("AiModelSelector", () => {
         menuOpen={false}
         rootRef={rootRef}
         onSelectProvider={vi.fn()}
-        renderVariantPicker={() => null}
+        onSelectVariant={vi.fn()}
+        variantsByProvider={VARIANTS_BY_PROVIDER}
         getVariantLabel={() => "Opus"}
       />,
     );
@@ -59,7 +69,8 @@ describe("AiModelSelector", () => {
         menuOpen={false}
         rootRef={rootRef}
         onSelectProvider={onSelectProvider}
-        renderVariantPicker={() => null}
+        onSelectVariant={vi.fn()}
+        variantsByProvider={VARIANTS_BY_PROVIDER}
         getVariantLabel={() => undefined}
       />,
     );
@@ -76,11 +87,13 @@ describe("AiModelSelector", () => {
         menuOpen
         rootRef={rootRef}
         onSelectProvider={vi.fn()}
-        renderVariantPicker={() => <div data-testid="variant-picker">vp</div>}
+        onSelectVariant={vi.fn()}
+        variantsByProvider={VARIANTS_BY_PROVIDER}
         getVariantLabel={() => "V"}
       />,
     );
-    expect(screen.getByTestId("variant-picker")).toBeInTheDocument();
+    expect(screen.getByText("Alpha A")).toBeInTheDocument();
+    expect(document.querySelector(".ai-model-variant-picker")).toBeTruthy();
   });
 
   it("rotates chevron when menu open", () => {
@@ -92,7 +105,8 @@ describe("AiModelSelector", () => {
         menuOpen
         rootRef={rootRef}
         onSelectProvider={vi.fn()}
-        renderVariantPicker={() => null}
+        onSelectVariant={vi.fn()}
+        variantsByProvider={VARIANTS_BY_PROVIDER}
         getVariantLabel={() => "V"}
       />,
     );
@@ -110,7 +124,8 @@ describe("AiModelSelector", () => {
         menuOpen={false}
         rootRef={rootRef}
         onSelectProvider={vi.fn()}
-        renderVariantPicker={() => null}
+        onSelectVariant={vi.fn()}
+        variantsByProvider={VARIANTS_BY_PROVIDER}
         getVariantLabel={() => undefined}
       />,
     );

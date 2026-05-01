@@ -1,0 +1,27 @@
+/*
+ * AiSelectionActionBar — BEM `ai-selection-action-bar`.
+ */
+
+.ai-selection-action-bar {
+  @apply mx-2.5 mb-2 flex shrink-0 items-center gap-2 rounded-xl border border-[#5a587a33] bg-[#1a1b2e] px-2.5 py-2;
+  box-shadow:
+    inset 3px 3px 10px rgba(0, 0, 0, 0.42),
+    inset -2px -2px 6px rgba(255, 255, 255, 0.028);
+
+  &__count {
+    @apply min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[9px] tracking-wide text-[#9896b8];
+  }
+
+  &__button {
+    @apply cursor-pointer rounded-lg border-0 px-2 py-1 text-[9px] tracking-wide transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-[#7c6af7];
+    font-family: inherit;
+
+    &--delete {
+      @apply bg-[#f472b6] text-[#1a1b2e] hover:bg-[#fb7fc1];
+    }
+
+    &--cancel {
+      @apply bg-[#5a587a] text-[#1a1b2e] hover:bg-[#6a6890];
+    }
+  }
+}

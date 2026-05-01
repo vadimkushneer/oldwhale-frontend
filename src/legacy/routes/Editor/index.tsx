@@ -4567,6 +4567,23 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
     });
   }, []);
 
+  const selectAiMessage = useCallback((id) => {
+    setAiSelectedMessageIds(new Set([id]));
+  }, []);
+
+  const selectAllAiMessages = useCallback(() => {
+    setAiSelectedMessageIds(new Set(msgs.map((m) => m.id)));
+  }, [msgs]);
+
+  const clearAiMessageSelection = useCallback(() => {
+    setAiSelectedMessageIds(new Set());
+  }, []);
+
+  const deleteSelectedAiMessages = useCallback(() => {
+    setMsgs((p) => p.filter((m) => !aiSelectedMessageIds.has(m.id)));
+    setAiSelectedMessageIds(new Set());
+  }, [aiSelectedMessageIds]);
+
   const getCurrentAiChat = () => normalizeAiChat({
     id: aiChatId,
     createdAt: aiChatCreatedAt,
@@ -6877,6 +6894,8 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
                   getProviderColor={(id) => getAiProvider(id).color || T3}
                   selectedMessageIds={aiSelectedMessageIds}
                   onToggleMessageSelect={toggleAiMessageSelect}
+                  onSelectMessage={selectAiMessage}
+                  onSelectAllMessages={selectAllAiMessages}
                   onDeleteMessage={deleteAiMessageById}
                 />
               </div>
@@ -8750,7 +8769,11 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
           getProviderColor={(id) => getAiProvider(id).color || T3}
           selectedMessageIds={aiSelectedMessageIds}
           onToggleMessageSelect={toggleAiMessageSelect}
+          onSelectMessage={selectAiMessage}
+          onSelectAllMessages={selectAllAiMessages}
           onDeleteMessage={deleteAiMessageById}
+          onClearMessageSelection={clearAiMessageSelection}
+          onDeleteSelectedMessages={deleteSelectedAiMessages}
           accent={mc}
           creditsLabel={getAiProvider(aiMod).free ? "БЕСПЛАТНО" : "≈ 12 КРЕДИТОВ"}
           composer={

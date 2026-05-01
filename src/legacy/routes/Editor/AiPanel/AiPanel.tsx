@@ -1,5 +1,6 @@
 import type { CSSProperties, MouseEvent, ReactNode, Ref } from "react";
 import { AiMessageList, type AiMessageListMessage } from "./AiMessageList";
+import { AiSelectionActionBar } from "./AiSelectionActionBar/AiSelectionActionBar";
 import {
   AiModelSelector,
   type AiModelSelectorRowModel,
@@ -55,7 +56,11 @@ export function AiPanel({
   getProviderColor,
   selectedMessageIds,
   onToggleMessageSelect,
+  onSelectMessage,
+  onSelectAllMessages,
   onDeleteMessage,
+  onClearMessageSelection,
+  onDeleteSelectedMessages,
   composer,
   creditsLabel,
   previewOverlay,
@@ -83,7 +88,11 @@ export function AiPanel({
   getProviderColor: (modelId?: string) => string;
   selectedMessageIds: ReadonlySet<string>;
   onToggleMessageSelect: (id: string, event: MouseEvent) => void;
+  onSelectMessage: (id: string) => void;
+  onSelectAllMessages: () => void;
   onDeleteMessage: (id: string) => void;
+  onClearMessageSelection: () => void;
+  onDeleteSelectedMessages: () => void;
   composer: ReactNode;
   creditsLabel: string;
   previewOverlay?: ReactNode;
@@ -130,6 +139,12 @@ export function AiPanel({
           getVariantLabel={getVariantLabel}
         />
 
+        <AiSelectionActionBar
+          selectedCount={selectedMessageIds.size}
+          onDeleteSelected={onDeleteSelectedMessages}
+          onCancel={onClearMessageSelection}
+        />
+
         <AiMessageList
           messages={messages}
           loading={loading}
@@ -138,6 +153,8 @@ export function AiPanel({
           getProviderColor={getProviderColor}
           selectedMessageIds={selectedMessageIds}
           onToggleMessageSelect={onToggleMessageSelect}
+          onSelectMessage={onSelectMessage}
+          onSelectAllMessages={onSelectAllMessages}
           onDeleteMessage={onDeleteMessage}
         />
 

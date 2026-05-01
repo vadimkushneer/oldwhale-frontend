@@ -1,6 +1,6 @@
 import { createRef } from "react";
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, within } from "@testing-library/react";
 import { AIM } from "../../../domain/ai";
 import { AiPanel } from "./AiPanel";
 
@@ -32,7 +32,11 @@ describe("AiPanel", () => {
     getProviderColor: () => "#4ade80",
     selectedMessageIds: new Set<string>(),
     onToggleMessageSelect: vi.fn(),
+    onSelectMessage: vi.fn(),
+    onSelectAllMessages: vi.fn(),
     onDeleteMessage: vi.fn(),
+    onClearMessageSelection: vi.fn(),
+    onDeleteSelectedMessages: vi.fn(),
     composer: <div data-testid="composer-slot">composer</div>,
     creditsLabel: "БЕСПЛАТНО",
     previewOverlay: <div data-testid="preview">pv</div>,
@@ -101,5 +105,32 @@ describe("AiPanel", () => {
     render(<AiPanel {...defaultProps} />);
     expect(msgEndRef.current).toBeInstanceOf(HTMLDivElement);
     expect(msgEndRef.current?.className).toContain("ai-message-list__end-anchor");
+  });
+
+  it("renders selection action bar when messages are selected", () => {
+    render(<AiPanel {...defaultProps} selectedMessageIds={new Set(["g1"])} />);
+    const toolbar = screen.getByRole("toolbar", { name: "Действия с выбранными сообщениями" });
+    expect(within(toolbar).getByRole("button", { name: "Удалить" })).toBeInTheDocument();
+    expect(within(toolbar).getByRole("button", { name: "Отмена" })).toBeInTheDocument();
+  });
+
+  it("calls selection action handlers from action bar", () => {
+    const onDeleteSelectedMessages = vi.fn();
+    const onClearMessageSelection = vi.fn();
+    render(
+      <AiPanel
+        {...defaultProps}
+        selectedMessageIds={new Set(["g1"])}
+        onDeleteSelectedMessages={onDeleteSelectedMessages}
+        onClearMessageSelection={onClearMessageSelection}
+      />,
+    );
+    const toolbar = screen.getByRole("toolbar", { name: "Действия с выбранными сообщениями" });
+
+    within(toolbar).getByRole("button", { name: "Удалить" }).click();
+    within(toolbar).getByRole("button", { name: "Отмена" }).click();
+
+    expect(onDeleteSelectedMessages).toHaveBeenCalledTimes(1);
+    expect(onClearMessageSelection).toHaveBeenCalledTimes(1);
   });
 });

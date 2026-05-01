@@ -1,0 +1,40 @@
+/*
+ * AiMessageContextMenu — BEM `ai-message-context-menu`.
+ * Layout uses Tailwind `@apply`; position comes from CSS variables.
+ */
+
+.ai-message-context-menu {
+  --amcm-bg: #1f2040;
+  --amcm-t1: #e4e1f5;
+  --amcm-t2: #9896b8;
+  --amcm-border: #5a587a33;
+
+  @apply contents;
+
+  &__backdrop {
+    @apply fixed inset-0 z-[9997];
+    background: transparent;
+  }
+
+  &__card {
+    @apply fixed z-[9998] min-w-[180px] rounded-xl border p-1.5;
+    left: var(--amcm-left);
+    top: var(--amcm-top);
+    border-color: var(--amcm-border);
+    background: var(--amcm-bg);
+    box-shadow:
+      8px 8px 22px rgba(0, 0, 0, 0.5),
+      -4px -4px 12px rgba(255, 255, 255, 0.038);
+  }
+
+  &__item {
+    @apply w-full cursor-pointer rounded-lg border-0 bg-transparent px-2.5 py-2 text-left text-[10px] tracking-wide text-[var(--amcm-t2)] transition-colors;
+    font-family: inherit;
+
+    &:hover,
+    &:focus-visible {
+      @apply text-[var(--amcm-t1)] outline-none;
+      background: rgba(255, 255, 255, 0.04);
+    }
+  }
+}

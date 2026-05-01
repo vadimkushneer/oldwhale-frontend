@@ -3,24 +3,26 @@ import type { ChatMessageType } from "../../../../../domain/aiMessageTypes";
 import { useChatMessage, type UseChatMessageArgs } from "./useChatMessage";
 import "./ChatMessage.scss";
 
-export type ChatMessageProps = Omit<UseChatMessageArgs, "onToggleSelect" | "onDelete"> & {
+export type ChatMessageProps = Omit<UseChatMessageArgs, "onToggleSelect" | "onOpenContextMenu" | "onDelete"> & {
   accentColor?: string;
   children: ReactNode;
   onToggleSelect: UseChatMessageArgs["onToggleSelect"];
+  onOpenContextMenu: UseChatMessageArgs["onOpenContextMenu"];
   onDelete: UseChatMessageArgs["onDelete"];
 };
 
-export function ChatMessage({ id, type, selected, accentColor, children, onToggleSelect, onDelete }: ChatMessageProps) {
-  const { rootClassName, rowClassName, bubbleClassName, onRowMouseDown, onDeleteClick } = useChatMessage({
+export function ChatMessage({ id, type, selected, accentColor, children, onToggleSelect, onOpenContextMenu, onDelete }: ChatMessageProps) {
+  const { rootClassName, rowClassName, bubbleClassName, onRowMouseDown, onContextMenu, onDeleteClick } = useChatMessage({
     id,
     type,
     selected,
     onToggleSelect,
+    onOpenContextMenu,
     onDelete,
   });
 
   return (
-    <article className={rootClassName} data-chat-message-id={id} data-chat-message-type={type}>
+    <article className={rootClassName} data-chat-message-id={id} data-chat-message-type={type} onContextMenu={onContextMenu}>
       <div
         className={rowClassName}
         onMouseDown={onRowMouseDown}

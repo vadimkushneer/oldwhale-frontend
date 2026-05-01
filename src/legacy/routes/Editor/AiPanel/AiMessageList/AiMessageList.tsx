@@ -1,6 +1,10 @@
-import { useLayoutEffect, useRef, type MouseEvent, type Ref } from "react";
+import { useCallback, useLayoutEffect, useRef, useState, type MouseEvent, type Ref } from "react";
 import { Whale } from "../../../../ui/Whale";
 import { ChatMessage } from "./ChatMessage";
+import {
+  AiMessageContextMenu,
+  type AiMessageContextMenuState,
+} from "./AiMessageContextMenu/AiMessageContextMenu";
 import { useAiMessageList, type AiMessageListMessage } from "./useAiMessageList";
 import "./AiMessageList.scss";
 
@@ -14,6 +18,8 @@ export function AiMessageList({
   getProviderColor,
   selectedMessageIds,
   onToggleMessageSelect,
+  onSelectMessage,
+  onSelectAllMessages,
   onDeleteMessage,
 }: {
   messages: readonly AiMessageListMessage[];
@@ -24,10 +30,13 @@ export function AiMessageList({
   getProviderColor: (modelId?: string) => string;
   selectedMessageIds: ReadonlySet<string>;
   onToggleMessageSelect: (id: string, event: MouseEvent) => void;
+  onSelectMessage: (id: string) => void;
+  onSelectAllMessages: () => void;
   onDeleteMessage: (id: string) => void;
 }) {
   const { rows } = useAiMessageList({ messages, getProviderColor });
   const scrollRootRef = useRef<HTMLDivElement>(null);
+  const [contextMenu, setContextMenu] = useState<AiMessageContextMenuState | null>(null);
 
   useLayoutEffect(() => {
     const el = scrollRootRef.current;
@@ -35,8 +44,25 @@ export function AiMessageList({
     el.scrollTop = el.scrollHeight;
   }, [rows, loading, composerHeight]);
 
+  const closeContextMenu = useCallback(() => setContextMenu(null), []);
+
+  const openFreeSpaceContextMenu = useCallback((event: MouseEvent<HTMLDivElement>) => {
+    if ((event.target as HTMLElement).closest("[data-chat-message-id]")) return;
+    event.preventDefault();
+    setContextMenu({ kind: "all", x: event.clientX, y: event.clientY });
+  }, []);
+
+  const openMessageContextMenu = useCallback((id: string, event: MouseEvent) => {
+    setContextMenu({ kind: "message", messageId: id, x: event.clientX, y: event.clientY });
+  }, []);
+
   return (
-    <div ref={scrollRootRef} className="ai-message-list ow-app-scrollbar">
+    <div
+      ref={scrollRootRef}
+      className="ai-message-list ow-app-scrollbar"
+      onContextMenu={openFreeSpaceContextMenu}
+      onScroll={closeContextMenu}
+    >
       <div className="ai-message-list__list" role="list">
         {rows.map((row) => (
           <ChatMessage
@@ -46,6 +72,7 @@ export function AiMessageList({
             selected={selectedMessageIds.has(row.id)}
             accentColor={row.accentColor}
             onToggleSelect={onToggleMessageSelect}
+            onOpenContextMenu={openMessageContextMenu}
             onDelete={onDeleteMessage}
           >
             {row.text}
@@ -59,6 +86,12 @@ export function AiMessageList({
         </div>
       )}
       <div ref={endRef} className="ai-message-list__end-anchor" />
+      <AiMessageContextMenu
+        menu={contextMenu}
+        onSelectMessage={onSelectMessage}
+        onSelectAllMessages={onSelectAllMessages}
+        onDismiss={closeContextMenu}
+      />
     </div>
   );
 }

@@ -6,10 +6,11 @@ export type UseChatMessageArgs = {
   type: ChatMessageType;
   selected: boolean;
   onToggleSelect: (id: string, event: MouseEvent) => void;
+  onOpenContextMenu: (id: string, event: MouseEvent) => void;
   onDelete: (id: string) => void;
 };
 
-export function useChatMessage({ id, type, selected, onToggleSelect, onDelete }: UseChatMessageArgs) {
+export function useChatMessage({ id, type, selected, onToggleSelect, onOpenContextMenu, onDelete }: UseChatMessageArgs) {
   const rootClassName = useMemo(() => {
     const parts = [
       "chat-message",
@@ -32,6 +33,7 @@ export function useChatMessage({ id, type, selected, onToggleSelect, onDelete }:
 
   const onRowMouseDown = useCallback(
     (e: MouseEvent<HTMLDivElement>) => {
+      if (e.button !== 0) return;
       if ((e.target as HTMLElement).closest("button")) return;
       onToggleSelect(id, e);
     },
@@ -46,11 +48,21 @@ export function useChatMessage({ id, type, selected, onToggleSelect, onDelete }:
     [id, onDelete],
   );
 
+  const onContextMenu = useCallback(
+    (e: MouseEvent<HTMLElement>) => {
+      e.preventDefault();
+      e.stopPropagation();
+      onOpenContextMenu(id, e);
+    },
+    [id, onOpenContextMenu],
+  );
+
   return {
     rootClassName,
     rowClassName,
     bubbleClassName,
     onRowMouseDown,
+    onContextMenu,
     onDeleteClick,
   };
 }

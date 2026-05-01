@@ -1,6 +1,7 @@
 import { createRef } from "react";
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { AiMessageList } from "./AiMessageList";
 
 const noopSet = new Set<string>();
@@ -17,6 +18,8 @@ describe("AiMessageList", () => {
         getProviderColor={() => "#fff"}
         selectedMessageIds={noopSet}
         onToggleMessageSelect={vi.fn()}
+        onSelectMessage={vi.fn()}
+        onSelectAllMessages={vi.fn()}
         onDeleteMessage={vi.fn()}
       />,
     );
@@ -33,6 +36,8 @@ describe("AiMessageList", () => {
         getProviderColor={() => "#7c6af7"}
         selectedMessageIds={noopSet}
         onToggleMessageSelect={vi.fn()}
+        onSelectMessage={vi.fn()}
+        onSelectAllMessages={vi.fn()}
         onDeleteMessage={vi.fn()}
       />,
     );
@@ -49,6 +54,8 @@ describe("AiMessageList", () => {
         getProviderColor={vi.fn()}
         selectedMessageIds={noopSet}
         onToggleMessageSelect={vi.fn()}
+        onSelectMessage={vi.fn()}
+        onSelectAllMessages={vi.fn()}
         onDeleteMessage={vi.fn()}
       />,
     );
@@ -64,6 +71,8 @@ describe("AiMessageList", () => {
         getProviderColor={vi.fn()}
         selectedMessageIds={noopSet}
         onToggleMessageSelect={vi.fn()}
+        onSelectMessage={vi.fn()}
+        onSelectAllMessages={vi.fn()}
         onDeleteMessage={vi.fn()}
       />,
     );
@@ -79,9 +88,55 @@ describe("AiMessageList", () => {
         getProviderColor={vi.fn()}
         selectedMessageIds={noopSet}
         onToggleMessageSelect={vi.fn()}
+        onSelectMessage={vi.fn()}
+        onSelectAllMessages={vi.fn()}
         onDeleteMessage={vi.fn()}
       />,
     );
     expect(endRef.current?.className).toContain("ai-message-list__end-anchor");
+  });
+
+  it("opens select-all menu from free-space right click", async () => {
+    const user = userEvent.setup();
+    const onSelectAllMessages = vi.fn();
+    const { container } = render(
+      <AiMessageList
+        messages={[{ id: "u1", role: "user", text: "Hello" }]}
+        loading={false}
+        endRef={endRef}
+        getProviderColor={vi.fn()}
+        selectedMessageIds={noopSet}
+        onToggleMessageSelect={vi.fn()}
+        onSelectMessage={vi.fn()}
+        onSelectAllMessages={onSelectAllMessages}
+        onDeleteMessage={vi.fn()}
+      />,
+    );
+
+    fireEvent.contextMenu(container.querySelector(".ai-message-list") as HTMLElement);
+    await user.click(screen.getByRole("button", { name: "Выбрать все сообщения" }));
+    expect(onSelectAllMessages).toHaveBeenCalledTimes(1);
+  });
+
+  it("opens single-message menu from message right click", async () => {
+    const user = userEvent.setup();
+    const onSelectMessage = vi.fn();
+    render(
+      <AiMessageList
+        messages={[{ id: "u1", role: "user", text: "Hello" }]}
+        loading={false}
+        endRef={endRef}
+        getProviderColor={vi.fn()}
+        selectedMessageIds={noopSet}
+        onToggleMessageSelect={vi.fn()}
+        onSelectMessage={onSelectMessage}
+        onSelectAllMessages={vi.fn()}
+        onDeleteMessage={vi.fn()}
+      />,
+    );
+
+    fireEvent.contextMenu(screen.getByRole("article"));
+    await user.click(screen.getByRole("button", { name: "Выбрать" }));
+    expect(onSelectMessage).toHaveBeenCalledWith("u1");
   });
 });

@@ -6,7 +6,7 @@ import { ChatMessage } from "./ChatMessage";
 describe("ChatMessage", () => {
   it("renders user type and body", () => {
     render(
-      <ChatMessage id="m1" type="user" selected={false} onToggleSelect={vi.fn()} onDelete={vi.fn()}>
+      <ChatMessage id="m1" type="user" selected={false} onToggleSelect={vi.fn()} onOpenContextMenu={vi.fn()} onDelete={vi.fn()}>
         Hello
       </ChatMessage>,
     );
@@ -18,7 +18,7 @@ describe("ChatMessage", () => {
     const user = userEvent.setup();
     const onToggleSelect = vi.fn();
     render(
-      <ChatMessage id="m2" type="sys" selected={false} onToggleSelect={onToggleSelect} onDelete={vi.fn()}>
+      <ChatMessage id="m2" type="sys" selected={false} onToggleSelect={onToggleSelect} onOpenContextMenu={vi.fn()} onDelete={vi.fn()}>
         Greeting
       </ChatMessage>,
     );
@@ -31,7 +31,7 @@ describe("ChatMessage", () => {
     const onToggleSelect = vi.fn();
     const onDelete = vi.fn();
     render(
-      <ChatMessage id="m3" type="ai" selected accentColor="#ff00aa" onToggleSelect={onToggleSelect} onDelete={onDelete}>
+      <ChatMessage id="m3" type="ai" selected accentColor="#ff00aa" onToggleSelect={onToggleSelect} onOpenContextMenu={vi.fn()} onDelete={onDelete}>
         Reply
       </ChatMessage>,
     );
@@ -42,11 +42,27 @@ describe("ChatMessage", () => {
 
   it("shows accent stripe for ai when accentColor set", () => {
     const { container } = render(
-      <ChatMessage id="m4" type="ai" selected={false} accentColor="#abc" onToggleSelect={vi.fn()} onDelete={vi.fn()}>
+      <ChatMessage id="m4" type="ai" selected={false} accentColor="#abc" onToggleSelect={vi.fn()} onOpenContextMenu={vi.fn()} onDelete={vi.fn()}>
         AI
       </ChatMessage>,
     );
     const rect = container.querySelector("rect");
     expect(rect).toHaveAttribute("fill", "#abc");
+  });
+
+  it("opens message context menu without toggling selection", () => {
+    const onToggleSelect = vi.fn();
+    const onOpenContextMenu = vi.fn();
+    render(
+      <ChatMessage id="m5" type="user" selected={false} onToggleSelect={onToggleSelect} onOpenContextMenu={onOpenContextMenu} onDelete={vi.fn()}>
+        Context
+      </ChatMessage>,
+    );
+
+    const article = screen.getByRole("article");
+    article.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true, clientX: 8, clientY: 9 }));
+
+    expect(onOpenContextMenu).toHaveBeenCalledWith("m5", expect.any(Object));
+    expect(onToggleSelect).not.toHaveBeenCalled();
   });
 });

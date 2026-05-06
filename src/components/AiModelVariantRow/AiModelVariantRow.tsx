@@ -28,14 +28,14 @@ export function AiModelVariantRow(props: AiModelVariantRowProps) {
         aria-label={`Сделать ${variant.slug} вариантом по умолчанию`}
       />
       <input
-        key={`${variant.id}-slug`}
+        key={`${variant.uid}-slug`}
         defaultValue={variant.slug}
         className={c.inputSlugClassName}
         onBlur={c.onSlugBlur}
         aria-label="Slug варианта"
       />
       <input
-        key={`${variant.id}-label`}
+        key={`${variant.uid}-label`}
         defaultValue={variant.label}
         className={c.inputLabelClassName}
         onBlur={c.onLabelBlur}

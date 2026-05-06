@@ -22,11 +22,11 @@ import { AiGroupCard } from "../components/AiGroupCard/AiGroupCard";
 import { AiModelVariantsPanel } from "../components/AiModelVariantsPanel/AiModelVariantsPanel";
 
 function sortGroups(gs: AiGroupAdmin[]) {
-  return [...gs].sort((a, b) => a.position - b.position || a.id - b.id);
+  return [...gs].sort((a, b) => a.position - b.position || a.uid.localeCompare(b.uid));
 }
 
 function sortVariants(vs: AiVariantAdmin[]) {
-  return [...vs].sort((a, b) => a.position - b.position || a.id - b.id);
+  return [...vs].sort((a, b) => a.position - b.position || a.uid.localeCompare(b.uid));
 }
 
 /** 6-digit hex for native color input, or fallback when the field is not parseable as hex. */
@@ -64,6 +64,26 @@ function isValidHttpUrl(raw: string): boolean {
   } catch {
     return false;
   }
+}
+
+/** Match provider catalog URLs ignoring trailing slashes and trivial differences. */
+function normalizeModelsListUrl(raw: string): string {
+  const s = raw.trim().replace(/\/+$/, "");
+  try {
+    const u = new URL(s);
+    u.hash = "";
+    return u.toString().replace(/\/+$/, "");
+  } catch {
+    return s;
+  }
+}
+
+function resolveProviderIdFromModelsUrl(
+  providers: Array<{ id: string; modelsUrl: string }>,
+  modelsUrl: string,
+): string | undefined {
+  const n = normalizeModelsListUrl(modelsUrl);
+  return providers.find((p) => normalizeModelsListUrl(p.modelsUrl) === n)?.id;
 }
 
 const surfaceShadowClassName =
@@ -122,15 +142,15 @@ export function AiModelsAdminPage() {
   });
   const groups = useMemo(() => sortGroups(rawGroups), [rawGroups]);
 
-  const [selectedId, setSelectedId] = useState<number | null>(null);
-  const selected = groups.find((g) => g.id === selectedId) ?? null;
+  const [selectedUid, setSelectedUid] = useState<string | null>(null);
+  const selected = groups.find((g) => g.uid === selectedUid) ?? null;
   const selectedVariants = useMemo(
     () => (selected ? sortVariants(selected.variants) : []),
     [selected],
   );
 
-  const [dragGroupId, setDragGroupId] = useState<number | null>(null);
-  const [dragVariantId, setDragVariantId] = useState<number | null>(null);
+  const [dragGroupId, setDragGroupId] = useState<string | null>(null);
+  const [dragVariantId, setDragVariantId] = useState<string | null>(null);
 
   const [createGroup, createGroupState] = useCreateAiGroupMutation();
   const [patchGroup, patchGroupState] = usePatchAiGroupMutation();
@@ -156,9 +176,9 @@ export function AiModelsAdminPage() {
     reorderVariantsState.isLoading;
 
   const onReorderGroups = useCallback(
-    async (ids: number[]) => {
+    async (uids: string[]) => {
       try {
-        await reorderGroups({ ids }).unwrap();
+        await reorderGroups({ uids }).unwrap();
         await refetch();
       } catch (e: unknown) {
         console.error(e);
@@ -168,9 +188,9 @@ export function AiModelsAdminPage() {
   );
 
   const onReorderVariants = useCallback(
-    async (groupId: number, ids: number[]) => {
+    async (groupUid: string, uids: string[]) => {
       try {
-        await reorderVariants({ groupId, ids }).unwrap();
+        await reorderVariants({ groupUid, uids }).unwrap();
         await refetch();
       } catch (e: unknown) {
         console.error(e);
@@ -180,9 +200,9 @@ export function AiModelsAdminPage() {
   );
 
   const onCreateVariant = useCallback(
-    async (groupId: number, body: { slug: string; label: string }) => {
+    async (groupUid: string, body: { slug: string; label: string }) => {
       await createVariant({
-        groupId,
+        groupUid,
         slug: body.slug,
         label: body.label,
       }).unwrap();
@@ -192,9 +212,9 @@ export function AiModelsAdminPage() {
   );
 
   const onPatchVariant = useCallback(
-    async (id: number, body: { slug?: string; label?: string; is_default?: boolean }) => {
+    async (uid: string, body: { slug?: string; label?: string; is_default?: boolean }) => {
       try {
-        await patchVariant({ id, ...body }).unwrap();
+        await patchVariant({ uid, ...body }).unwrap();
         await refetch();
       } catch (e: unknown) {
         console.error(e);
@@ -204,9 +224,9 @@ export function AiModelsAdminPage() {
   );
 
   const onDeleteVariant = useCallback(
-    async (id: number) => {
+    async (uid: string) => {
       try {
-        await deleteVariant({ id }).unwrap();
+        await deleteVariant({ uid }).unwrap();
         await refetch();
       } catch (e: unknown) {
         console.error(e);
@@ -323,27 +343,27 @@ export function AiModelsAdminPage() {
               <div className="ai-models-admin__groups-list ow-app-scrollbar flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto">
                 {groups.map((g) => (
                   <AiGroupCard
-                    key={g.id}
-                    groupId={g.id}
-                    isSelected={selectedId === g.id}
+                    key={g.uid}
+                    groupId={g.uid}
+                    isSelected={selectedUid === g.uid}
                     busy={busy}
-                    orderedGroupIds={groups.map((x) => x.id)}
+                    orderedGroupIds={groups.map((x) => x.uid)}
                     dragGroupId={dragGroupId}
                     onDragGroupIdChange={setDragGroupId}
-                    onSelectGroup={setSelectedId}
-                    onReorderGroupIds={(ids) => void onReorderGroups(ids)}
+                    onSelectGroup={setSelectedUid}
+                    onReorderGroupIds={(uids) => void onReorderGroups(uids)}
                   >
                     <GroupRow
                       group={g}
                       busy={busy}
                       onSave={async (body) => {
-                        await patchGroup({ id: g.id, ...body }).unwrap();
+                        await patchGroup({ uid: g.uid, ...body }).unwrap();
                         await refetch();
                       }}
                       onDelete={async () => {
                         if (!window.confirm(`Удалить группу «${g.label}» и все варианты?`)) return;
-                        await deleteGroup({ id: g.id }).unwrap();
-                        if (selectedId === g.id) setSelectedId(null);
+                        await deleteGroup({ uid: g.uid }).unwrap();
+                        if (selectedUid === g.uid) setSelectedUid(null);
                         await refetch();
                       }}
                     />
@@ -441,7 +461,7 @@ function GroupRow({
     role?: string;
     color?: string;
     free?: boolean;
-    apiKey?: string;
+    api_key_env_var?: string;
   }) => Promise<void>;
   onDelete: () => Promise<void>;
 }) {
@@ -450,7 +470,7 @@ function GroupRow({
   const [role, setRole] = useState(group.role);
   const [color, setColor] = useState(group.color);
   const [free, setFree] = useState(group.free);
-  const [apiKey, setApiKey] = useState(group.apiKey ?? "");
+  const [apiKey, setApiKey] = useState(group.api_key_env_var ?? "");
   const [envPreview, setEnvPreview] = useState(false);
   const [resolvedValue, setResolvedValue] = useState<string | null>(null);
   const [revealValue, setRevealValue] = useState(false);
@@ -481,7 +501,7 @@ function GroupRow({
     setRole(group.role);
     setColor(group.color);
     setFree(group.free);
-    setApiKey(group.apiKey ?? "");
+    setApiKey(group.api_key_env_var ?? "");
     setEnvPreview(false);
     setResolvedValue(null);
     setRevealValue(false);
@@ -491,7 +511,7 @@ function GroupRow({
     setModelsUrlWasEdited(false);
     setModelsUrlStatus("idle");
     setModelsImportMessage(null);
-  }, [group.id, group.slug, group.label, group.role, group.color, group.free, group.apiKey]);
+  }, [group.uid, group.slug, group.label, group.role, group.color, group.free, group.api_key_env_var]);
 
   useEffect(() => {
     if (aiModelProviders.length === 0 || modelsUrlWasEdited) return;
@@ -543,11 +563,10 @@ function GroupRow({
     setModelsImportMessage(null);
     try {
       const r = await verifyEnv({ name }).unwrap();
-      if (r.found) {
-        const resolved = r.value ?? "";
-        setResolvedValue(resolved);
+      if (r.present) {
+        setResolvedValue(null);
         setEnvPreview(true);
-        setRevealValue(true);
+        setRevealValue(false);
         setVerifyUi("ok");
       } else {
         setEnvPreview(false);
@@ -572,9 +591,14 @@ function GroupRow({
           ? "❌"
           : "🔎";
 
-  /** After verify, toggle between env var name (false) and resolved value from server (true). */
+  /** After verify: toggle env name vs masked preview (API never returns the secret). */
   const envPreviewShowsValue = envPreview && revealValue;
-  const envKeyInputValue = envPreview ? (revealValue ? (resolvedValue ?? "") : apiKey) : apiKey;
+  const maskedSecretPreview = "••••••••";
+  const envKeyInputValue = envPreview
+    ? revealValue
+      ? (resolvedValue ?? (verifyUi === "ok" ? maskedSecretPreview : ""))
+      : apiKey
+    : apiKey;
   const modelsUrlValid = isValidHttpUrl(modelsUrl);
   const canImportModels =
     verifyUi === "ok" &&
@@ -604,10 +628,15 @@ function GroupRow({
     setModelsUrlStatus("unchecked");
     setModelsImportMessage(null);
     try {
+      const urlTrimmed = modelsUrl.trim();
+      const providerId =
+        selectedProviderId.trim() ||
+        resolveProviderIdFromModelsUrl(aiModelProviders, urlTrimmed) ||
+        "";
       const r = await importModels({
-        groupId: group.id,
-        providerId: selectedProviderId,
-        modelsUrl: modelsUrl.trim(),
+        groupUid: group.uid,
+        providerId,
+        modelsUrl: urlTrimmed,
         envVarName: apiKey.trim(),
       }).unwrap();
       setModelsUrlStatus("ok");
@@ -620,7 +649,7 @@ function GroupRow({
           : "Не удалось получить модели",
       );
     }
-  }, [apiKey, canImportModels, group.id, importModels, modelsUrl, selectedProviderId]);
+  }, [aiModelProviders, apiKey, canImportModels, group.uid, importModels, modelsUrl, selectedProviderId]);
 
   const hasUnsavedChanges = useMemo(() => {
     return (
@@ -629,9 +658,9 @@ function GroupRow({
       role.trim() !== group.role.trim() ||
       color.trim() !== group.color.trim() ||
       free !== group.free ||
-      apiKey.trim() !== (group.apiKey ?? "").trim()
+      apiKey.trim() !== group.api_key_env_var.trim()
     );
-  }, [slug, label, role, color, free, apiKey, group.slug, group.label, group.role, group.color, group.free, group.apiKey]);
+  }, [slug, label, role, color, free, apiKey, group.slug, group.label, group.role, group.color, group.free, group.api_key_env_var]);
 
   return (
     <div className="ai-models-admin__group-editor flex flex-col gap-1.5">
@@ -776,7 +805,7 @@ function GroupRow({
                     title={
                       revealValue
                         ? "Показать имя переменной окружения"
-                        : "Показать значение из окружения сервера"
+                        : "Показать маску (значение ключа сервер не возвращает)"
                     }
                     disabled={busy || verifyLoading}
                     onClick={() => setRevealValue((x) => !x)}
@@ -878,7 +907,7 @@ function GroupRow({
               role: role.trim(),
               color: color.trim(),
               free,
-              apiKey: apiKey.trim(),
+              api_key_env_var: apiKey.trim(),
             })
           }
           className={cx(

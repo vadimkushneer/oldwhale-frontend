@@ -9,15 +9,15 @@ import {
 import "./AiModelVariantsPanel.scss";
 
 export type AiModelVariantsPanelProps = {
-  group: Pick<AiGroupAdmin, "id" | "label" | "slug">;
+  group: Pick<AiGroupAdmin, "uid" | "label" | "slug">;
   variants: AiVariantAdmin[];
   busy: boolean;
-  dragVariantId: number | null;
-  onDragVariantIdChange: (id: number | null) => void;
-  onCreateVariant: (groupId: number, body: AiModelVariantCreate) => Promise<void> | void;
-  onPatchVariant: (id: number, body: AiModelVariantPatch) => Promise<void> | void;
-  onDeleteVariant: (id: number) => Promise<void> | void;
-  onReorderVariantIds: (groupId: number, ids: number[]) => Promise<void> | void;
+  dragVariantId: string | null;
+  onDragVariantIdChange: (uid: string | null) => void;
+  onCreateVariant: (groupUid: string, body: AiModelVariantCreate) => Promise<void> | void;
+  onPatchVariant: (uid: string, body: AiModelVariantPatch) => Promise<void> | void;
+  onDeleteVariant: (uid: string) => Promise<void> | void;
+  onReorderVariantIds: (groupUid: string, uids: string[]) => Promise<void> | void;
   confirmDelete?: (variant: AiVariantAdmin) => boolean;
 };
 
@@ -34,11 +34,11 @@ export function AiModelVariantsPanel({
   confirmDelete,
 }: AiModelVariantsPanelProps) {
   const c = useAiModelVariantsPanel({
-    groupId: group.id,
+    groupUid: group.uid,
     onCreateVariant,
     onReorderVariantIds,
   });
-  const orderedVariantIds = variants.map((variant) => variant.id);
+  const orderedVariantIds = variants.map((variant) => variant.uid);
 
   return (
     <div className={c.rootClassName}>
@@ -48,8 +48,8 @@ export function AiModelVariantsPanel({
       <div className={`${c.listClassName} ow-app-scrollbar`}>
         {variants.map((variant) => (
           <AiModelVariantRow
-            key={variant.id}
-            groupId={group.id}
+            key={variant.uid}
+            groupId={group.uid}
             variant={variant}
             busy={busy}
             orderedVariantIds={orderedVariantIds}

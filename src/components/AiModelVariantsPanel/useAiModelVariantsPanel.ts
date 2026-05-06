@@ -6,12 +6,12 @@ export type AiModelVariantPatch = Partial<Pick<AiVariantAdmin, "slug" | "label" 
 export type AiModelVariantCreate = Pick<AiVariantAdmin, "slug" | "label">;
 
 export type UseAiModelVariantsPanelArgs = {
-  groupId: number;
-  onCreateVariant: (groupId: number, body: AiModelVariantCreate) => Promise<void> | void;
-  onReorderVariantIds: (groupId: number, ids: number[]) => Promise<void> | void;
+  groupUid: string;
+  onCreateVariant: (groupUid: string, body: AiModelVariantCreate) => Promise<void> | void;
+  onReorderVariantIds: (groupUid: string, uids: string[]) => Promise<void> | void;
 };
 
-export function reorderIdsMove(ids: readonly number[], from: number, to: number): number[] {
+export function reorderIdsMove<T>(ids: readonly T[], from: number, to: number): T[] {
   if (from < 0 || to < 0 || from >= ids.length || to >= ids.length) {
     return [...ids];
   }
@@ -22,7 +22,7 @@ export function reorderIdsMove(ids: readonly number[], from: number, to: number)
 }
 
 export function useAiModelVariantsPanel({
-  groupId,
+  groupUid,
   onCreateVariant,
   onReorderVariantIds,
 }: UseAiModelVariantsPanelArgs) {
@@ -37,13 +37,13 @@ export function useAiModelVariantsPanel({
   );
 
   const createVariant = useCallback(
-    (body: AiModelVariantCreate) => onCreateVariant(groupId, body),
-    [groupId, onCreateVariant],
+    (body: AiModelVariantCreate) => onCreateVariant(groupUid, body),
+    [groupUid, onCreateVariant],
   );
 
   const reorderVariantIds = useCallback(
-    (ids: number[]) => onReorderVariantIds(groupId, ids),
-    [groupId, onReorderVariantIds],
+    (uids: string[]) => onReorderVariantIds(groupUid, uids),
+    [groupUid, onReorderVariantIds],
   );
 
   return {

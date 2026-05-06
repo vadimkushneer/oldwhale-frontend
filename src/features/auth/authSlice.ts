@@ -96,7 +96,7 @@ export const loginThunk = createAsyncThunk(
     const res = await fetch(`${base}/api/auth/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ login, password }),
+      body: JSON.stringify({ username: login, password }),
     });
     const data = (await readJsonSafe(res)) as { error?: string; token?: string; user?: User };
     if (!res.ok) {
@@ -118,7 +118,7 @@ export const registerThunk = createAsyncThunk(
     const res = await fetch(`${base}/api/auth/register`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ login, email, password }),
+      body: JSON.stringify({ username: login, email, password }),
     });
     const data = (await readJsonSafe(res)) as { error?: string; token?: string; user?: User };
     if (!res.ok) {

@@ -88,29 +88,36 @@ export interface AiChatResponse {
   assistantMessageId: string;
 }
 
-/** Admin nested variant row */
+/** UUID string (`components.schemas.UID` in backend OpenAPI). */
+export type Uid = string;
+
+/** Admin nested variant row — mirrors `AiVariantAdmin` in OpenAPI. */
 export interface AiVariantAdmin {
-  id: number;
-  guid: string;
-  group_id: number;
+  uid: Uid;
+  group_uid: Uid;
   slug: string;
   label: string;
   is_default: boolean;
   position: number;
   created_at: string;
+  updated_at: string;
+  deleted_at?: string | null;
 }
 
+/** Admin group row — mirrors `AiGroupAdmin` in OpenAPI. */
 export interface AiGroupAdmin {
-  id: number;
+  uid: Uid;
   slug: string;
   label: string;
   role: string;
   color: string;
   free: boolean;
-  /** Provider API key (sensitive; may be empty or omitted by API). */
-  apiKey?: string;
+  api_key_env_var: string;
+  api_key_present: boolean;
   position: number;
   created_at: string;
+  updated_at: string;
+  deleted_at?: string | null;
   variants: AiVariantAdmin[];
 }
 
@@ -127,17 +134,17 @@ export interface AiVariantWrapResponse {
 }
 
 export interface AiReorderRequest {
-  ids: number[];
+  uids: Uid[];
 }
 
-/** Admin `POST /api/admin/ai/env-lookup` */
-export interface AdminEnvLookupRequest {
+/** Admin `POST /api/admin/ai/env-check` — presence only; secret value is never returned. */
+export interface AdminEnvCheckRequest {
   name: string;
 }
 
-export interface AdminEnvLookupResponse {
-  found: boolean;
-  value?: string;
+export interface AdminEnvCheckResponse {
+  name: string;
+  present: boolean;
 }
 
 /** Admin `GET /api/admin/ai/model-providers` */
@@ -151,9 +158,8 @@ export interface AiModelProviderListResponse {
   providers: AiModelProvider[];
 }
 
-/** Admin `POST /api/admin/ai/groups/{groupId}/models/import` */
-export interface AiModelsImportRequest {
-  groupId: number;
+/** Body for `POST /api/admin/ai/groups/{uid}/models/import` */
+export interface AiModelsImportBody {
   providerId: string;
   modelsUrl: string;
   envVarName: string;

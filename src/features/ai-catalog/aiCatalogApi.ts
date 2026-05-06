@@ -2,18 +2,19 @@ import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 import { clearAuth } from "../auth/authSlice";
 import { apiBaseUrl } from "../../api/env";
 import type {
-  AdminEnvLookupRequest,
-  AdminEnvLookupResponse,
+  AdminEnvCheckRequest,
+  AdminEnvCheckResponse,
   AiCatalogPublicResponse,
   AiGroupAdmin,
   AiGroupListAdminResponse,
   AiGroupWrapResponse,
   AiModelProviderListResponse,
-  AiModelsImportRequest,
+  AiModelsImportBody,
   AiModelsImportResponse,
   AiReorderRequest,
   AiVariantAdmin,
   AiVariantWrapResponse,
+  Uid,
 } from "../../api/types";
 
 const rawBaseQuery = fetchBaseQuery({
@@ -45,15 +46,15 @@ export const aiCatalogApi = createApi({
       transformResponse: (r: AiGroupListAdminResponse) => r.groups,
       providesTags: () => [{ type: "AiAdminGroups", id: "LIST" }],
     }),
-    verifyAdminEnvVar: build.mutation<AdminEnvLookupResponse, AdminEnvLookupRequest>({
-      query: (body) => ({ url: "/api/admin/ai/env-lookup", method: "POST", body }),
+    verifyAdminEnvVar: build.mutation<AdminEnvCheckResponse, AdminEnvCheckRequest>({
+      query: (body) => ({ url: "/api/admin/ai/env-check", method: "POST", body }),
     }),
     getAdminAiModelProviders: build.query<AiModelProviderListResponse, void>({
       query: () => ({ url: "/api/admin/ai/model-providers", method: "GET" }),
     }),
-    importAdminAiModels: build.mutation<AiModelsImportResponse, AiModelsImportRequest>({
-      query: ({ groupId, ...body }) => ({
-        url: `/api/admin/ai/groups/${groupId}/models/import`,
+    importAdminAiModels: build.mutation<AiModelsImportResponse, { groupUid: Uid } & AiModelsImportBody>({
+      query: ({ groupUid, ...body }) => ({
+        url: `/api/admin/ai/groups/${groupUid}/models/import`,
         method: "POST",
         body,
       }),
@@ -70,7 +71,7 @@ export const aiCatalogApi = createApi({
         role?: string;
         color?: string;
         free?: boolean;
-        apiKey?: string;
+        api_key_env_var?: string;
         position?: number;
       }
     >({
@@ -84,18 +85,18 @@ export const aiCatalogApi = createApi({
     patchAiGroup: build.mutation<
       AiGroupAdmin,
       {
-        id: number;
+        uid: Uid;
         slug?: string;
         label?: string;
         role?: string;
         color?: string;
         free?: boolean;
-        apiKey?: string;
+        api_key_env_var?: string;
         position?: number;
       }
     >({
-      query: ({ id, ...body }) => ({
-        url: `/api/admin/ai/groups/${id}`,
+      query: ({ uid, ...body }) => ({
+        url: `/api/admin/ai/groups/${uid}`,
         method: "PATCH",
         body,
       }),
@@ -105,8 +106,8 @@ export const aiCatalogApi = createApi({
         { type: "AiAdminGroups", id: "LIST" },
       ],
     }),
-    deleteAiGroup: build.mutation<void, { id: number }>({
-      query: ({ id }) => ({ url: `/api/admin/ai/groups/${id}`, method: "DELETE" }),
+    deleteAiGroup: build.mutation<void, { uid: Uid }>({
+      query: ({ uid }) => ({ url: `/api/admin/ai/groups/${uid}`, method: "DELETE" }),
       invalidatesTags: () => [
         { type: "AiCatalog", id: "PUBLIC" },
         { type: "AiAdminGroups", id: "LIST" },
@@ -121,10 +122,10 @@ export const aiCatalogApi = createApi({
     }),
     createAiVariant: build.mutation<
       AiVariantWrapResponse["variant"],
-      { groupId: number; slug: string; label?: string; is_default?: boolean; position?: number }
+      { groupUid: Uid; slug: string; label?: string; is_default?: boolean; position?: number }
     >({
-      query: ({ groupId, ...body }) => ({
-        url: `/api/admin/ai/groups/${groupId}/variants`,
+      query: ({ groupUid, ...body }) => ({
+        url: `/api/admin/ai/groups/${groupUid}/variants`,
         method: "POST",
         body,
       }),
@@ -137,15 +138,15 @@ export const aiCatalogApi = createApi({
     patchAiVariant: build.mutation<
       AiVariantWrapResponse["variant"],
       {
-        id: number;
+        uid: Uid;
         slug?: string;
         label?: string;
         is_default?: boolean;
         position?: number;
       }
     >({
-      query: ({ id, ...body }) => ({
-        url: `/api/admin/ai/variants/${id}`,
+      query: ({ uid, ...body }) => ({
+        url: `/api/admin/ai/variants/${uid}`,
         method: "PATCH",
         body,
       }),
@@ -155,18 +156,18 @@ export const aiCatalogApi = createApi({
         { type: "AiAdminGroups", id: "LIST" },
       ],
     }),
-    deleteAiVariant: build.mutation<void, { id: number }>({
-      query: ({ id }) => ({ url: `/api/admin/ai/variants/${id}`, method: "DELETE" }),
+    deleteAiVariant: build.mutation<void, { uid: Uid }>({
+      query: ({ uid }) => ({ url: `/api/admin/ai/variants/${uid}`, method: "DELETE" }),
       invalidatesTags: () => [
         { type: "AiCatalog", id: "PUBLIC" },
         { type: "AiAdminGroups", id: "LIST" },
       ],
     }),
-    reorderAiVariants: build.mutation<void, { groupId: number } & AiReorderRequest>({
-      query: ({ groupId, ids }) => ({
-        url: `/api/admin/ai/groups/${groupId}/variants/order`,
+    reorderAiVariants: build.mutation<void, { groupUid: Uid } & AiReorderRequest>({
+      query: ({ groupUid, uids }) => ({
+        url: `/api/admin/ai/groups/${groupUid}/variants/order`,
         method: "PUT",
-        body: { ids },
+        body: { uids },
       }),
       invalidatesTags: () => [
         { type: "AiCatalog", id: "PUBLIC" },

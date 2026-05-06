@@ -4,16 +4,21 @@ import { describe, expect, it, vi } from "vitest";
 import type { AiVariantAdmin } from "../../api/types";
 import { AiModelVariantRow } from "./AiModelVariantRow";
 
+const V7 = "11111111-1111-4111-8111-111111111111";
+const V8 = "22222222-2222-4222-8222-222222222222";
+const V9 = "33333333-3333-4333-8333-333333333333";
+const G3 = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+
 function variant(overrides: Partial<AiVariantAdmin> = {}): AiVariantAdmin {
   return {
-    id: 7,
-    guid: "11111111-1111-4111-8111-111111111111",
-    group_id: 3,
+    uid: V7,
+    group_uid: G3,
     slug: "gpt-4",
     label: "GPT 4",
     is_default: false,
     position: 1,
     created_at: "2026-01-01T00:00:00.000Z",
+    updated_at: "2026-01-01T00:00:00.000Z",
     ...overrides,
   };
 }
@@ -28,10 +33,10 @@ function renderRow(overrides: Partial<ComponentProps<typeof AiModelVariantRow>> 
 
   render(
     <AiModelVariantRow
-      groupId={3}
+      groupId={G3}
       variant={rowVariant}
       busy={false}
-      orderedVariantIds={[7, 8, 9]}
+      orderedVariantIds={[V7, V8, V9]}
       dragVariantId={null}
       onDragVariantIdChange={onDragVariantIdChange}
       onReorderVariantIds={onReorderVariantIds}
@@ -59,7 +64,7 @@ describe("AiModelVariantRow", () => {
     fireEvent.change(slugInput, { target: { value: " gpt-4-turbo " } });
     fireEvent.blur(slugInput);
 
-    expect(onPatchVariant).toHaveBeenCalledWith(7, { slug: "gpt-4-turbo" });
+    expect(onPatchVariant).toHaveBeenCalledWith(V7, { slug: "gpt-4-turbo" });
   });
 
   it("does not patch an empty slug", () => {
@@ -79,7 +84,7 @@ describe("AiModelVariantRow", () => {
     fireEvent.change(labelInput, { target: { value: "GPT 4 Turbo" } });
     fireEvent.blur(labelInput);
 
-    expect(onPatchVariant).toHaveBeenCalledWith(7, { label: "GPT 4 Turbo" });
+    expect(onPatchVariant).toHaveBeenCalledWith(V7, { label: "GPT 4 Turbo" });
   });
 
   it("marks a variant as default from the DEF button", () => {
@@ -87,7 +92,7 @@ describe("AiModelVariantRow", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "DEF" }));
 
-    expect(onPatchVariant).toHaveBeenCalledWith(7, { is_default: true });
+    expect(onPatchVariant).toHaveBeenCalledWith(V7, { is_default: true });
   });
 
   it("confirms and deletes a variant", () => {
@@ -95,8 +100,8 @@ describe("AiModelVariantRow", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Удалить вариант gpt-4" }));
 
-    expect(confirmDelete).toHaveBeenCalledWith(expect.objectContaining({ id: 7 }));
-    expect(onDeleteVariant).toHaveBeenCalledWith(7);
+    expect(confirmDelete).toHaveBeenCalledWith(expect.objectContaining({ uid: V7 }));
+    expect(onDeleteVariant).toHaveBeenCalledWith(V7);
   });
 
   it("does not delete when confirmation is declined", () => {
@@ -112,7 +117,7 @@ describe("AiModelVariantRow", () => {
 
     fireEvent.dragStart(screen.getByDisplayValue("gpt-4").closest(".ai-model-variant-row")!);
 
-    expect(onDragVariantIdChange).toHaveBeenCalledWith(7);
+    expect(onDragVariantIdChange).toHaveBeenCalledWith(V7);
   });
 
   it("does not start drag when busy", () => {
@@ -127,13 +132,13 @@ describe("AiModelVariantRow", () => {
 
   it("reorders on drop and clears the active drag id", () => {
     const { onDragVariantIdChange, onReorderVariantIds } = renderRow({
-      dragVariantId: 9,
-      orderedVariantIds: [7, 8, 9],
+      dragVariantId: V9,
+      orderedVariantIds: [V7, V8, V9],
     });
 
     fireEvent.drop(screen.getByDisplayValue("gpt-4").closest(".ai-model-variant-row")!);
 
-    expect(onReorderVariantIds).toHaveBeenCalledWith([9, 7, 8]);
+    expect(onReorderVariantIds).toHaveBeenCalledWith([V9, V7, V8]);
     expect(onDragVariantIdChange).toHaveBeenLastCalledWith(null);
   });
 });

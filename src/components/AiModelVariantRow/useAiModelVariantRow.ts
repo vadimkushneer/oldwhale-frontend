@@ -4,15 +4,15 @@ import type { AiVariantAdmin } from "../../api/types";
 import { reorderIdsMove, type AiModelVariantPatch } from "../AiModelVariantsPanel/useAiModelVariantsPanel";
 
 export type UseAiModelVariantRowArgs = {
-  groupId: number;
+  groupId: string;
   variant: AiVariantAdmin;
   busy: boolean;
-  orderedVariantIds: readonly number[];
-  dragVariantId: number | null;
-  onDragVariantIdChange: (id: number | null) => void;
-  onReorderVariantIds: (ids: number[]) => Promise<void> | void;
-  onPatchVariant: (id: number, body: AiModelVariantPatch) => Promise<void> | void;
-  onDeleteVariant: (id: number) => Promise<void> | void;
+  orderedVariantIds: readonly string[];
+  dragVariantId: string | null;
+  onDragVariantIdChange: (uid: string | null) => void;
+  onReorderVariantIds: (uids: string[]) => Promise<void> | void;
+  onPatchVariant: (uid: string, body: AiModelVariantPatch) => Promise<void> | void;
+  onDeleteVariant: (uid: string) => Promise<void> | void;
   confirmDelete?: (variant: AiVariantAdmin) => boolean;
 };
 
@@ -48,17 +48,17 @@ export function useAiModelVariantRow({
 
   const onDragStart = useCallback(() => {
     if (busy) return;
-    onDragVariantIdChange(variant.id);
-  }, [busy, onDragVariantIdChange, variant.id]);
+    onDragVariantIdChange(variant.uid);
+  }, [busy, onDragVariantIdChange, variant.uid]);
 
   const onDragOver = useCallback((event: DragEvent) => {
     event.preventDefault();
   }, []);
 
   const onDrop = useCallback(() => {
-    if (dragVariantId == null || dragVariantId === variant.id) return;
+    if (dragVariantId == null || dragVariantId === variant.uid) return;
     const from = orderedVariantIds.indexOf(dragVariantId);
-    const to = orderedVariantIds.indexOf(variant.id);
+    const to = orderedVariantIds.indexOf(variant.uid);
     if (from < 0 || to < 0) return;
 
     onReorderVariantIds(reorderIdsMove(orderedVariantIds, from, to));
@@ -68,36 +68,36 @@ export function useAiModelVariantRow({
     onDragVariantIdChange,
     onReorderVariantIds,
     orderedVariantIds,
-    variant.id,
+    variant.uid,
   ]);
 
   const onSetDefault = useCallback(() => {
-    onPatchVariant(variant.id, { is_default: true });
-  }, [onPatchVariant, variant.id]);
+    onPatchVariant(variant.uid, { is_default: true });
+  }, [onPatchVariant, variant.uid]);
 
   const onSlugBlur = useCallback(
     (event: FocusEvent<HTMLInputElement>) => {
       const nextSlug = event.target.value.trim();
       if (nextSlug && nextSlug !== variant.slug) {
-        onPatchVariant(variant.id, { slug: nextSlug });
+        onPatchVariant(variant.uid, { slug: nextSlug });
       }
     },
-    [onPatchVariant, variant.id, variant.slug],
+    [onPatchVariant, variant.uid, variant.slug],
   );
 
   const onLabelBlur = useCallback(
     (event: FocusEvent<HTMLInputElement>) => {
       const nextLabel = event.target.value;
       if (nextLabel !== variant.label) {
-        onPatchVariant(variant.id, { label: nextLabel });
+        onPatchVariant(variant.uid, { label: nextLabel });
       }
     },
-    [onPatchVariant, variant.id, variant.label],
+    [onPatchVariant, variant.uid, variant.label],
   );
 
   const onDelete = useCallback(() => {
     if (!confirmDelete(variant)) return;
-    onDeleteVariant(variant.id);
+    onDeleteVariant(variant.uid);
   }, [confirmDelete, onDeleteVariant, variant]);
 
   return {

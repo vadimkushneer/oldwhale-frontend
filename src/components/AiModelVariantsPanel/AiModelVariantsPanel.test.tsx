@@ -5,22 +5,26 @@ import type { AiGroupAdmin, AiVariantAdmin } from "../../api/types";
 import { AiModelVariantsPanel } from "./AiModelVariantsPanel";
 import { reorderIdsMove } from "./useAiModelVariantsPanel";
 
-const group: Pick<AiGroupAdmin, "id" | "label" | "slug"> = {
-  id: 10,
+const G10 = "10101010-1010-4010-8010-101010101010";
+const V1 = "11111111-1111-4111-8111-111111111111";
+const V2 = "22222222-2222-4222-8222-222222222222";
+
+const group: Pick<AiGroupAdmin, "uid" | "label" | "slug"> = {
+  uid: G10,
   label: "OpenAI",
   slug: "openai",
 };
 
 function variant(overrides: Partial<AiVariantAdmin> = {}): AiVariantAdmin {
   return {
-    id: 1,
-    guid: "11111111-1111-4111-8111-111111111111",
-    group_id: 10,
+    uid: V1,
+    group_uid: G10,
     slug: "gpt-4",
     label: "GPT 4",
     is_default: true,
     position: 1,
     created_at: "2026-01-01T00:00:00.000Z",
+    updated_at: "2026-01-01T00:00:00.000Z",
     ...overrides,
   };
 }
@@ -37,7 +41,7 @@ function renderPanel(overrides: Partial<ComponentProps<typeof AiModelVariantsPan
       group={group}
       variants={[
         variant(),
-        variant({ id: 2, slug: "gpt-4o", label: "GPT 4o", is_default: false, position: 2 }),
+        variant({ uid: V2, slug: "gpt-4o", label: "GPT 4o", is_default: false, position: 2 }),
       ]}
       busy={false}
       dragVariantId={null}
@@ -85,13 +89,13 @@ describe("AiModelVariantsPanel", () => {
   });
 
   it("reorders variants with the selected group id", () => {
-    const { onDragVariantIdChange, onReorderVariantIds } = renderPanel({ dragVariantId: 2 });
+    const { onDragVariantIdChange, onReorderVariantIds } = renderPanel({ dragVariantId: V2 });
     const firstRow = screen.getByDisplayValue("gpt-4").closest(".ai-model-variant-row");
 
     expect(firstRow).not.toBeNull();
     fireEvent.drop(firstRow!);
 
-    expect(onReorderVariantIds).toHaveBeenCalledWith(10, [2, 1]);
+    expect(onReorderVariantIds).toHaveBeenCalledWith(G10, [V2, V1]);
     expect(onDragVariantIdChange).toHaveBeenLastCalledWith(null);
   });
 
@@ -107,7 +111,7 @@ describe("AiModelVariantsPanel", () => {
     fireEvent.submit(screen.getByRole("button", { name: "+ ВАРИАНТ" }).closest("form")!);
 
     await waitFor(() => {
-      expect(onCreateVariant).toHaveBeenCalledWith(10, {
+      expect(onCreateVariant).toHaveBeenCalledWith(G10, {
         slug: "claude-3",
         label: "Claude 3",
       });

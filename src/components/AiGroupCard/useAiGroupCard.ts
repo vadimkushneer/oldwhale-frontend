@@ -6,7 +6,7 @@ function cx(...parts: Array<string | false | null | undefined>) {
 }
 
 /** Move the item at `from` to index `to` in a copy of `ids` (same semantics as splice-out-then-insert). */
-export function reorderIdsMove(ids: readonly number[], from: number, to: number): number[] {
+export function reorderIdsMove<T>(ids: readonly T[], from: number, to: number): T[] {
   if (from < 0 || to < 0 || from >= ids.length || to >= ids.length) {
     return [...ids];
   }
@@ -17,14 +17,14 @@ export function reorderIdsMove(ids: readonly number[], from: number, to: number)
 }
 
 export type UseAiGroupCardArgs = {
-  groupId: number;
+  groupId: string;
   isSelected: boolean;
   busy: boolean;
-  orderedGroupIds: readonly number[];
-  dragGroupId: number | null;
-  onDragGroupIdChange: (id: number | null) => void;
-  onSelectGroup: (id: number) => void;
-  onReorderGroupIds: (ids: number[]) => void;
+  orderedGroupIds: readonly string[];
+  dragGroupId: string | null;
+  onDragGroupIdChange: (id: string | null) => void;
+  onSelectGroup: (id: string) => void;
+  onReorderGroupIds: (ids: string[]) => void;
 };
 
 export function useAiGroupCard({

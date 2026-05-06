@@ -1,0 +1,13 @@
+/* BEM block `users-admin-create-form-field` — labeled wrapper used by
+ * `users-admin-create-form` for every input column. */
+.users-admin-create-form-field {
+  @apply flex min-w-0 flex-col;
+}
+
+.users-admin-create-form-field__label {
+  @apply mb-1 text-[9px] tracking-wide text-[#5a587a];
+}
+
+.users-admin-create-form-field__control {
+  @apply block;
+}

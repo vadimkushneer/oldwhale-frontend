@@ -1,0 +1,8 @@
+/* BEM block `users-admin` — page shell for the admin users dashboard. */
+.users-admin {
+  @apply box-border min-h-screen bg-[#1a1b2e] px-5 pb-10 pt-6 font-mono text-[#e4e1f5];
+}
+
+.users-admin__inner {
+  @apply mx-auto w-full max-w-[960px];
+}

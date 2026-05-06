@@ -1,0 +1,41 @@
+/* BEM block `users-admin-create-form` — surface for creating a new user. */
+.users-admin-create-form {
+  @apply mb-6 grid items-end gap-2.5 rounded-2xl bg-[#1f2040] p-5;
+  grid-template-columns: 1fr 1fr 1fr auto auto;
+  box-shadow:
+    8px 8px 22px rgba(0, 0, 0, 0.5),
+    -4px -4px 12px rgba(255, 255, 255, 0.038);
+}
+
+.users-admin-create-form__input,
+.users-admin-create-form__select {
+  @apply w-full rounded-lg border-0 bg-[#1a1b2e] py-2.5 px-3 font-[inherit] text-[#e4e1f5] caret-[#7c6af7] placeholder:text-[#5a587a];
+  box-shadow:
+    inset 3px 3px 10px rgba(0, 0, 0, 0.5),
+    inset -2px -2px 6px rgba(255, 255, 255, 0.035);
+}
+
+.users-admin-create-form__input:focus-visible,
+.users-admin-create-form__select:focus-visible {
+  @apply outline-none ring-1 ring-[#7c6af7];
+}
+
+.users-admin-create-form__select {
+  @apply px-2;
+}
+
+.users-admin-create-form__submit {
+  @apply cursor-pointer rounded-[10px] border-0 bg-[#7c6af7] px-4 py-2.5 font-[inherit] text-[10px] tracking-[2px] text-white;
+}
+
+.users-admin-create-form__submit:focus-visible {
+  @apply outline-none ring-1 ring-[#7c6af7];
+}
+
+.users-admin-create-form__submit:disabled {
+  @apply cursor-default opacity-70;
+}
+
+.users-admin-create-form__error {
+  @apply col-span-full text-[11px] text-[#f472b6];
+}

@@ -1,0 +1,60 @@
+/* BEM block `users-admin-user-row` — single user row inside `users-admin-table`. */
+.users-admin-user-row {
+  border-top: 1px solid rgba(90, 88, 122, 0.2);
+}
+
+.users-admin-user-row__cell {
+  @apply px-1.5 py-2 align-middle;
+}
+
+.users-admin-user-row__cell--muted {
+  @apply text-[#9896b8];
+}
+
+.users-admin-user-row__cell--nowrap {
+  @apply whitespace-nowrap;
+}
+
+.users-admin-user-row__cell--actions {
+  @apply flex items-center gap-2;
+}
+
+.users-admin-user-row__role-select {
+  @apply rounded-md border-0 bg-[#1a1b2e] p-1.5 font-[inherit] text-[#e4e1f5];
+}
+
+.users-admin-user-row__role-select:focus-visible {
+  @apply outline-none ring-1 ring-[#7c6af7];
+}
+
+.users-admin-user-row__role-select:disabled {
+  @apply cursor-default opacity-60;
+}
+
+.users-admin-user-row__disabled-checkbox {
+  @apply cursor-pointer accent-[#7c6af7];
+}
+
+.users-admin-user-row__disabled-checkbox:disabled {
+  @apply cursor-default opacity-60;
+}
+
+.users-admin-user-row__button {
+  @apply cursor-pointer rounded-lg border-0 px-2.5 py-1.5 font-[inherit] text-[9px] tracking-wide;
+}
+
+.users-admin-user-row__button:focus-visible {
+  @apply outline-none ring-1 ring-[#7c6af7];
+}
+
+.users-admin-user-row__button:disabled {
+  @apply cursor-default opacity-60;
+}
+
+.users-admin-user-row__button--save {
+  @apply bg-[#34d399] text-[#0f172a];
+}
+
+.users-admin-user-row__button--delete {
+  @apply bg-[#f472b6] text-[#1a1b2e];
+}

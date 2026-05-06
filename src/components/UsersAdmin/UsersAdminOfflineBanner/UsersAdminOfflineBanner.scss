@@ -1,0 +1,8 @@
+/* BEM block `users-admin-offline-banner` — pink alert banner shown when
+ * the browser is offline and admin mutations are unsafe. */
+.users-admin-offline-banner {
+  @apply mb-4 rounded-xl bg-[#1f2040] px-[14px] py-2.5 text-[11px] tracking-wide text-[#f472b6];
+  box-shadow:
+    8px 8px 22px rgba(0, 0, 0, 0.5),
+    -4px -4px 12px rgba(255, 255, 255, 0.038);
+}

@@ -1,0 +1,24 @@
+/* BEM block `users-admin-toolbar` — page header with title and nav links. */
+.users-admin-toolbar {
+  @apply mb-5 flex flex-wrap items-center justify-between gap-3;
+}
+
+.users-admin-toolbar__title {
+  @apply text-xs tracking-[4px];
+}
+
+.users-admin-toolbar__nav {
+  @apply flex items-center gap-4;
+}
+
+.users-admin-toolbar__link {
+  @apply border-0 bg-transparent font-[inherit] text-[10px] tracking-[2px] no-underline;
+}
+
+.users-admin-toolbar__link--muted {
+  @apply text-[#9896b8];
+}
+
+.users-admin-toolbar__link--accent {
+  @apply text-[#7c6af7];
+}

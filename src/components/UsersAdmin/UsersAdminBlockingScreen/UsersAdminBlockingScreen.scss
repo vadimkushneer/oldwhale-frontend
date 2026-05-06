@@ -1,0 +1,29 @@
+/* BEM block `users-admin-blocking-screen` — full-bleed gating screen for
+ * the admin users dashboard (session restore + insufficient permissions). */
+.users-admin-blocking-screen {
+  @apply box-border flex min-h-screen w-screen items-center justify-center bg-[#1a1b2e] font-mono text-[#5a587a];
+}
+
+.users-admin-blocking-screen--session {
+  @apply text-[11px] tracking-[2px];
+}
+
+.users-admin-blocking-screen--forbidden {
+  @apply flex-col p-6 text-[#e4e1f5];
+}
+
+.users-admin-blocking-screen__title {
+  @apply mb-3 text-sm tracking-[2px];
+}
+
+.users-admin-blocking-screen--session .users-admin-blocking-screen__title {
+  @apply mb-0;
+}
+
+.users-admin-blocking-screen__description {
+  @apply max-w-[360px] text-center text-[11px] leading-relaxed text-[#5a587a];
+}
+
+.users-admin-blocking-screen__editor-link {
+  @apply mt-7 text-[11px] tracking-[2px] text-[#7c6af7] no-underline;
+}

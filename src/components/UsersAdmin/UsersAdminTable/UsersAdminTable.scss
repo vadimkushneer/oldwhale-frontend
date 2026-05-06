@@ -1,0 +1,27 @@
+/* BEM block `users-admin-table` — list of admin users with row actions. */
+.users-admin-table {
+  @apply overflow-x-auto rounded-2xl bg-[#1f2040] p-3;
+  box-shadow:
+    8px 8px 22px rgba(0, 0, 0, 0.5),
+    -4px -4px 12px rgba(255, 255, 255, 0.038);
+}
+
+.users-admin-table__grid {
+  @apply w-full border-collapse text-[11px];
+}
+
+.users-admin-table__head-row {
+  @apply text-left text-[#5a587a];
+}
+
+.users-admin-table__head-cell {
+  @apply px-1.5 py-2 font-normal;
+}
+
+.users-admin-table__loading {
+  @apply p-4 text-[11px] text-[#5a587a];
+}
+
+.users-admin-table__empty {
+  @apply p-4 text-[11px] text-[#5a587a];
+}

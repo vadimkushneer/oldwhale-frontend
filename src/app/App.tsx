@@ -1,5 +1,6 @@
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { useEffect } from "react";
+import { IonApp } from "@ionic/react";
 import { useAppDispatch, useAppSelector } from "../hooks";
 import { markRestoreSkipped, restoreSession } from "../features/auth/authSlice";
 import { useGetPublicCatalogQuery } from "../features/ai-catalog/aiCatalogApi";
@@ -10,6 +11,7 @@ import { EditorPage } from "../pages/EditorPage";
 import { AdminPage } from "../pages/AdminPage";
 import { AiChatLogsAdminPage } from "../pages/AiChatLogsAdminPage";
 import { AiModelsAdminPage } from "../pages/AiModelsAdminPage";
+import { IonicRouteShell } from "./IonicRouteShell";
 
 function SessionInit() {
   const dispatch = useAppDispatch();
@@ -49,19 +51,83 @@ function CatalogInit() {
 
 export default function App() {
   const basename = import.meta.env.BASE_URL;
+  /*
+   * `IonApp` provides Ionic's root container (CSS variables, safe-area
+   * inset propagation, status-bar interaction in a Capacitor WebView).
+   *
+   * We intentionally keep `BrowserRouter` from react-router-dom@6
+   * instead of `IonReactRouter`: as of Ionic React 8.x the router
+   * integration package still pins react-router@5, and the rest of the
+   * app (13+ files using `useNavigate` / v6 `Routes`) targets v6. Each
+   * route is wrapped in `IonicRouteShell` so individual pages still
+   * receive `IonPage` lifecycle and Ionic styling; native swipe-back
+   * page-stack transitions (which need `IonRouterOutlet`) are out of
+   * scope for this integration.
+   */
   return (
-    <BrowserRouter basename={basename}>
-      <SessionInit />
-      <CatalogInit />
-      <Routes>
-        <Route path="/" element={<OnboardingPage />} />
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/editor" element={<EditorPage />} />
-        <Route path="/editor/:modeName" element={<EditorPage />} />
-        <Route path="/admin" element={<AdminPage />} />
-        <Route path="/admin/ai-chat-logs" element={<AiChatLogsAdminPage />} />
-        <Route path="/admin/ai-models" element={<AiModelsAdminPage />} />
-      </Routes>
-    </BrowserRouter>
+    <IonApp>
+      <BrowserRouter basename={basename}>
+        <SessionInit />
+        <CatalogInit />
+        <Routes>
+          <Route
+            path="/"
+            element={
+              <IonicRouteShell>
+                <OnboardingPage />
+              </IonicRouteShell>
+            }
+          />
+          <Route
+            path="/login"
+            element={
+              <IonicRouteShell>
+                <LoginPage />
+              </IonicRouteShell>
+            }
+          />
+          <Route
+            path="/editor"
+            element={
+              <IonicRouteShell>
+                <EditorPage />
+              </IonicRouteShell>
+            }
+          />
+          <Route
+            path="/editor/:modeName"
+            element={
+              <IonicRouteShell>
+                <EditorPage />
+              </IonicRouteShell>
+            }
+          />
+          <Route
+            path="/admin"
+            element={
+              <IonicRouteShell>
+                <AdminPage />
+              </IonicRouteShell>
+            }
+          />
+          <Route
+            path="/admin/ai-chat-logs"
+            element={
+              <IonicRouteShell>
+                <AiChatLogsAdminPage />
+              </IonicRouteShell>
+            }
+          />
+          <Route
+            path="/admin/ai-models"
+            element={
+              <IonicRouteShell>
+                <AiModelsAdminPage />
+              </IonicRouteShell>
+            }
+          />
+        </Routes>
+      </BrowserRouter>
+    </IonApp>
   );
 }

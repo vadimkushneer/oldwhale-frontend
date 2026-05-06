@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+import { IonSpinner, IonText } from "@ionic/react";
 import { Login } from "../legacy/routes/Login";
 import { useAppDispatch, useAppSelector } from "../hooks";
 import { clearFormError, loginThunk, registerThunk } from "../features/auth/authSlice";
@@ -56,15 +57,23 @@ export function LoginPage() {
           height: "100vh",
           background: "#1a1b2e",
           display: "flex",
+          flexDirection: "column",
           alignItems: "center",
           justifyContent: "center",
-          color: "#5a587a",
-          fontFamily: "'Courier New',monospace",
-          letterSpacing: "2px",
-          fontSize: "11px",
+          gap: 16,
         }}
       >
-        ВОССТАНОВЛЕНИЕ СЕССИИ…
+        <IonSpinner name="crescent" style={{ color: "#5a587a", width: 32, height: 32 }} />
+        <IonText
+          style={{
+            color: "#5a587a",
+            fontFamily: "'Courier New',monospace",
+            letterSpacing: "2px",
+            fontSize: "11px",
+          }}
+        >
+          ВОССТАНОВЛЕНИЕ СЕССИИ…
+        </IonText>
       </div>
     );
   }

@@ -9,6 +9,8 @@ Single-page application for **OldWhale**: the screenplay / notebook / media edit
 - **Tailwind CSS 3** (PostCSS) + legacy global CSS for pixel parity
 - **Redux Toolkit** (auth thunks + `adminApi` RTK Query)
 - **React Router 6** (`BrowserRouter` basename from `import.meta.env.BASE_URL`)
+- **Ionic React 8** UI primitives (`IonApp`, `IonPage`, `IonContent`, `IonSpinner`, …) wrapping each route via [`src/app/IonicRouteShell.tsx`](./src/app/IonicRouteShell.tsx)
+- **Capacitor 7** native shells (`android/`, `ios/`) generated from the same Vite `dist/` build
 
 ## Environment variables
 
@@ -70,6 +72,33 @@ VITE_BASE_PATH="/<repository-name>/" VITE_API_URL="https://your-api.example" npm
 ```
 
 `build:gh-pages` is the same as `build` (kept for workflow compatibility).
+
+## Mobile (Capacitor)
+
+Native Android and iOS apps reuse the same `dist/` bundle as the web build — there is no separate React tree.
+
+```bash
+# One-time scaffolding (already committed in this repo as android/ and ios/):
+#   npx cap add android
+#   npx cap add ios
+
+# Each iteration:
+VITE_API_URL="https://your-api.example" npm run build:native   # vite build (no PWA) + cap sync
+npm run cap:android   # opens Android Studio
+npm run cap:ios       # opens Xcode
+```
+
+Things to know:
+
+- **`build:native`** sets `VITE_PWA_DISABLED=1` so no service worker is shipped inside the WebView, then runs `cap sync` to copy `dist/` into `android/app/src/main/assets/public/` and `ios/App/App/public/`. The PWA registration in [`src/main.tsx`](./src/main.tsx) also short-circuits at runtime when `Capacitor.isNativePlatform()` is true.
+- **`VITE_API_URL` for devices/emulators** — the WebView cannot reach your laptop via `localhost`. Use:
+  - Android emulator: `http://10.0.2.2:8080` (host loopback alias).
+  - Physical device on the same Wi-Fi: your machine's LAN IP, e.g. `http://192.168.1.42:8080`.
+  - Production: an HTTPS URL.
+- **CORS** — the backend's `CORS_ORIGIN` allowlist must include the WebView origin. Capacitor's defaults are `https://localhost` (Android, with `androidScheme: "https"` set in [`capacitor.config.ts`](./capacitor.config.ts)) and `capacitor://localhost` (iOS). See [`oldwhale-backend/.env.example`](../oldwhale-backend/.env.example).
+- **iOS `pod install`** requires full Xcode (not just Command Line Tools): `sudo xcode-select -s /Applications/Xcode.app`, then `cd ios/App && pod install` once. Re-run after adding/removing Capacitor plugins.
+- **App identifier** — [`capacitor.config.ts`](./capacitor.config.ts) ships with the placeholder `com.oldwhale.app`. Change it before any store submission; the value is permanent for a given listing.
+- **What deviates from a textbook Ionic React setup** — we keep `BrowserRouter` from `react-router-dom@6` instead of `IonReactRouter`. Ionic's router integration package still pins `react-router@5`, and downgrading was out of scope. Page-stack swipe-back transitions therefore aren't enabled, but every other Ionic component (and Capacitor as a whole) works.
 
 ## GitHub Pages
 
@@ -157,6 +186,10 @@ oldwhale-frontend/
 | `npm run dev` | Vite dev server (`--host`/`--port` overridden in Docker). |
 | `npm run build` | `tsc -b` + `vite build`. |
 | `npm run build:gh-pages` | Same as `build` (CI entry point). |
+| `npm run build:native` | `VITE_PWA_DISABLED=1 npm run build && cap sync` — produces a service-worker-free bundle and copies it into `android/` and `ios/`. |
+| `npm run cap:sync` | `cap sync` only (skip the build) — useful after editing `capacitor.config.ts` or adding a plugin. |
+| `npm run cap:android` | Open the Android project in Android Studio. |
+| `npm run cap:ios` | Open the iOS project in Xcode. |
 | `npm run preview` | Preview production build. |
 | `npm run test:e2e` | Run Playwright visual + behavioral suites (see [TESTING.md](./TESTING.md)). |
 | `npm run test:e2e:update` | Update Playwright snapshots from the current React render. |

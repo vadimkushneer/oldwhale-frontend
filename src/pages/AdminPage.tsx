@@ -316,9 +316,9 @@ export function AdminPage() {
                 </tr>
               </thead>
               <tbody>
-                {(users || []).map((row: User) => (
+                {(users || []).map((row: User, index: number) => (
                   <UserRow
-                    key={row.id}
+                    key={`${row.id}-${index}`}
                     row={row}
                     selfId={user.id}
                     patchUser={patchUser}

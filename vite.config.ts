@@ -24,6 +24,13 @@ export default defineConfig(({ mode }) => {
   }
 
   return {
+    /*
+     * Pre-bundle Ionic so Vite's dev server doesn't trigger a full reload
+     * the first time a route imports an Ionic component.
+     */
+    optimizeDeps: {
+      include: ["@ionic/react", "ionicons/icons"],
+    },
     plugins: [
       react(),
       VitePWA({

@@ -37,6 +37,8 @@ export function useAiModelVariantRow({
       rootClassName: "ai-model-variant-row",
       defaultRadioClassName: "ai-model-variant-row__default-radio",
       inputSlugClassName: "ai-model-variant-row__input ai-model-variant-row__input--slug",
+      inputProviderModelIdClassName:
+        "ai-model-variant-row__input ai-model-variant-row__input--provider-model-id",
       inputLabelClassName: "ai-model-variant-row__input ai-model-variant-row__input--label",
       defaultButtonClassName:
         "ai-model-variant-row__button ai-model-variant-row__button--default",
@@ -75,6 +77,16 @@ export function useAiModelVariantRow({
     onPatchVariant(variant.uid, { is_default: true });
   }, [onPatchVariant, variant.uid]);
 
+  const onProviderModelIdBlur = useCallback(
+    (event: FocusEvent<HTMLInputElement>) => {
+      const next = event.target.value.trim();
+      if (next && next !== variant.provider_model_id) {
+        onPatchVariant(variant.uid, { provider_model_id: next });
+      }
+    },
+    [onPatchVariant, variant.uid, variant.provider_model_id],
+  );
+
   const onSlugBlur = useCallback(
     (event: FocusEvent<HTMLInputElement>) => {
       const nextSlug = event.target.value.trim();
@@ -109,6 +121,7 @@ export function useAiModelVariantRow({
     onDrop,
     onSetDefault,
     onSlugBlur,
+    onProviderModelIdBlur,
     onLabelBlur,
     onDelete,
   };

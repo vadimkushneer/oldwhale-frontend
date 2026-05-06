@@ -1,6 +1,6 @@
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 import { clearAuth } from "../auth/authSlice";
-import { apiBaseUrl } from "../../api/env";
+import { apiRequestBase } from "../../api/env";
 import type {
   AdminUiSettingsPutRequest,
   AdminUiSettingsResponse,
@@ -12,7 +12,7 @@ import type {
 } from "../../api/types";
 
 const rawBaseQuery = fetchBaseQuery({
-  baseUrl: apiBaseUrl(),
+  baseUrl: apiRequestBase(),
   prepareHeaders: (headers, { getState }) => {
     const t = (getState() as { auth: { token: string | null } }).auth.token;
     if (t) headers.set("Authorization", `Bearer ${t}`);

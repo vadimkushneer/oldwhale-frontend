@@ -1,6 +1,6 @@
 /* BEM block `ai-model-variant-row` — one draggable AI model variant */
 .ai-model-variant-row {
-  @apply grid grid-cols-[auto_minmax(0,1fr)_minmax(0,1fr)_auto_auto] items-center gap-2 rounded-[10px] bg-[#1a1b2e] p-2 text-[10px];
+  @apply grid grid-cols-[auto_minmax(0,1fr)_minmax(0,1.2fr)_minmax(0,1fr)_auto_auto] items-center gap-2 rounded-[10px] bg-[#1a1b2e] p-2 text-[10px];
   box-shadow:
     inset 3px 3px 10px rgba(0, 0, 0, 0.5),
     inset -2px -2px 6px rgba(255, 255, 255, 0.035);

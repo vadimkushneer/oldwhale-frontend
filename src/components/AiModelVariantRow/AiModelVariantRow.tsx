@@ -35,6 +35,13 @@ export function AiModelVariantRow(props: AiModelVariantRowProps) {
         aria-label="Slug варианта"
       />
       <input
+        key={`${variant.uid}-provider-model-id`}
+        defaultValue={variant.provider_model_id}
+        className={c.inputProviderModelIdClassName}
+        onBlur={c.onProviderModelIdBlur}
+        aria-label="ID модели у провайдера"
+      />
+      <input
         key={`${variant.uid}-label`}
         defaultValue={variant.label}
         className={c.inputLabelClassName}

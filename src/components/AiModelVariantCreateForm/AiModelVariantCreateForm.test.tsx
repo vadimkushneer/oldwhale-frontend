@@ -30,22 +30,38 @@ describe("AiModelVariantCreateForm", () => {
     expect(onCreateVariant).not.toHaveBeenCalled();
   });
 
+  it("validates provider model id before creating", () => {
+    const { onCreateVariant } = renderForm();
+
+    fireEvent.change(screen.getByLabelText("Slug нового варианта"), {
+      target: { value: "gpt-4o" },
+    });
+    fireEvent.submit(screen.getByRole("button", { name: "+ ВАРИАНТ" }).closest("form")!);
+
+    expect(screen.getByText("укажите ID модели у провайдера")).toBeInTheDocument();
+    expect(onCreateVariant).not.toHaveBeenCalled();
+  });
+
   it("creates a variant and clears inputs", async () => {
     const { onCreateVariant } = renderForm();
     const slugInput = screen.getByLabelText("Slug нового варианта");
+    const providerInput = screen.getByLabelText("ID модели у провайдера (новый вариант)");
     const labelInput = screen.getByLabelText("Label нового варианта");
 
     fireEvent.change(slugInput, { target: { value: " gpt-4o " } });
+    fireEvent.change(providerInput, { target: { value: "gpt-4o" } });
     fireEvent.change(labelInput, { target: { value: "GPT 4o" } });
     fireEvent.submit(screen.getByRole("button", { name: "+ ВАРИАНТ" }).closest("form")!);
 
     await waitFor(() => {
       expect(onCreateVariant).toHaveBeenCalledWith({
         slug: "gpt-4o",
+        provider_model_id: "gpt-4o",
         label: "GPT 4o",
       });
     });
     expect(slugInput).toHaveValue("");
+    expect(providerInput).toHaveValue("");
     expect(labelInput).toHaveValue("");
   });
 
@@ -55,6 +71,9 @@ describe("AiModelVariantCreateForm", () => {
     });
 
     fireEvent.change(screen.getByLabelText("Slug нового варианта"), {
+      target: { value: "gpt-4o" },
+    });
+    fireEvent.change(screen.getByLabelText("ID модели у провайдера (новый вариант)"), {
       target: { value: "gpt-4o" },
     });
     fireEvent.submit(screen.getByRole("button", { name: "+ ВАРИАНТ" }).closest("form")!);

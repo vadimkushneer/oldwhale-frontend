@@ -5,6 +5,7 @@ import {
   AIM,
   getAiVariants,
   getAiVariantGuid,
+  getAiGroupUid,
   getDefaultAiVariant,
   normalizeAiModelVariant,
   setAiCatalog,
@@ -18,7 +19,7 @@ describe("setAiCatalog", () => {
   it("updates AIM, variants, and defaults from server-shaped payload", () => {
     setAiCatalog([
       {
-        id: 1,
+        uid: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
         slug: "alpha",
         label: "Alpha",
         role: "R",
@@ -26,15 +27,13 @@ describe("setAiCatalog", () => {
         free: true,
         variants: [
           {
-            id: 10,
-            guid: "11111111-1111-4111-8111-111111111111",
+            uid: "11111111-1111-4111-8111-111111111111",
             slug: "alpha-one",
             label: "One",
             is_default: false,
           },
           {
-            id: 11,
-            guid: "22222222-2222-4222-8222-222222222222",
+            uid: "22222222-2222-4222-8222-222222222222",
             slug: "alpha-two",
             label: "Two",
             is_default: true,
@@ -43,6 +42,7 @@ describe("setAiCatalog", () => {
       },
     ]);
     expect(AIM.map((x) => x.id)).toEqual(["alpha"]);
+    expect(getAiGroupUid("alpha")).toBe("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
     expect(getAiVariants("alpha").map((v: { id: string }) => v.id)).toEqual([
       "11111111-1111-4111-8111-111111111111",
       "22222222-2222-4222-8222-222222222222",

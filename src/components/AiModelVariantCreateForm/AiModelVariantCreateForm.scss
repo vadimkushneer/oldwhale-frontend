@@ -1,6 +1,6 @@
 /* BEM block `ai-model-variant-create-form` — create variant controls */
 .ai-model-variant-create-form {
-  @apply mt-3.5 grid shrink-0 grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-2;
+  @apply mt-3.5 grid shrink-0 grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto] gap-2;
 }
 
 .ai-model-variant-create-form__input {

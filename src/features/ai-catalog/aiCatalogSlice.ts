@@ -4,7 +4,8 @@ import type { AiGroupPublic } from "../../api/types";
 import { setAiCatalog } from "../../legacy/domain/ai";
 import { aiCatalogApi } from "./aiCatalogApi";
 
-export const OW_AI_CATALOG_CACHE_KEY = "ow_ai_catalog_v1";
+/** Bumped when catalog JSON shape changes (e.g. `uid` fields required for chat). */
+export const OW_AI_CATALOG_CACHE_KEY = "ow_ai_catalog_v2";
 
 function readCache(): AiGroupPublic[] | null {
   if (typeof window === "undefined") return null;

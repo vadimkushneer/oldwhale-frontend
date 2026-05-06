@@ -4,7 +4,7 @@ import { IonApp } from "@ionic/react";
 import { useAppDispatch, useAppSelector } from "../hooks";
 import { markRestoreSkipped, restoreSession } from "../features/auth/authSlice";
 import { useGetPublicCatalogQuery } from "../features/ai-catalog/aiCatalogApi";
-import { apiBaseUrl } from "../api/env";
+import { apiRequestBase } from "../api/env";
 import { OnboardingPage } from "../pages/OnboardingPage";
 import { LoginPage } from "../pages/LoginPage";
 import { EditorPage } from "../pages/EditorPage";
@@ -41,7 +41,7 @@ function SessionInit() {
 
 function CatalogInit() {
   const token = useAppSelector((s) => s.auth.token);
-  const skip = !apiBaseUrl();
+  const skip = !apiRequestBase();
   const { refetch } = useGetPublicCatalogQuery(undefined, { skip, refetchOnFocus: false });
   useEffect(() => {
     if (!skip) void refetch();

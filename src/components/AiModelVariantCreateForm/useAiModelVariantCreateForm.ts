@@ -19,6 +19,7 @@ export function useAiModelVariantCreateForm({
   onCreateVariant,
 }: UseAiModelVariantCreateFormArgs) {
   const [slug, setSlug] = useState("");
+  const [providerModelId, setProviderModelId] = useState("");
   const [label, setLabel] = useState("");
   const [error, setError] = useState<string | null>(null);
 
@@ -27,6 +28,8 @@ export function useAiModelVariantCreateForm({
       rootClassName: "ai-model-variant-create-form",
       inputSlugClassName:
         "ai-model-variant-create-form__input ai-model-variant-create-form__input--slug",
+      inputProviderModelIdClassName:
+        "ai-model-variant-create-form__input ai-model-variant-create-form__input--provider-model-id",
       inputLabelClassName:
         "ai-model-variant-create-form__input ai-model-variant-create-form__input--label",
       buttonClassName:
@@ -45,28 +48,36 @@ export function useAiModelVariantCreateForm({
         setError("slug варианта ≥2");
         return;
       }
+      if (!providerModelId.trim()) {
+        setError("укажите ID модели у провайдера");
+        return;
+      }
 
       try {
         await onCreateVariant({
           slug: slug.trim(),
+          provider_model_id: providerModelId.trim(),
           label,
         });
         setSlug("");
+        setProviderModelId("");
         setLabel("");
       } catch (err: unknown) {
         setError(getErrorMessage(err));
       }
     },
-    [label, onCreateVariant, slug],
+    [label, onCreateVariant, providerModelId, slug],
   );
 
   return {
     ...classNames,
     slug,
+    providerModelId,
     label,
     error,
     busy,
     setSlug,
+    setProviderModelId,
     setLabel,
     onSubmit,
   };

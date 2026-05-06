@@ -200,10 +200,14 @@ export function AiModelsAdminPage() {
   );
 
   const onCreateVariant = useCallback(
-    async (groupUid: string, body: { slug: string; label: string }) => {
+    async (
+      groupUid: string,
+      body: { slug: string; provider_model_id: string; label: string },
+    ) => {
       await createVariant({
         groupUid,
         slug: body.slug,
+        provider_model_id: body.provider_model_id,
         label: body.label,
       }).unwrap();
       await refetch();
@@ -212,7 +216,10 @@ export function AiModelsAdminPage() {
   );
 
   const onPatchVariant = useCallback(
-    async (uid: string, body: { slug?: string; label?: string; is_default?: boolean }) => {
+    async (
+      uid: string,
+      body: { slug?: string; provider_model_id?: string; label?: string; is_default?: boolean },
+    ) => {
       try {
         await patchVariant({ uid, ...body }).unwrap();
         await refetch();
@@ -684,56 +691,6 @@ function GroupRow({
           value={label}
           onChange={(e) => setLabel(e.target.value)}
         />
-        <input
-          className={cx(
-            "ai-models-admin__group-editor-input ai-models-admin__group-editor-input--role",
-            inputClassName,
-          )}
-          value={role}
-          onChange={(e) => setRole(e.target.value)}
-        />
-        <div
-          role="group"
-          aria-label="Цвет"
-          className={cx(
-            "ai-models-admin__group-editor-input ai-models-admin__group-editor-input--color",
-            "flex w-full min-w-0 cursor-pointer items-stretch overflow-hidden rounded-lg border-0 bg-[#1a1b2e] p-0 font-mono text-[11px] text-[#e4e1f5]",
-            insetShadowClassName,
-            "focus-within:outline-none focus-within:ring-1 focus-within:ring-[#7c6af7]",
-          )}
-          onClick={(e) => {
-            if ((e.target as HTMLElement).closest(".ai-models-admin__group-editor-color-code")) {
-              return;
-            }
-            colorInputRef.current?.click();
-          }}
-        >
-          <input
-            ref={colorInputRef}
-            type="color"
-            className="sr-only"
-            tabIndex={-1}
-            value={hexForColorInput(color)}
-            onChange={(e) => setColor(e.target.value)}
-          />
-          <div
-            className="pointer-events-none flex w-9 shrink-0 items-center justify-center border-r border-[#ffffff14] self-stretch"
-            title="Выбрать цвет"
-          >
-            <span
-              className="h-5 w-5 rounded border border-[#ffffff26] shadow-[inset_0_0_0_1px_rgba(0,0,0,0.25)]"
-              style={{
-                backgroundColor: hexForSwatch(color) ?? "#3d3f5c",
-              }}
-            />
-          </div>
-          <input
-            className="ai-models-admin__group-editor-color-code min-w-0 flex-1 cursor-text border-0 bg-transparent px-[10px] py-2 font-mono text-[#e4e1f5] outline-none placeholder:text-[#5a587a] caret-[#7c6af7]"
-            value={color}
-            onChange={(e) => setColor(e.target.value)}
-            aria-label="Код цвета"
-          />
-        </div>
         <div className="ai-models-admin__group-editor-field ai-models-admin__group-editor-field--api-key col-span-2 flex flex-col gap-1">
           <label
             className="ai-models-admin__group-editor-label ai-models-admin__group-editor-label--api-key text-[9px] tracking-[1px] text-[#5a587a]"
@@ -836,7 +793,7 @@ function GroupRow({
                   )}
                   value={modelsUrl}
                   onChange={(e) => onModelsUrlChange(e.target.value)}
-                  placeholder="https://api.anthropic.com/v1/models"
+                  placeholder="Base URL для API"
                   autoComplete="off"
                   inputMode="url"
                   spellCheck={false}
@@ -883,19 +840,6 @@ function GroupRow({
           ) : null}
         </div>
       </div>
-      <label className="ai-models-admin__group-editor-toggle flex items-center gap-1.5 text-[10px] text-[#9896b8]">
-        <input
-          type="checkbox"
-          className={cx(
-            "ai-models-admin__group-editor-checkbox h-4 w-4 accent-[#7c6af7]",
-            focusRingClassName,
-          )}
-          checked={free}
-          onChange={(e) => setFree(e.target.checked)}
-          disabled={busy}
-        />
-        <span className="ai-models-admin__group-editor-toggle-label">free</span>
-      </label>
       <div className="ai-models-admin__group-editor-actions flex gap-2">
         <button
           type="button"

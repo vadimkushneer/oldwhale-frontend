@@ -48,6 +48,7 @@ import {
   normalizeAiModelVariant,
   getAiVariant,
   getAiVariantGuid,
+  getAiGroupUid,
   getAiVariantMenuLabel,
   getAiModelDisplayLabel,
   makeAiGreeting,
@@ -83,7 +84,7 @@ import {
 import { ActTempoSparkline } from "../../ui/ActTempoSparkline";
 import { useWindowWidth } from "../../hooks/useWindowWidth";
 import { useAppSelector } from "../../../hooks";
-import { apiBaseUrl } from "../../../api/env";
+import { apiRequestBase } from "../../../api/env";
 import { useGetPublicCatalogQuery } from "../../../features/ai-catalog/aiCatalogApi";
 import {
   autoH,
@@ -4719,14 +4720,30 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
       });
     const rawNoteHtml = noteEditorRef.current?.innerHTML ?? noteTextRef.current ?? "";
     const workfieldHtml = normalizeNoteHtml(rawNoteHtml);
+    const groupUid = getAiGroupUid(modelAtSend);
+    const variantUid = getAiVariantGuid(modelAtSend, modelVariantAtSend);
+    if (!groupUid || !variantUid) {
+      setAiLoad(false);
+      setMsgs((p) => [
+        ...p,
+        {
+          id: newAiMessageId(),
+          role: "ai",
+          text: "Каталог моделей ещё не загрузился. Проверьте сеть и обновите страницу.",
+          model: modelAtSend,
+          modelVariant: modelVariantAtSend,
+        },
+      ]);
+      return;
+    }
     const chatPayload = {
       message: bodyText,
-      groupSlug: modelAtSend,
-      variantGuid: modelVariantAtSend,
-      editorMode: mode,
+      group_uid: groupUid,
+      variant_uid: variantUid,
+      editor_mode: mode,
     };
     if (mode === "note") {
-      chatPayload.noteContext = {
+      chatPayload.note_context = {
         conversationHistory,
         workfieldHtml,
       };
@@ -4738,8 +4755,8 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
     aiChatAbortRef.current?.abort();
     const ac = new AbortController();
     aiChatAbortRef.current = ac;
-    const base = apiBaseUrl();
-    const url = base ? `${base}/api/ai/chat` : "/api/ai/chat";
+    const base = apiRequestBase();
+    const url = `${base}/api/ai/chat`;
     try {
       const headers = { "Content-Type": "application/json" };
       if (authToken) headers.Authorization = `Bearer ${authToken}`;
@@ -4772,13 +4789,22 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
         throw new Error("unexpected ai chat status");
       }
       const accepted = await res.json();
-      const requestId = typeof accepted?.requestId === "string" && accepted.requestId ? accepted.requestId : "";
+      const requestId =
+        (typeof accepted?.request_uid === "string" && accepted.request_uid && accepted.request_uid) ||
+        (typeof accepted?.requestId === "string" && accepted.requestId && accepted.requestId) ||
+        "";
       const userMessageId =
-        typeof accepted?.userMessageId === "string" && accepted.userMessageId ? accepted.userMessageId : newAiMessageId();
+        (typeof accepted?.user_message_uid === "string" && accepted.user_message_uid && accepted.user_message_uid) ||
+        (typeof accepted?.userMessageId === "string" && accepted.userMessageId && accepted.userMessageId) ||
+        newAiMessageId();
       const acceptedAssistantMessageId =
-        typeof accepted?.assistantMessageId === "string" && accepted.assistantMessageId
-          ? accepted.assistantMessageId
-          : newAiMessageId();
+        (typeof accepted?.assistant_message_uid === "string" &&
+          accepted.assistant_message_uid &&
+          accepted.assistant_message_uid) ||
+        (typeof accepted?.assistantMessageId === "string" &&
+          accepted.assistantMessageId &&
+          accepted.assistantMessageId) ||
+        newAiMessageId();
       if (!requestId) {
         throw new Error("missing ai chat request id");
       }
@@ -4797,9 +4823,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
         }
         return next;
       });
-      const eventsUrl = base
-        ? `${base}/api/ai/chat/events?requestId=${encodeURIComponent(requestId)}`
-        : `/api/ai/chat/events?requestId=${encodeURIComponent(requestId)}`;
+      const eventsUrl = `${base}/api/ai/chat/events?request_uid=${encodeURIComponent(requestId)}`;
       const eventHeaders = {};
       if (authToken) eventHeaders.Authorization = `Bearer ${authToken}`;
       const eventRes = await fetch(eventsUrl, {
@@ -4848,9 +4872,11 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
       const data = aiEvent.data || {};
       const reply = typeof data?.reply === "string" ? data.reply : "";
       const assistantMessageId =
-        typeof data?.assistantMessageId === "string" && data.assistantMessageId
-          ? data.assistantMessageId
-          : acceptedAssistantMessageId;
+        (typeof data?.assistant_message_uid === "string" &&
+          data.assistant_message_uid &&
+          data.assistant_message_uid) ||
+        (typeof data?.assistantMessageId === "string" && data.assistantMessageId && data.assistantMessageId) ||
+        acceptedAssistantMessageId;
       setMsgs((p) => [
         ...p,
         {

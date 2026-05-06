@@ -73,7 +73,7 @@ export let AI_DEFAULT_MODEL_VARIANTS = defaultVariantsFromRecord(AI_MODEL_VARIAN
 /**
  * Apply catalog from `GET /api/ai/models` (or cache). Each group `slug` becomes provider id in `AIM` / variant map keys.
  * Variant `id` is the public GUID; `slug` stays available for legacy localStorage upgrades and display/debugging.
- * @param {Array<{ slug: string; label: string; role: string; color: string; free: boolean; variants: Array<{ guid?: string; slug: string; label: string; is_default?: boolean }> }>} groups
+ * @param {Array<{ uid?: string; slug: string; label: string; role: string; color: string; free: boolean; variants: Array<{ uid?: string; guid?: string; slug: string; label: string; is_default?: boolean }> }>} groups
  */
 export function setAiCatalog(groups) {
   if (!Array.isArray(groups) || groups.length === 0) {
@@ -84,6 +84,7 @@ export function setAiCatalog(groups) {
   }
   AIM = groups.map((g) => ({
     id: g.slug,
+    groupUid: String(g.uid || g.groupUid || ""),
     label: g.label,
     role: g.role || "",
     color: g.color || "",
@@ -94,14 +95,22 @@ export function setAiCatalog(groups) {
   for (const g of groups) {
     const pid = g.slug;
     const vars = Array.isArray(g.variants) ? g.variants : [];
-    vmap[pid] = vars.map((v) => ({
-      id: v.guid || v.slug,
-      guid: v.guid || "",
-      slug: v.slug,
-      label: v.label != null ? String(v.label) : "",
-    }));
-    const def = vars.find((v) => v.is_default);
-    defmap[pid] = (def && (def.guid || def.slug)) || vars[0]?.guid || vars[0]?.slug || "";
+    vmap[pid] = vars.map((v) => {
+      const uidStr = v.uid != null && String(v.uid).trim() !== "" ? String(v.uid) : "";
+      const legacyGuid = v.guid != null && String(v.guid).trim() !== "" ? String(v.guid) : "";
+      const canonical = uidStr || legacyGuid;
+      return {
+        id: canonical || v.slug,
+        guid: canonical,
+        slug: v.slug,
+        label: v.label != null ? String(v.label) : "",
+      };
+    });
+    const def = vars.find((v) => v.is_default) || vars[0];
+    const pickKey = (v) =>
+      v &&
+      (String(v.uid || "").trim() || String(v.guid || "").trim() || String(v.slug || "").trim());
+    defmap[pid] = pickKey(def) || "";
   }
   AI_MODEL_VARIANTS = vmap;
   AI_DEFAULT_MODEL_VARIANTS = defmap;
@@ -120,6 +129,11 @@ export const AI_DEFAULT_MODEL = "deepseek";
 export const AI_FILE_EXTS = ["txt", "docx", "fdx", "whale"];
 export const AI_FILE_ACCEPT = ".txt,.docx,.fdx,.whale,text/plain,application/json,application/xml,application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 export const getAiProvider = (providerId=AI_DEFAULT_MODEL) => AIM.find(x=>x.id===providerId) || AIM.find(x=>x.id===AI_DEFAULT_MODEL) || AIM[0];
+/** Group UUID for `POST /api/ai/chat` (`group_uid`). Empty until catalog from API is applied. */
+export const getAiGroupUid = (providerId=AI_DEFAULT_MODEL) => {
+  const p = getAiProvider(providerId);
+  return p && p.groupUid ? String(p.groupUid) : "";
+};
 export const getAiVariants = (providerId=AI_DEFAULT_MODEL) => AI_MODEL_VARIANTS[providerId] || AI_MODEL_VARIANTS[AI_DEFAULT_MODEL] || [];
 export const getDefaultAiVariant = (providerId=AI_DEFAULT_MODEL) => AI_DEFAULT_MODEL_VARIANTS[providerId] || getAiVariants(providerId)[0]?.id || "";
 const findAiVariant = (providerId=AI_DEFAULT_MODEL, variantId) => getAiVariants(providerId).find(v=>v.id===variantId || v.slug===variantId);

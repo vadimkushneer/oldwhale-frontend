@@ -1,7 +1,7 @@
 import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
 import type { PayloadAction } from "@reduxjs/toolkit";
 import type { User } from "../../api/types";
-import { apiBaseUrl } from "../../api/env";
+import { apiRequestBase } from "../../api/env";
 
 const TOKEN_KEY = "ow_token";
 
@@ -62,8 +62,8 @@ export const restoreSession = createAsyncThunk(
   async (_, { getState, rejectWithValue }) => {
     const token = (getState() as { auth: AuthState }).auth.token;
     if (!token) return null;
-    const base = apiBaseUrl();
-    if (!base) return rejectWithValue({ skipClear: true as const, message: "VITE_API_URL is not set" });
+    const base = apiRequestBase();
+    if (!base) return rejectWithValue({ skipClear: true as const, message: "API base URL unavailable" });
     const res = await fetch(`${base}/api/me`, {
       headers: { Authorization: `Bearer ${token}` },
     });
@@ -91,8 +91,8 @@ export const loginThunk = createAsyncThunk(
     { login, password }: { login: string; password: string },
     { rejectWithValue },
   ) => {
-    const base = apiBaseUrl();
-    if (!base) return rejectWithValue("VITE_API_URL is not set");
+    const base = apiRequestBase();
+    if (!base) return rejectWithValue("API base URL unavailable");
     const res = await fetch(`${base}/api/auth/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -113,8 +113,8 @@ export const registerThunk = createAsyncThunk(
     { login, email, password }: { login: string; email: string; password: string },
     { rejectWithValue },
   ) => {
-    const base = apiBaseUrl();
-    if (!base) return rejectWithValue("VITE_API_URL is not set");
+    const base = apiRequestBase();
+    if (!base) return rejectWithValue("API base URL unavailable");
     const res = await fetch(`${base}/api/auth/register`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },

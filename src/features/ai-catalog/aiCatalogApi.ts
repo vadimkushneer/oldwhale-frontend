@@ -1,6 +1,6 @@
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 import { clearAuth } from "../auth/authSlice";
-import { apiBaseUrl } from "../../api/env";
+import { apiRequestBase } from "../../api/env";
 import type {
   AdminEnvCheckRequest,
   AdminEnvCheckResponse,
@@ -18,7 +18,7 @@ import type {
 } from "../../api/types";
 
 const rawBaseQuery = fetchBaseQuery({
-  baseUrl: apiBaseUrl(),
+  baseUrl: apiRequestBase(),
   prepareHeaders: (headers, { getState }) => {
     const t = (getState() as { auth: { token: string | null } }).auth.token;
     if (t) headers.set("Authorization", `Bearer ${t}`);
@@ -122,7 +122,14 @@ export const aiCatalogApi = createApi({
     }),
     createAiVariant: build.mutation<
       AiVariantWrapResponse["variant"],
-      { groupUid: Uid; slug: string; label?: string; is_default?: boolean; position?: number }
+      {
+        groupUid: Uid;
+        slug: string;
+        provider_model_id: string;
+        label?: string;
+        is_default?: boolean;
+        position?: number;
+      }
     >({
       query: ({ groupUid, ...body }) => ({
         url: `/api/admin/ai/groups/${groupUid}/variants`,
@@ -140,6 +147,7 @@ export const aiCatalogApi = createApi({
       {
         uid: Uid;
         slug?: string;
+        provider_model_id?: string;
         label?: string;
         is_default?: boolean;
         position?: number;

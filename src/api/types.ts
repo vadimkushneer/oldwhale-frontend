@@ -1,5 +1,8 @@
 /** Mirrors `components.schemas` in oldwhale-backend OpenAPI — field names unchanged. */
 
+/** UUID string (`components.schemas.UID` in backend OpenAPI). */
+export type Uid = string;
+
 export type UserRole = "user" | "admin";
 
 export interface User {
@@ -30,21 +33,24 @@ export interface ApiErrorBody {
 
 /** Current-user `GET /api/ai/models` (optional auth; guests receive free groups only). */
 export interface AiVariantPublic {
-  id: number;
-  guid: string;
+  uid: Uid;
   slug: string;
   label: string;
   is_default: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface AiGroupPublic {
-  id: number;
+  uid: Uid;
   slug: string;
   label: string;
   role: string;
   color: string;
   free: boolean;
   variants: AiVariantPublic[];
+  created_at: string;
+  updated_at: string;
 }
 
 export interface AiCatalogPublicResponse {
@@ -67,35 +73,33 @@ export interface AiChatNoteContextRequest {
   workfieldHtml: string;
 }
 
-/** POST /api/ai/chat */
+/** POST /api/ai/chat (JSON keys match OpenAPI / Go `json` tags). */
 export interface AiChatRequest {
   message: string;
-  groupSlug: string;
-  variantGuid: string;
-  editorMode?: EditorMode;
-  noteContext?: AiChatNoteContextRequest;
+  group_uid: Uid;
+  variant_uid: Uid;
+  editor_mode?: EditorMode;
+  note_context?: AiChatNoteContextRequest;
 }
 
 export interface AiChatAcceptedResponse {
-  requestId: string;
-  userMessageId: string;
-  assistantMessageId: string;
+  request_uid: Uid;
+  user_message_uid: Uid;
+  assistant_message_uid: Uid;
 }
 
 export interface AiChatResponse {
   reply: string;
-  userMessageId: string;
-  assistantMessageId: string;
+  user_message_uid: Uid;
+  assistant_message_uid: Uid;
 }
-
-/** UUID string (`components.schemas.UID` in backend OpenAPI). */
-export type Uid = string;
 
 /** Admin nested variant row — mirrors `AiVariantAdmin` in OpenAPI. */
 export interface AiVariantAdmin {
   uid: Uid;
   group_uid: Uid;
   slug: string;
+  provider_model_id: string;
   label: string;
   is_default: boolean;
   position: number;

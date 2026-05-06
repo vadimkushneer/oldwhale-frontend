@@ -19,6 +19,13 @@ export function AiModelVariantCreateForm(props: AiModelVariantCreateFormProps) {
         aria-label="Slug нового варианта"
       />
       <input
+        className={c.inputProviderModelIdClassName}
+        placeholder="provider model id"
+        value={c.providerModelId}
+        onChange={(event) => c.setProviderModelId(event.target.value)}
+        aria-label="ID модели у провайдера (новый вариант)"
+      />
+      <input
         className={c.inputLabelClassName}
         placeholder="label"
         value={c.label}

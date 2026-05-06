@@ -20,6 +20,7 @@ function variant(overrides: Partial<AiVariantAdmin> = {}): AiVariantAdmin {
     uid: V1,
     group_uid: G10,
     slug: "gpt-4",
+    provider_model_id: "openai/gpt-4",
     label: "GPT 4",
     is_default: true,
     position: 1,
@@ -41,7 +42,7 @@ function renderPanel(overrides: Partial<ComponentProps<typeof AiModelVariantsPan
       group={group}
       variants={[
         variant(),
-        variant({ uid: V2, slug: "gpt-4o", label: "GPT 4o", is_default: false, position: 2 }),
+        variant({ uid: V2, slug: "gpt-4o", provider_model_id: "gpt-4o", label: "GPT 4o", is_default: false, position: 2 }),
       ]}
       busy={false}
       dragVariantId={null}
@@ -105,6 +106,9 @@ describe("AiModelVariantsPanel", () => {
     fireEvent.change(screen.getByLabelText("Slug нового варианта"), {
       target: { value: " claude-3 " },
     });
+    fireEvent.change(screen.getByLabelText("ID модели у провайдера (новый вариант)"), {
+      target: { value: "claude-3-opus" },
+    });
     fireEvent.change(screen.getByLabelText("Label нового варианта"), {
       target: { value: "Claude 3" },
     });
@@ -113,6 +117,7 @@ describe("AiModelVariantsPanel", () => {
     await waitFor(() => {
       expect(onCreateVariant).toHaveBeenCalledWith(G10, {
         slug: "claude-3",
+        provider_model_id: "claude-3-opus",
         label: "Claude 3",
       });
     });

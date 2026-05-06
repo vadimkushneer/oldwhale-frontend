@@ -14,6 +14,7 @@ function variant(overrides: Partial<AiVariantAdmin> = {}): AiVariantAdmin {
     uid: V7,
     group_uid: G3,
     slug: "gpt-4",
+    provider_model_id: "openai/gpt-4",
     label: "GPT 4",
     is_default: false,
     position: 1,
@@ -57,6 +58,26 @@ function renderRow(overrides: Partial<ComponentProps<typeof AiModelVariantRow>> 
 }
 
 describe("AiModelVariantRow", () => {
+  it("patches provider model id on blur", () => {
+    const { onPatchVariant } = renderRow();
+    const input = screen.getByLabelText("ID модели у провайдера");
+
+    fireEvent.change(input, { target: { value: " gpt-4-turbo-preview " } });
+    fireEvent.blur(input);
+
+    expect(onPatchVariant).toHaveBeenCalledWith(V7, { provider_model_id: "gpt-4-turbo-preview" });
+  });
+
+  it("does not patch empty provider model id", () => {
+    const { onPatchVariant } = renderRow();
+    const input = screen.getByLabelText("ID модели у провайдера");
+
+    fireEvent.change(input, { target: { value: "  " } });
+    fireEvent.blur(input);
+
+    expect(onPatchVariant).not.toHaveBeenCalled();
+  });
+
   it("patches the variant when slug changes on blur", () => {
     const { onPatchVariant } = renderRow();
     const slugInput = screen.getByLabelText("Slug варианта");

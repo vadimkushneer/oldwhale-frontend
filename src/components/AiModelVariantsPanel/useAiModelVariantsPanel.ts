@@ -1,9 +1,11 @@
 import { useCallback, useMemo } from "react";
 import type { AiVariantAdmin } from "../../api/types";
 
-export type AiModelVariantPatch = Partial<Pick<AiVariantAdmin, "slug" | "label" | "is_default">>;
+export type AiModelVariantPatch = Partial<
+  Pick<AiVariantAdmin, "slug" | "provider_model_id" | "label" | "is_default">
+>;
 
-export type AiModelVariantCreate = Pick<AiVariantAdmin, "slug" | "label">;
+export type AiModelVariantCreate = Pick<AiVariantAdmin, "slug" | "provider_model_id" | "label">;
 
 export type UseAiModelVariantsPanelArgs = {
   groupUid: string;

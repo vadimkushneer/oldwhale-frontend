@@ -11,36 +11,42 @@ test.describe("editor / AI panel", () => {
         body: JSON.stringify({
           groups: [
             {
-              id: 1,
+              uid: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
               slug: "deepseek",
               label: "DeepSeek",
               role: "Черновик",
               color: "#4ade80",
               free: true,
+              created_at: "2025-01-01T00:00:00Z",
+              updated_at: "2025-01-01T00:00:00Z",
               variants: [
                 {
-                  id: 10,
-                  guid: "11111111-1111-4111-8111-111111111111",
+                  uid: "11111111-1111-4111-8111-111111111111",
                   slug: "deepseek-v3-2",
                   label: "V3.2",
                   is_default: true,
+                  created_at: "2025-01-01T00:00:00Z",
+                  updated_at: "2025-01-01T00:00:00Z",
                 },
               ],
             },
             {
-              id: 2,
+              uid: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
               slug: "claude",
               label: "Claude",
               role: "Редактура",
               color: "#7c6af7",
               free: false,
+              created_at: "2025-01-01T00:00:00Z",
+              updated_at: "2025-01-01T00:00:00Z",
               variants: [
                 {
-                  id: 20,
-                  guid: CLAUDE_OPUS_GUID,
+                  uid: CLAUDE_OPUS_GUID,
                   slug: "claude-opus-4-6",
                   label: "Opus 4.6",
                   is_default: true,
+                  created_at: "2025-01-01T00:00:00Z",
+                  updated_at: "2025-01-01T00:00:00Z",
                 },
               ],
             },
@@ -50,34 +56,32 @@ test.describe("editor / AI panel", () => {
     });
     await page.route("**/api/ai/chat", async (route) => {
       const postData = route.request().postDataJSON() as Record<string, unknown>;
-      expect(postData.editorMode).toBe("note");
-      expect(postData.variantGuid).toBe(CLAUDE_OPUS_GUID);
-      expect(postData.variantSlug).toBeUndefined();
-      expect(postData.noteContext).toBeTruthy();
-      expect(Array.isArray((postData.noteContext as { conversationHistory?: unknown }).conversationHistory)).toBe(
-        true,
-      );
+      expect(postData.editor_mode).toBe("note");
+      expect(postData.group_uid).toBe("cccccccc-cccc-4ccc-8ccc-cccccccccccc");
+      expect(postData.variant_uid).toBe(CLAUDE_OPUS_GUID);
+      expect(postData.note_context).toBeTruthy();
       expect(
-        typeof (postData.noteContext as { workfieldHtml?: unknown }).workfieldHtml,
-      ).toBe("string");
+        Array.isArray((postData.note_context as { conversationHistory?: unknown }).conversationHistory),
+      ).toBe(true);
+      expect(typeof (postData.note_context as { workfieldHtml?: unknown }).workfieldHtml).toBe("string");
       await route.fulfill({
         status: 202,
         contentType: "application/json",
         body: JSON.stringify({
-          requestId: "33333333-3333-4333-8333-333333333333",
-          userMessageId: "11111111-1111-4111-8111-111111111111",
-          assistantMessageId: "22222222-2222-4222-8222-222222222222",
+          request_uid: "33333333-3333-4333-8333-333333333333",
+          user_message_uid: "11111111-1111-4111-8111-111111111111",
+          assistant_message_uid: "22222222-2222-4222-8222-222222222222",
         }),
       });
     });
     await page.route("**/api/ai/chat/events?**", async (route) => {
-      expect(route.request().url()).toContain("requestId=33333333-3333-4333-8333-333333333333");
+      expect(route.request().url()).toContain("request_uid=33333333-3333-4333-8333-333333333333");
       await route.fulfill({
         status: 200,
         contentType: "text/event-stream",
         body:
           'event: ready\n' +
-          'data: {"requestId":"33333333-3333-4333-8333-333333333333","reply":"HELLO FROM OLD WHALE","userMessageId":"11111111-1111-4111-8111-111111111111","assistantMessageId":"22222222-2222-4222-8222-222222222222"}\n\n',
+          'data: {"request_uid":"33333333-3333-4333-8333-333333333333","reply":"HELLO FROM OLD WHALE","user_message_uid":"11111111-1111-4111-8111-111111111111","assistant_message_uid":"22222222-2222-4222-8222-222222222222"}\n\n',
       });
     });
     await page.addInitScript(() => {

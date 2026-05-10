@@ -31,6 +31,7 @@ export interface AuthState {
   loginLoading: boolean;
   registerLoading: boolean;
   lastError: string | null;
+  sessionExpired: boolean;
 }
 
 function buildInitialAuthState(): AuthState {
@@ -42,6 +43,7 @@ function buildInitialAuthState(): AuthState {
     loginLoading: false,
     registerLoading: false,
     lastError: null,
+    sessionExpired: false,
   };
 }
 
@@ -138,12 +140,14 @@ export const authSlice = createSlice({
       state.user = null;
       state.lastError = null;
       state.restoreStatus = "ready";
+      state.sessionExpired = false;
       writeStoredToken(null);
     },
     setAuthFromResponse(state, action: PayloadAction<{ token: string; user: User }>) {
       state.token = action.payload.token;
       state.user = action.payload.user;
       state.lastError = null;
+      state.sessionExpired = false;
       writeStoredToken(action.payload.token);
     },
     clearFormError(state) {
@@ -152,6 +156,9 @@ export const authSlice = createSlice({
     /** When there is no token, restore is a no-op — call this once on app boot. */
     markRestoreSkipped(state) {
       state.restoreStatus = "ready";
+    },
+    acknowledgeSessionExpired(state) {
+      state.sessionExpired = false;
     },
   },
   extraReducers: (b) => {
@@ -164,6 +171,7 @@ export const authSlice = createSlice({
           if (state.user.disabled) {
             state.token = null;
             state.user = null;
+            state.sessionExpired = false;
             writeStoredToken(null);
           }
         }
@@ -178,6 +186,7 @@ export const authSlice = createSlice({
         if (p && "unauthorized" in p && p.unauthorized) {
           state.token = null;
           state.user = null;
+          state.sessionExpired = true;
           writeStoredToken(null);
         }
         state.restoreStatus = "ready";
@@ -190,6 +199,7 @@ export const authSlice = createSlice({
         state.loginLoading = false;
         state.token = action.payload.token;
         state.user = action.payload.user;
+        state.sessionExpired = false;
         writeStoredToken(action.payload.token);
       })
       .addCase(loginThunk.rejected, (state, action) => {
@@ -204,6 +214,7 @@ export const authSlice = createSlice({
         state.registerLoading = false;
         state.token = action.payload.token;
         state.user = action.payload.user;
+        state.sessionExpired = false;
         writeStoredToken(action.payload.token);
       })
       .addCase(registerThunk.rejected, (state, action) => {
@@ -213,4 +224,10 @@ export const authSlice = createSlice({
   },
 });
 
-export const { clearAuth, setAuthFromResponse, clearFormError, markRestoreSkipped } = authSlice.actions;
+export const {
+  clearAuth,
+  setAuthFromResponse,
+  clearFormError,
+  markRestoreSkipped,
+  acknowledgeSessionExpired,
+} = authSlice.actions;

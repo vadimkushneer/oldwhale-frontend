@@ -57,6 +57,7 @@ function renderAdmin(initialAuth: {
         loginLoading: false,
         registerLoading: false,
         lastError: null,
+        sessionExpired: false,
       },
     },
   });

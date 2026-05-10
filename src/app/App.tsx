@@ -12,6 +12,7 @@ import { AdminPage } from "../pages/AdminPage";
 import { AiChatLogsAdminPage } from "../pages/AiChatLogsAdminPage";
 import { AiModelsAdminPage } from "../pages/AiModelsAdminPage";
 import { IonicRouteShell } from "./IonicRouteShell";
+import { SessionExpiredRedirect } from "./SessionExpiredRedirect";
 
 function SessionInit() {
   const dispatch = useAppDispatch();
@@ -68,6 +69,7 @@ export default function App() {
     <IonApp>
       <BrowserRouter basename={basename}>
         <SessionInit />
+        <SessionExpiredRedirect />
         <CatalogInit />
         <Routes>
           <Route

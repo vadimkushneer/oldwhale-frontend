@@ -4,9 +4,11 @@ import { MODES } from "../legacy/domain/blocks";
 import { EditorScreen } from "../legacy/routes/Editor";
 import { useAppDispatch, useAppSelector } from "../hooks";
 import { clearAuth } from "../features/auth/authSlice";
+import { buildLoginRedirectState } from "../features/auth/loginRedirect";
+import type { LoginRedirectFrom } from "../features/auth/loginRedirect";
 
 type Profile = { mode?: string; id?: string; label?: string; color?: string; desc?: string; num?: string };
-type EditorLocationState = { aiVariantGuid?: string; from?: { pathname?: string; search?: string } } | null;
+type EditorLocationState = { aiVariantGuid?: string; from?: LoginRedirectFrom } | null;
 
 /** When JWT is valid but onboarding profile was never stored (or was cleared), editor still loads. */
 const FALLBACK_AUTH_PROFILE: Profile = { mode: "film" };
@@ -105,14 +107,13 @@ export function EditorPage() {
   const onLogin = useCallback(() => {
     navigate("/login", {
       replace: false,
-      state: {
-        from: {
-          pathname: canonicalPath,
-          search: location.search,
-        },
-      },
+      state: buildLoginRedirectState({
+        pathname: canonicalPath,
+        search: location.search,
+        hash: location.hash,
+      }),
     });
-  }, [canonicalPath, location.search, navigate]);
+  }, [canonicalPath, location.hash, location.search, navigate]);
 
   const onModeRouteChange = useCallback(
     (nextMode: string) => {
@@ -172,7 +173,11 @@ export function EditorPage() {
       <Navigate
         to="/login"
         replace
-        state={{ from: { pathname: canonicalPath, search: location.search } }}
+        state={buildLoginRedirectState({
+          pathname: canonicalPath,
+          search: location.search,
+          hash: location.hash,
+        })}
       />
     );
   }

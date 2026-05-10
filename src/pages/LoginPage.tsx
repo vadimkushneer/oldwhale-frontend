@@ -4,6 +4,8 @@ import { IonSpinner, IonText } from "@ionic/react";
 import { Login } from "../legacy/routes/Login";
 import { useAppDispatch, useAppSelector } from "../hooks";
 import { clearFormError, loginThunk, registerThunk } from "../features/auth/authSlice";
+import { buildLoginTarget } from "../features/auth/loginRedirect";
+import type { LoginRedirectState } from "../features/auth/loginRedirect";
 import { useOnlineStatus } from "../hooks/useOnlineStatus";
 
 const OFFLINE_MESSAGE = "Нет подключения к сети — вход и регистрация недоступны.";
@@ -20,7 +22,7 @@ function ensureEditorProfileIfMissing() {
 
 export function LoginPage() {
   const navigate = useNavigate();
-  const location = useLocation() as { state?: { from?: { pathname?: string; search?: string } } };
+  const location = useLocation() as { state?: LoginRedirectState };
   const dispatch = useAppDispatch();
   const lastError = useAppSelector((s) => s.auth.lastError);
   const token = useAppSelector((s) => s.auth.token);
@@ -30,7 +32,7 @@ export function LoginPage() {
   const displayError = online ? lastError : OFFLINE_MESSAGE;
 
   const from = location.state?.from;
-  const target = from?.pathname ? `${from.pathname}${from.search || ""}` : "/editor";
+  const target = buildLoginTarget(from);
 
   /**
    * Do not trap a still-authenticated user on the login form. As soon as the

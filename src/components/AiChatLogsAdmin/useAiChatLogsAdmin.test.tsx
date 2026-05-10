@@ -48,6 +48,7 @@ function wrapperForAuth(
         loginLoading: false,
         registerLoading: false,
         lastError: null,
+        sessionExpired: false,
       },
     },
   });

@@ -1,9 +1,15 @@
-import { useCallback, type ClipboardEvent, type FormEvent, type KeyboardEvent, type MutableRefObject, type RefObject } from "react";
+import { diffWordsWithSpace, type Change } from "diff";
+import { useCallback, useState, type ClipboardEvent, type FormEvent, type KeyboardEvent, type MutableRefObject, type RefObject } from "react";
 import { cx } from "../useEditorDocument";
 import type { EditorDocumentNoteAlignOption, EditorDocumentNoteCommandItem } from "./editorDocumentNoteConstants";
 
 type SyncNoteOptions = {
   snapshot?: boolean;
+};
+
+export type EditorDocumentNotePasteDiff = {
+  parts: Change[];
+  pastedText: string;
 };
 
 export type EditorDocumentNoteVariant = "desktop" | "mobile";
@@ -18,6 +24,27 @@ export type EditorDocumentNoteHookProps = {
   scheduleNoteHistorySnapshot: (html: string) => void;
 };
 
+function escapeNoteText(text: string) {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function plainTextToNoteHtml(text: string) {
+  return text
+    .replace(/\r\n?/g, "\n")
+    .split("\n")
+    .map(escapeNoteText)
+    .join("<br>");
+}
+
+function getEditorPlainText(editor: HTMLDivElement) {
+  return editor.innerText ?? editor.textContent ?? "";
+}
+
 export function useEditorDocumentNote({
   editorVariant = "desktop",
   noteEditorRef,
@@ -27,6 +54,8 @@ export function useEditorDocumentNote({
   markDirty,
   scheduleNoteHistorySnapshot,
 }: EditorDocumentNoteHookProps) {
+  const [pasteDiff, setPasteDiff] = useState<EditorDocumentNotePasteDiff | null>(null);
+
   const saveNoteSelection = useCallback(() => {
     const selection = window.getSelection?.();
     if (selection && selection.rangeCount > 0) {
@@ -49,6 +78,7 @@ export function useEditorDocumentNote({
 
   const syncNoteHtml = useCallback(
     (html: string, options: SyncNoteOptions = {}) => {
+      setPasteDiff(null);
       noteTextRef.current = html;
       setNoteText(html);
       markDirty();
@@ -173,9 +203,26 @@ export function useEditorDocumentNote({
     if (editorVariant === "mobile") return;
 
     event.preventDefault();
-    const text = event.clipboardData.getData("text/plain");
-    document.execCommand("insertText", false, text);
+    const pastedText = event.clipboardData.getData("text/plain");
+    const currentText = getEditorPlainText(event.currentTarget);
+    const parts = diffWordsWithSpace(currentText, pastedText);
+
+    setPasteDiff({ parts, pastedText });
   }, [editorVariant]);
+
+  const acceptPasteDiff = useCallback(() => {
+    const editor = noteEditorRef.current;
+    if (!editor || !pasteDiff) return false;
+
+    editor.innerHTML = plainTextToNoteHtml(pasteDiff.pastedText);
+    syncNoteHtml(editor.innerHTML, { snapshot: true });
+    editor.focus();
+    return true;
+  }, [noteEditorRef, pasteDiff, syncNoteHtml]);
+
+  const declinePasteDiff = useCallback(() => {
+    setPasteDiff(null);
+  }, []);
 
   const noteClassName = cx("editor-document-note", `editor-document-note--${editorVariant}`);
   const editorClassName = cx(
@@ -196,5 +243,8 @@ export function useEditorDocumentNote({
     handleEditorInput,
     handleEditorKeyDown,
     handleEditorPaste,
+    pasteDiff,
+    acceptPasteDiff,
+    declinePasteDiff,
   };
 }

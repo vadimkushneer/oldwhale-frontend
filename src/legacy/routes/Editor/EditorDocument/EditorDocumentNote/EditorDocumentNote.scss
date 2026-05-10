@@ -33,6 +33,62 @@
     }
   }
 
+  &__paste-diff {
+    @apply mb-3 rounded-xl border p-3 text-sm;
+    background: var(--ed-surf);
+    border-color: var(--ed-t3-22);
+    color: var(--ed-t1);
+  }
+
+  &__paste-diff-header {
+    @apply mb-2 flex flex-wrap items-center justify-between gap-2;
+  }
+
+  &__paste-diff-title {
+    @apply text-xs font-semibold uppercase tracking-[0.08em];
+    color: var(--ed-t2);
+  }
+
+  &__paste-diff-actions {
+    @apply flex items-center gap-2;
+  }
+
+  &__paste-diff-button {
+    @apply rounded-md border px-3 py-1 text-xs font-semibold;
+    background: var(--ed-accent);
+    border-color: var(--ed-accent);
+    color: #fff;
+    cursor: pointer;
+
+    &--secondary {
+      background: transparent;
+      border-color: var(--ed-t3-33);
+      color: var(--ed-t2);
+    }
+  }
+
+  &__paste-diff-preview {
+    @apply max-h-52 overflow-auto rounded-lg border p-3;
+    background: var(--ed-bg);
+    border-color: var(--ed-t3-22);
+    line-height: 1.7;
+    white-space: pre-wrap;
+  }
+
+  &__paste-diff-part {
+    &--added {
+      background: rgba(34, 197, 94, 0.2);
+      color: #4ade80;
+      text-decoration: none;
+    }
+
+    &--removed {
+      background: rgba(248, 113, 113, 0.18);
+      color: #f87171;
+      text-decoration: line-through;
+    }
+  }
+
   &__font-size-span {
     font-size: var(--editor-document-note-font-size);
   }

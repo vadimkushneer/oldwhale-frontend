@@ -43,6 +43,9 @@ export function EditorDocumentNote({
     handleEditorInput,
     handleEditorKeyDown,
     handleEditorPaste,
+    pasteDiff,
+    acceptPasteDiff,
+    declinePasteDiff,
   } = useEditorDocumentNote({
     editorVariant,
     noteEditorRef,
@@ -64,6 +67,43 @@ export function EditorDocumentNote({
         restoreNoteSelection={restoreNoteSelection}
         getTooltipAnchorProps={getTooltipAnchorProps}
       />
+
+      {pasteDiff ? (
+        <div className="editor-document-note__paste-diff" role="region" aria-label="Проверка вставленного текста">
+          <div className="editor-document-note__paste-diff-header">
+            <span className="editor-document-note__paste-diff-title">Вставленный текст отличается от заметки</span>
+            <div className="editor-document-note__paste-diff-actions">
+              <button type="button" className="editor-document-note__paste-diff-button" onClick={acceptPasteDiff}>
+                Принять
+              </button>
+              <button
+                type="button"
+                className="editor-document-note__paste-diff-button editor-document-note__paste-diff-button--secondary"
+                onClick={declinePasteDiff}
+              >
+                Отклонить
+              </button>
+            </div>
+          </div>
+
+          <div className="editor-document-note__paste-diff-preview" aria-label="Изменения вставки">
+            {pasteDiff.parts.map((part, index) => (
+              <span
+                key={`${index}-${part.value}`}
+                className={[
+                  "editor-document-note__paste-diff-part",
+                  part.added ? "editor-document-note__paste-diff-part--added" : "",
+                  part.removed ? "editor-document-note__paste-diff-part--removed" : "",
+                ]
+                  .filter(Boolean)
+                  .join(" ")}
+              >
+                {part.value}
+              </span>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       <div
         className={editorClassName}

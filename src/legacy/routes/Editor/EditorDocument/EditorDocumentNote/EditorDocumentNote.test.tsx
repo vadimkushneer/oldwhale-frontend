@@ -64,18 +64,49 @@ describe("EditorDocumentNote", () => {
     expect(props.scheduleNoteHistorySnapshot).toHaveBeenCalledWith("Draft text");
   });
 
-  it("pastes plain text in the desktop editor", () => {
+  it("reviews pasted desktop text as an accept-or-decline diff", () => {
     const props = makeProps();
     const { container } = render(<EditorDocumentNote {...props} />);
     const editor = container.querySelector(".ow-note-editor") as HTMLDivElement;
+    editor.textContent = "old text";
 
     fireEvent.paste(editor, {
       clipboardData: {
-        getData: vi.fn().mockReturnValue("plain text"),
+        getData: vi.fn().mockReturnValue("new text"),
       },
     });
 
-    expect(document.execCommand).toHaveBeenCalledWith("insertText", false, "plain text");
+    expect(document.execCommand).not.toHaveBeenCalledWith("insertText", false, "new text");
+    expect(screen.getByLabelText("Проверка вставленного текста")).toBeInTheDocument();
+    expect(screen.getByText("old")).toHaveClass("editor-document-note__paste-diff-part--removed");
+    expect(screen.getByText("new")).toHaveClass("editor-document-note__paste-diff-part--added");
+
+    fireEvent.click(screen.getByRole("button", { name: "Принять" }));
+
+    expect(editor.innerHTML).toBe("new text");
+    expect(props.noteTextRef.current).toBe("new text");
+    expect(props.setNoteText).toHaveBeenCalledWith("new text");
+    expect(props.markDirty).toHaveBeenCalled();
+    expect(props.scheduleNoteHistorySnapshot).toHaveBeenCalledWith("new text");
+  });
+
+  it("declines a pasted desktop text diff without changing the note", () => {
+    const props = makeProps();
+    const { container } = render(<EditorDocumentNote {...props} />);
+    const editor = container.querySelector(".ow-note-editor") as HTMLDivElement;
+    editor.textContent = "original";
+
+    fireEvent.paste(editor, {
+      clipboardData: {
+        getData: vi.fn().mockReturnValue("replacement"),
+      },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Отклонить" }));
+
+    expect(editor.textContent).toBe("original");
+    expect(props.setNoteText).not.toHaveBeenCalled();
+    expect(screen.queryByLabelText("Проверка вставленного текста")).not.toBeInTheDocument();
   });
 
   it("keeps the mobile line-break behavior on Enter", () => {

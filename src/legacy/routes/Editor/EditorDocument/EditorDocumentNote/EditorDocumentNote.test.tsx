@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { fireEvent, render } from "@testing-library/react";
 import { EditorDocumentNote } from "./EditorDocumentNote";
+import { computeTextChanges } from "./useEditorDocumentNote";
 
 describe("EditorDocumentNote", () => {
   it("renders note editor and syncs input", () => {
@@ -71,5 +72,30 @@ describe("EditorDocumentNote", () => {
     });
 
     expect(execCommand).toHaveBeenCalledWith("insertText", false, "plain");
+  });
+});
+
+describe("computeTextChanges (paste review granularity)", () => {
+  const textVariant1 = `
+  Здесь будет основная писанина, весь текст. Суну сюда небольшой рассказ, как будто я ео сам написал, например.
+Доминика Петрова, фиктивная жена Хауса, прибывает к нему из ниоткуда. У неё проблемы. Её могут лишить возможности получить грин-карту, так как миграционная служба подозревает, что та вышла замуж лишь ради неё. Они с Хаусом должны разыграть перед служащими управления счастливую семейную пару. Но поначалу придётся получше узнать друг друга.
+В больнице, тем временем, по случайному совпадению находится один из известных экспертов по браку, переженивший немало пар. Он поступил после обморока на церемонии и испытывает проблемы со зрением. Его печерь тоже не в порядке, к тому же в организме низкий уровень тестостерона. Но заболевание делает из него лучшего специалиста в своей области.
+`.trim();
+
+  const textVariant2 = `
+  Тут будет главная писанина, весь текст. Помещу сюда небольшой рассказ, как будто я его сам написал, например.
+Доминика Петрова, фиктивная жена Хауса, прибывает к нему из ниоткуда. У неё проблемы. Её могут лишить возможности получить грин-карту, так как миграционная служба подозревает, что та вышла замуж лишь ради неё. Они с Хаусом должны разыграть перед служащими управления счастливую семейную пару. Но сначала придётся получше узнать друг друга.
+В больнице, тем временем, по случайному совпадению находится один из известных экспертов по браку, переженивший немало пар. Он поступил после обморока на церемонии и испытывает проблемы со зрением. Его печерь тоже не в порядке, к тому же в организме низкий уровень тестостерона. Но болезнь делает из него лучшего специалиста в своей области.
+`.trim();
+
+  it("produces many granular changes instead of one huge replacement", () => {
+    const { changes } = computeTextChanges(textVariant1, textVariant2);
+    // We expect at least 8-10 word/phrase level changes for these two similar paragraphs
+    expect(changes.length).toBeGreaterThan(8);
+    // Sanity: there should be both additions and removals
+    const hasAdd = changes.some((c) => c.added.length > 0);
+    const hasRemove = changes.some((c) => c.removed.length > 0);
+    expect(hasAdd).toBe(true);
+    expect(hasRemove).toBe(true);
   });
 });

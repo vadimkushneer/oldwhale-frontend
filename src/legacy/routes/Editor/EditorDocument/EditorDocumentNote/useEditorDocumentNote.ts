@@ -1,8 +1,67 @@
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import type { ClipboardEvent, Dispatch, FormEvent, MutableRefObject, RefObject, SetStateAction } from "react";
+import { diffWords } from "diff";
 import { NOTE_TOOLBAR_ITEMS } from "../editorDocumentNoteConstants";
 
 type ToolbarItem = (typeof NOTE_TOOLBAR_ITEMS)[number];
+
+interface PasteReview {
+  originalHtml: string;
+  proposedHtml: string;
+  originalText: string;
+  proposedText: string;
+  diffHtml: string;
+  isLong: boolean;
+  changes: Array<{ id: number; removed: string; added: string }>;
+}
+
+function escapeHtml(str: string): string {
+  return str.replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[m]!));
+}
+
+function getPlainText(input: string | HTMLElement): string {
+  const div = document.createElement("div");
+  if (typeof input === "string") {
+    div.innerHTML = input;
+  } else {
+    div.innerHTML = input.innerHTML;
+  }
+  return div.textContent || "";
+}
+
+/**
+ * Pure function to compute granular text changes between two strings.
+ * Used by paste review and for unit testing that we get multiple small changes
+ * instead of one huge replacement.
+ */
+export function computeTextChanges(original: string, proposed: string) {
+  const parts = diffWords(original, proposed);
+  const changes: Array<{ id: number; removed: string; added: string }> = [];
+  let changeId = 0;
+  let pendingRemoved = "";
+  let diffHtml = "";
+  parts.forEach((part) => {
+    if (part.added) {
+      diffHtml += `<span class="diff-added">${escapeHtml(part.value)}</span>`;
+      changes.push({ id: changeId++, removed: pendingRemoved, added: part.value });
+      pendingRemoved = "";
+    } else if (part.removed) {
+      diffHtml += `<span class="diff-removed">${escapeHtml(part.value)}</span>`;
+      pendingRemoved = part.value;
+    } else {
+      diffHtml += escapeHtml(part.value);
+      if (pendingRemoved) {
+        // lone removal without immediate addition
+        changes.push({ id: changeId++, removed: pendingRemoved, added: "" });
+        pendingRemoved = "";
+      }
+    }
+  });
+  if (pendingRemoved) {
+    changes.push({ id: changeId++, removed: pendingRemoved, added: "" });
+  }
+  return { changes, diffHtml };
+}
 
 export type UseEditorDocumentNoteArgs = {
   noteEditorRef: RefObject<HTMLDivElement | null>;
@@ -23,6 +82,8 @@ export function useEditorDocumentNote({
   scheduleNoteHistorySnapshot,
   setNoteColorOpen,
 }: UseEditorDocumentNoteArgs) {
+  const [review, setReview] = useState<PasteReview | null>(null);
+
   const saveNoteSelection = useCallback(() => {
     const sel = window.getSelection();
     if (sel && sel.rangeCount > 0) noteSelRangeRef.current = sel.getRangeAt(0).cloneRange();
@@ -134,11 +195,77 @@ export function useEditorDocumentNote({
     [saveNoteSelection, syncNoteHtml],
   );
 
-  const onPaste = useCallback((e: ClipboardEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    const text = e.clipboardData.getData("text/plain");
-    document.execCommand("insertText", false, text);
-  }, []);
+  const onPaste = useCallback(
+    (e: ClipboardEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      const editor = noteEditorRef.current;
+      if (!editor) return;
+
+      const pastedPlain = e.clipboardData.getData("text/plain").replace(/\r\n/g, "\n");
+      if (!pastedPlain.trim()) {
+        return;
+      }
+
+      const originalHtml = editor.innerHTML;
+      const originalText = getPlainText(editor);
+
+      // fast path for short pastes or short notes (keeps existing behavior & tests)
+      if (pastedPlain.length < 30 || originalText.length < 20) {
+        document.execCommand("insertText", false, pastedPlain);
+        return;
+      }
+      const sel = window.getSelection();
+      const selectedText = sel && sel.rangeCount > 0 ? sel.toString() : "";
+
+      let proposedText: string;
+      if (selectedText) {
+        const idx = originalText.indexOf(selectedText);
+        if (idx !== -1) {
+          proposedText = originalText.slice(0, idx) + pastedPlain + originalText.slice(idx + selectedText.length);
+        } else {
+          proposedText = originalText + pastedPlain;
+        }
+      } else {
+        // caret or no selection: append with newline separator for clarity
+        proposedText = originalText ? `${originalText}\n${pastedPlain}` : pastedPlain;
+      }
+
+      // selection-aware diff using jsdiff on the affected text region
+      // Delegate to the shared computeTextChanges helper for both granular changes and diff HTML
+      const { changes, diffHtml } = computeTextChanges(originalText, proposedText);
+
+      const proposedHtml = proposedText.replace(/\n/g, "<br>");
+      const isLong = proposedText.length > 400 || (proposedText.match(/\n/g) || []).length > 4;
+
+      setReview({
+        originalHtml,
+        proposedHtml,
+        originalText,
+        proposedText,
+        diffHtml,
+        isLong,
+        changes,
+      });
+    },
+    [noteEditorRef],
+  );
+
+  const acceptDiff = useCallback(
+    (finalProposedHtml?: string) => {
+      if (!review || !noteEditorRef.current) return;
+      const htmlToUse = finalProposedHtml || review.proposedHtml;
+      noteEditorRef.current.innerHTML = htmlToUse;
+      syncNoteHtml(htmlToUse, { snapshot: true });
+      setReview(null);
+    },
+    [review, syncNoteHtml],
+  );
+
+  const declineDiff = useCallback(() => {
+    if (!review || !noteEditorRef.current) return;
+    noteEditorRef.current.innerHTML = review.originalHtml;
+    setReview(null);
+  }, [review]);
 
   return {
     onInput,
@@ -151,5 +278,9 @@ export function useEditorDocumentNote({
     execNoteCommand,
     applyFontSize,
     applyNoteColor,
+    isReviewing: !!review,
+    reviewData: review,
+    acceptDiff,
+    declineDiff,
   };
 }

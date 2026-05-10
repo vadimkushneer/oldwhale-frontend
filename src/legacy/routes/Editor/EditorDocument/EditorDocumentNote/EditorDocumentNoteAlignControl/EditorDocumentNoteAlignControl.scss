@@ -1,0 +1,30 @@
+.editor-document-note-align-control {
+  @apply relative mr-[3px];
+
+  &__menu {
+    @apply absolute left-0 top-[30px] z-50 min-w-[150px] rounded-lg p-1;
+    background: var(--ed-surf);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  }
+
+  &__item {
+    @apply flex w-full items-center gap-2 rounded-md border-0 px-2.5 py-[7px] text-left text-[11px];
+    background: transparent;
+    color: var(--ed-t2);
+    cursor: pointer;
+    -webkit-appearance: none;
+
+    &--active {
+      background: var(--ed-accent-22);
+      color: var(--ed-accent);
+    }
+  }
+
+  &__icon {
+    @apply shrink-0;
+  }
+
+  &__label {
+    @apply whitespace-nowrap;
+  }
+}

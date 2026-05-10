@@ -102,6 +102,8 @@ import { AiModelVariantPicker } from "./AiPanel/AiModelVariantPicker/AiModelVari
 import { LeftSidebar } from "./LeftSidebar/LeftSidebar";
 import { MarkerContextMenu } from "./MarkerContextMenu";
 import { EditorDocument } from "./EditorDocument/EditorDocument";
+import { EditorDocumentNote } from "./EditorDocument/EditorDocumentNote/EditorDocumentNote";
+import { buildEditorDocumentCssVars } from "./EditorDocument/useEditorDocument";
 import { EditorTopBar } from "./EditorTopBar/EditorTopBar";
 import { EditorSideMenu } from "./EditorSideMenu/EditorSideMenu";
 
@@ -331,10 +333,6 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
     try { const d=localStorage.getItem("ow_note_draft"); if(d){localStorage.removeItem("ow_note_draft"); return d;} } catch(e){}
     return "";
   });
-  const [noteFontSize, setNoteFontSize] = useState(14);
-  const [noteAlignOpen, setNoteAlignOpen] = useState(false);
-  const [noteAlign, setNoteAlign] = useState("left");
-  const [noteColorOpen, setNoteColorOpen] = useState(false);
   const [titlePage, setTitlePage] = useState({
     title: "", genre: "", author: "", phone: "", email: "", year: new Date().getFullYear()+"",
   });
@@ -6626,7 +6624,19 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
 
           {/* EDITOR */}
           {mobileTab==="editor" && mode==="note" && (
-            <div style={{height:"100%",display:"flex",flexDirection:"column",padding:"12px 16px"}}>
+            <div
+              style={{
+                height: "100%",
+                display: "flex",
+                flexDirection: "column",
+                padding: "12px 16px",
+                ...buildEditorDocumentCssVars({
+                  theme: { BG, SURF, T1, T2, T3, mc, SH_SM, SH_IN },
+                  docFont,
+                  zoom,
+                }),
+              }}
+            >
               {isGuest && (
                 <button onMouseDown={e=>e.preventDefault()} onClick={()=>{ try{localStorage.setItem("ow_note_draft",noteText);}catch(e){} onLogin&&onLogin(); }}
                   style={{
@@ -6636,279 +6646,18 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
                     cursor:"pointer",fontFamily:"inherit",
                   }}>ВОЙТИ →</button>
               )}
-              {(()=>{
-                const noteToolbar = [
-                  { cmd:"bold",          icon:"Ж", title:"Жирный",       style:{fontWeight:"bold",fontFamily:"serif"} },
-                  { cmd:"italic",        icon:"К", title:"Курсив",       style:{fontStyle:"italic",fontFamily:"serif"} },
-                  { cmd:"underline",     icon:"Ч", title:"Подчёркнутый", style:{textDecoration:"underline"} },
-                  { cmd:"removeFormat", icon:"Н", title:"Убрать форматирование", isBlock:false, style:{} },
-                  { sep:true },
-                  { cmd:"insertUnorderedList", icon:"•≡", title:"Список" },
-                  { cmd:"insertOrderedList",   icon:"1≡", title:"Нумер. список" },
-                  { sep:true },
-                  { cmd:"h1", icon:"H1", title:"Заголовок 1", isBlock:true },
-                  { cmd:"h2", icon:"H2", title:"Заголовок 2", isBlock:true },
-                  { cmd:"formatBlock", arg:"p", icon:"¶", title:"Обычный текст" },
-                ];
-                const execFmt = (cmd, arg) => { document.execCommand(cmd, false, arg||null); };
-                const applyFontSize = (pt) => {
-                  const editor = noteEditorRef.current;
-                  if (!editor) return;
-                  editor.focus();
-                  const sel = window.getSelection();
-                  if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return;
-                  const range = sel.getRangeAt(0);
-                  const span = document.createElement("span");
-                  span.style.fontSize = pt + "pt";
-                  try {
-                    range.surroundContents(span);
-                  } catch(e) {
-                    const frag = range.extractContents();
-                    span.appendChild(frag);
-                    range.insertNode(span);
-                  }
-                  const newRange = document.createRange();
-                  newRange.selectNodeContents(span);
-                  sel.removeAllRanges();
-                  sel.addRange(newRange);
-                  noteSelRangeRef.current = newRange.cloneRange();
-                  const html = editor.innerHTML;
-                  noteTextRef.current = html;
-                  setNoteText(html);
-                  markDirty();
-                };
-                const FONT_SIZES = [8,10,11,12,13,14,16,18,20,24,28,32,36];
-                const NOTE_COLORS = ["#e8e4d8","#f472b6","#60a5fa","#4ade80","#fbbf24","#a78bfa","#f87171","#34d399"];
-                const saveNoteSelection = () => {
-                  const sel = window.getSelection();
-                  if (sel && sel.rangeCount > 0) noteSelRangeRef.current = sel.getRangeAt(0).cloneRange();
-                };
-                const restoreNoteSelection = () => {
-                  const sel = window.getSelection();
-                  if (!sel) return false;
-                  sel.removeAllRanges();
-                  if (noteSelRangeRef.current) {
-                    sel.addRange(noteSelRangeRef.current);
-                    return true;
-                  }
-                  return false;
-                };
-                const applyNoteColor = (color) => {
-                  const editor = noteEditorRef.current;
-                  if (!editor) return;
-                  editor.focus();
-                  restoreNoteSelection();
-                  execFmt("foreColor", color);
-                  const html = editor.innerHTML;
-                  noteTextRef.current = html;
-                  setNoteText(html);
-                  markDirty();
-                  scheduleNoteHistorySnapshot(html);
-                  setNoteColorOpen(false);
-                };
-                const alignSVG = {
-                  left:   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="15" y2="12"/><line x1="3" y1="18" x2="18" y2="18"/></svg>,
-                  center: <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="6" y1="12" x2="18" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg>,
-                  right:  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="9" y1="12" x2="21" y2="12"/><line x1="6" y1="18" x2="21" y2="18"/></svg>,
-                };
-                const btnSt = {
-                  width:"26px", height:"26px", borderRadius:"6px",
-                  background:"transparent", border:`1px solid ${T3}33`,
-                  color:T2, fontSize:"11px", cursor:"pointer",
-                  display:"flex", alignItems:"center", justifyContent:"center",
-                  marginRight:"3px", WebkitAppearance:"none", flexShrink:0,
-                };
-                return (
-                  <div style={{display:"flex",flexDirection:"column",flex:1,minHeight:0}}>
-                    {/* Toolbar */}
-                    <div style={{
-                      display:"flex", alignItems:"center", flexWrap:"wrap",
-                      padding:"6px 0 8px", marginBottom:"8px",
-                      borderBottom:`1px solid ${T3}22`,
-                    }}>
-                      {noteToolbar.slice(0,4).map((t,i)=> t.sep
-                        ? <div key={i} style={{width:"1px",height:"16px",background:T3+"33",marginRight:"6px",marginBottom:"3px"}}/>
-                        : <button key={i}
-                            {...(t.cmd==="removeFormat" ? getTooltipAnchorProps("Сбросить формат") : {})}
-                            title={t.cmd==="removeFormat" ? undefined : t.title}
-                            onMouseDown={e=>{
-                              e.preventDefault();
-                              const editor = noteEditorRef.current;
-                              if (!editor) return;
-                              editor.focus();
-                              restoreNoteSelection();
-                              if(t.isBlock){
-                                const cur = String(document.queryCommandValue("formatBlock") || "").toLowerCase();
-                                execFmt("formatBlock", cur===t.cmd.toLowerCase()?"p":t.cmd);
-                              } else {
-                                execFmt(t.cmd, t.arg);
-                              }
-                              const html = editor.innerHTML;
-                              noteTextRef.current = html;
-                              setNoteText(html);
-                              markDirty();
-                              scheduleNoteHistorySnapshot(html);
-                              saveNoteSelection();
-                            }}
-                            style={{...btnSt, ...(t.style||{}), fontSize:typeof t.icon==="string"&&t.icon.length>1?"9px":"11px", marginBottom:"3px"}}>
-                            {t.icon}
-                          </button>
-                      )}
-                      <div style={{position:"relative",marginRight:"3px",marginBottom:"3px"}}>
-                        <button
-                          {...getTooltipAnchorProps("Цвет текста")}
-                          onMouseDown={e=>{e.preventDefault(); e.stopPropagation(); saveNoteSelection(); setNoteColorOpen(v=>!v);}}
-                          style={{
-                            width:"26px",height:"26px",borderRadius:"6px",
-                            border:`1px solid ${T3}33`,background:"transparent",cursor:"pointer",
-                            padding:"0",display:"flex",alignItems:"center",justifyContent:"center",
-                            WebkitAppearance:"none",
-                          }}>
-                          <div style={{width:"10px",height:"10px",borderRadius:"50%",background:"#a9a6c9",boxShadow:"0 0 0 1px rgba(255,255,255,0.08) inset"}}/>
-                        </button>
-                        {noteColorOpen && (
-                          <div style={{position:"absolute",bottom:"32px",left:0,background:SURF,borderRadius:"12px",
-                            boxShadow:"0 8px 24px rgba(0,0,0,0.5)",padding:"8px",zIndex:100,
-                            display:"flex",flexWrap:"wrap",width:"104px"}}>
-                            {NOTE_COLORS.map(c=>(
-                              <button key={c}
-                                onMouseDown={e=>{e.preventDefault(); e.stopPropagation(); applyNoteColor(c);}}
-                                style={{width:"20px",height:"20px",borderRadius:"50%",background:c,
-                                  border:"2px solid transparent",cursor:"pointer",marginRight:"4px",marginBottom:"4px",
-                                  WebkitAppearance:"none"}}/>
-                            ))}
-                            <button
-                              onMouseDown={e=>{e.preventDefault(); e.stopPropagation(); setNoteColorOpen(false);}}
-                              title="Закрыть"
-                              style={{width:"20px",height:"20px",borderRadius:"50%",background:"transparent",
-                                border:"1px dashed "+T3,cursor:"pointer",fontSize:"10px",color:T3,
-                                display:"flex",alignItems:"center",justifyContent:"center",WebkitAppearance:"none"}}>
-                              <svg width="8" height="8" viewBox="0 0 8 8" fill="none" stroke={T3} strokeWidth="1.5" strokeLinecap="round"><line x1="1" y1="1" x2="7" y2="7"/><line x1="7" y1="1" x2="1" y2="7"/></svg>
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                      {noteToolbar.slice(4).map((t,i)=> t.sep
-                        ? <div key={`tail-${i}`} style={{width:"1px",height:"16px",background:T3+"33",marginRight:"6px",marginBottom:"3px"}}/>
-                        : <button key={`tail-${i}`}
-                            title={t.title}
-                            onMouseDown={e=>{
-                              e.preventDefault();
-                              const editor = noteEditorRef.current;
-                              if (!editor) return;
-                              editor.focus();
-                              restoreNoteSelection();
-                              if(t.isBlock){
-                                const cur = String(document.queryCommandValue("formatBlock") || "").toLowerCase();
-                                execFmt("formatBlock", cur===t.cmd.toLowerCase()?"p":t.cmd);
-                              } else {
-                                execFmt(t.cmd, t.arg);
-                              }
-                              const html = editor.innerHTML;
-                              noteTextRef.current = html;
-                              setNoteText(html);
-                              markDirty();
-                              scheduleNoteHistorySnapshot(html);
-                              saveNoteSelection();
-                            }}
-                            style={{...btnSt, ...(t.style||{}), fontSize:typeof t.icon==="string"&&t.icon.length>1?"9px":"11px", marginBottom:"3px"}}>
-                            {t.icon}
-                          </button>
-                      )}
-                      {/* Divider */}
-                      <div style={{width:"1px",height:"16px",background:T3+"33",marginRight:"6px",marginBottom:"3px"}}/>
-                      {/* Выравнивание — 1 кнопка + дропдаун */}
-                      <div style={{position:"relative",marginRight:"3px",marginBottom:"3px"}}>
-                        <button title="Выравнивание"
-                          onMouseDown={e=>{e.preventDefault(); setNoteAlignOpen(o=>!o);}}
-                          style={{...btnSt, border:`1px solid ${noteAlignOpen ? mc : T3+"33"}`, background:noteAlignOpen?`${mc}22`:"transparent", color:noteAlignOpen?mc:T2}}>
-                          {alignSVG[noteAlign]}
-                        </button>
-                        {noteAlignOpen && (
-                          <div style={{position:"absolute",top:"30px",left:0,background:SURF,
-                            borderRadius:"8px",boxShadow:"0 8px 24px rgba(0,0,0,0.45)",
-                            padding:"4px",zIndex:50,minWidth:"150px"}}>
-                            {[
-                              {cmd:"justifyLeft",   align:"left",   label:"По левому краю"},
-                              {cmd:"justifyCenter", align:"center", label:"По центру"},
-                              {cmd:"justifyRight",  align:"right",  label:"По правому краю"},
-                            ].map(a=>(
-                              <button key={a.align}
-                                onMouseDown={e=>{
-                                e.preventDefault();
-                                const editor = noteEditorRef.current;
-                                if (!editor) return;
-                                editor.focus();
-                                restoreNoteSelection();
-                                execFmt(a.cmd);
-                                const html = editor.innerHTML;
-                                noteTextRef.current = html;
-                                setNoteText(html);
-                                markDirty();
-                                scheduleNoteHistorySnapshot(html);
-                                saveNoteSelection();
-                                setNoteAlign(a.align);
-                                setNoteAlignOpen(false);
-                              }}
-                                style={{display:"flex",alignItems:"center",width:"100%",
-                                  padding:"7px 10px",background:noteAlign===a.align?`${mc}22`:"transparent",
-                                  border:"none",borderRadius:"6px",cursor:"pointer",
-                                  color:noteAlign===a.align?mc:T2,gap:"8px",WebkitAppearance:"none"}}>
-                                {alignSVG[a.align]}
-                                <span style={{fontSize:"11px",whiteSpace:"nowrap"}}>{a.label}</span>
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                      {/* Divider */}
-                      <div style={{width:"1px",height:"16px",background:T3+"33",marginRight:"6px",marginBottom:"3px"}}/>
-                      {/* Размер шрифта: − [N] + */}
-                      <div style={{display:"flex",alignItems:"center",marginRight:"3px",marginBottom:"3px"}}>
-                        <button
-                          onMouseDown={e=>{e.preventDefault(); const s=Math.max(4,noteFontSize-1); setNoteFontSize(s); applyFontSize(s);}}
-                          style={{...btnSt,width:"22px",fontSize:"14px",fontWeight:"300",marginRight:0}}>−</button>
-                        <input
-                          type="text"
-                          key={noteFontSize}
-                          defaultValue={noteFontSize}
-                          onMouseDown={()=>{const sel=window.getSelection();if(sel&&sel.rangeCount>0)noteSelRangeRef.current=sel.getRangeAt(0).cloneRange();}}
-                          onBlur={e=>{const v=parseInt(e.target.value);if(!isNaN(v)&&v>=4&&v<=96){const sel=window.getSelection();sel.removeAllRanges();if(noteSelRangeRef.current)sel.addRange(noteSelRangeRef.current);setNoteFontSize(v);applyFontSize(v);}}}
-                          onKeyDown={e=>{if(e.key==="Enter"){e.preventDefault();const v=parseInt(e.target.value);if(!isNaN(v)&&v>=4&&v<=96){const sel=window.getSelection();sel.removeAllRanges();if(noteSelRangeRef.current)sel.addRange(noteSelRangeRef.current);setNoteFontSize(v);applyFontSize(v);}e.target.blur();}}}
-                          style={{width:"26px",textAlign:"center",background:"transparent",border:`1px solid ${T3}33`,borderRadius:"4px",color:T2,fontSize:"10px",padding:"1px 2px",fontFamily:"inherit",outline:"none"}}
-                        />
-                        <button
-                          onMouseDown={e=>{e.preventDefault(); const s=Math.min(96,noteFontSize+1); setNoteFontSize(s); applyFontSize(s);}}
-                          style={{...btnSt,width:"22px",fontSize:"14px",fontWeight:"300",marginRight:"3px"}}>+</button>
-                      </div>
-                    </div>
-                    {/* Editor */}
-                    <div
-                      className="ow-note-editor"
-                      key={projectId}
-                      ref={noteEditorRef}
-                      contentEditable
-                      suppressContentEditableWarning
-                      spellCheck={spellOn}
-                      onKeyDown={e=>{ if(e.key==="Enter"){ e.preventDefault(); document.execCommand("insertLineBreak"); } }}
-                      onInput={e=>{const html=e.currentTarget.innerHTML;noteTextRef.current=html;setNoteText(html);markDirty();scheduleNoteHistorySnapshot(html); saveNoteSelection();}}
-                      onFocus={()=>saveNoteSelection()}
-                      onKeyUp={()=>saveNoteSelection()}
-                      onMouseUp={()=>saveNoteSelection()}
-                      data-placeholder="Мысли, идеи, наброски…"
-                      style={{
-                        flex:1, minHeight:"40vh", outline:"none",
-                        color:T1, fontSize:"15px", lineHeight:"1.8",
-                        fontFamily:"inherit", overflowY:"auto",
-                        boxSizing:"border-box",
-                        backgroundImage:`repeating-linear-gradient(to bottom, transparent 0, transparent 1026px, ${T3}44 1026px, ${T3}44 1027px)`,
-                        backgroundAttachment:"local",
-                      }}
-                    />
-                    <style>{`[contenteditable]:empty:before{content:attr(data-placeholder);color:${T3};pointer-events:none;}::highlight(ow-note-search){background:rgba(250,204,21,0.32);}`}</style>
-                  </div>
-                );
-              })()}
+              <EditorDocumentNote
+                projectId={projectId}
+                spellOn={spellOn}
+                noteEditorRef={noteEditorRef}
+                noteTextRef={noteTextRef}
+                noteSelRangeRef={noteSelRangeRef}
+                setNoteText={setNoteText}
+                markDirty={markDirty}
+                scheduleNoteHistorySnapshot={scheduleNoteHistorySnapshot}
+                getTooltipAnchorProps={getTooltipAnchorProps}
+                editorVariant="mobile"
+              />
             </div>
           )}
 
@@ -8478,14 +8227,6 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
             setNoteText,
             markDirty,
             scheduleNoteHistorySnapshot,
-            noteColorOpen,
-            setNoteColorOpen,
-            noteAlignOpen,
-            setNoteAlignOpen,
-            noteAlign,
-            setNoteAlign,
-            noteFontSize,
-            setNoteFontSize,
           }}
           headers={{
             playHeader,

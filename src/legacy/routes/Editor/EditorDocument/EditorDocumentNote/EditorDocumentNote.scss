@@ -1,0 +1,43 @@
+.editor-document-note {
+  @apply flex min-h-[70vh] flex-col;
+
+  &--mobile {
+    @apply min-h-0 flex-1;
+  }
+
+  &__editor {
+    @apply box-border min-h-[60vh] flex-1 outline-none;
+    color: var(--ed-t1);
+    font-size: 15px;
+    line-height: 1.8;
+    font-family: var(--ed-note-font), monospace;
+    background-image:
+      repeating-linear-gradient(
+        to bottom,
+        transparent 0,
+        transparent 1026px,
+        var(--ed-t3-44) 1026px,
+        var(--ed-t3-44) 1027px
+      );
+    background-attachment: local;
+
+    &--mobile {
+      @apply min-h-[40vh] overflow-y-auto;
+      font-family: inherit;
+    }
+
+    &:empty::before {
+      content: attr(data-placeholder);
+      color: var(--ed-t3);
+      pointer-events: none;
+    }
+  }
+
+  &__font-size-span {
+    font-size: var(--editor-document-note-font-size);
+  }
+}
+
+::highlight(ow-note-search) {
+  background: rgba(250, 204, 21, 0.32);
+}

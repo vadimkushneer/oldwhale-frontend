@@ -5,28 +5,50 @@ export function cx(...values: Array<string | false | null | undefined>) {
   return values.filter(Boolean).join(" ");
 }
 
-export const NOTE_TOOLBAR_ITEMS = [
-  { cmd: "bold", icon: "Ж", title: "Жирный", styleMod: "bold" },
-  { cmd: "italic", icon: "К", title: "Курсив", styleMod: "italic" },
-  { cmd: "underline", icon: "Ч", title: "Подчёркнутый", styleMod: "underline" },
-  { cmd: "removeFormat", icon: "Н", title: "Убрать форматирование", tooltip: "Сбросить формат" },
-  { sep: true },
-  { cmd: "insertUnorderedList", icon: "•≡", title: "Список", compact: true },
-  { cmd: "insertOrderedList", icon: "1≡", title: "Нумерованный список", compact: true },
-  { sep: true },
-  { cmd: "h1", icon: "H1", title: "Заголовок 1", isBlock: true, compact: true },
-  { cmd: "h2", icon: "H2", title: "Заголовок 2", isBlock: true, compact: true },
-  { cmd: "formatBlock", arg: "p", icon: "¶", title: "Обычный текст" },
-];
-
-export const NOTE_FONT_SIZES = [8, 10, 11, 12, 13, 14, 16, 18, 20, 24, 28, 32, 36];
-export const NOTE_COLORS = ["#e8e4d8", "#f472b6", "#60a5fa", "#4ade80", "#fbbf24", "#a78bfa", "#f87171", "#34d399"];
-
-export const NOTE_ALIGN_OPTIONS = [
-  { cmd: "justifyLeft", align: "left", label: "По левому краю" },
-  { cmd: "justifyCenter", align: "center", label: "По центру" },
-  { cmd: "justifyRight", align: "right", label: "По правому краю" },
-];
+/** Shared editor surface CSS variables (desktop `EditorDocument` + mobile note shell). */
+export function buildEditorDocumentCssVars({
+  theme,
+  docFont,
+  zoom,
+}: {
+  theme: {
+    BG: string;
+    SURF: string;
+    T1: string;
+    T2: string;
+    T3: string;
+    mc: string;
+    SH_SM: string;
+    SH_IN: string;
+  };
+  docFont: string | undefined;
+  zoom: number;
+}) {
+  return {
+    "--ed-bg": theme.BG,
+    "--ed-surf": theme.SURF,
+    "--ed-t1": theme.T1,
+    "--ed-t2": theme.T2,
+    "--ed-t3": theme.T3,
+    "--ed-t3-22": `${theme.T3}22`,
+    "--ed-t3-33": `${theme.T3}33`,
+    "--ed-t3-44": `${theme.T3}44`,
+    "--ed-t3-55": `${theme.T3}55`,
+    "--ed-t3-66": `${theme.T3}66`,
+    "--ed-t3-99": `${theme.T3}99`,
+    "--ed-accent": theme.mc,
+    "--ed-accent-15": `${theme.mc}15`,
+    "--ed-accent-22": `${theme.mc}22`,
+    "--ed-accent-44": `${theme.mc}44`,
+    "--ed-accent-66": `${theme.mc}66`,
+    "--ed-sh-sm": theme.SH_SM,
+    "--ed-sh-in": theme.SH_IN,
+    "--ed-zoom": `${zoom}%`,
+    "--ed-zoom-width": `${zoom}%`,
+    "--ed-doc-font": docFont || "Times New Roman",
+    "--ed-note-font": docFont || "Courier New",
+  } as CSSProperties;
+}
 
 const A4_H = 1027;
 const PAGE_TEXT_W = 670;
@@ -575,36 +597,11 @@ export function useEditorDocument({
   projectId,
   scrollRef,
   theme,
-  note,
   headers,
   blocksState,
 }) {
   const cssVars = useMemo(
-    () =>
-      ({
-        "--ed-bg": theme.BG,
-        "--ed-surf": theme.SURF,
-        "--ed-t1": theme.T1,
-        "--ed-t2": theme.T2,
-        "--ed-t3": theme.T3,
-        "--ed-t3-22": `${theme.T3}22`,
-        "--ed-t3-33": `${theme.T3}33`,
-        "--ed-t3-44": `${theme.T3}44`,
-        "--ed-t3-55": `${theme.T3}55`,
-        "--ed-t3-66": `${theme.T3}66`,
-        "--ed-t3-99": `${theme.T3}99`,
-        "--ed-accent": theme.mc,
-        "--ed-accent-15": `${theme.mc}15`,
-        "--ed-accent-22": `${theme.mc}22`,
-        "--ed-accent-44": `${theme.mc}44`,
-        "--ed-accent-66": `${theme.mc}66`,
-        "--ed-sh-sm": theme.SH_SM,
-        "--ed-sh-in": theme.SH_IN,
-        "--ed-zoom": `${zoom}%`,
-        "--ed-zoom-width": `${zoom}%`,
-        "--ed-doc-font": docFont || "Times New Roman",
-        "--ed-note-font": docFont || "Courier New",
-      }) as CSSProperties,
+    () => buildEditorDocumentCssVars({ theme, docFont, zoom }),
     [docFont, theme.BG, theme.SH_IN, theme.SH_SM, theme.SURF, theme.T1, theme.T2, theme.T3, theme.mc, zoom],
   );
 
@@ -642,106 +639,6 @@ export function useEditorDocument({
     [scrollRef],
   );
 
-  const saveNoteSelection = useCallback(() => {
-    const sel = window.getSelection();
-    if (sel && sel.rangeCount > 0) note.noteSelRangeRef.current = sel.getRangeAt(0).cloneRange();
-  }, [note.noteSelRangeRef]);
-
-  const restoreNoteSelection = useCallback(() => {
-    const sel = window.getSelection();
-    if (!sel) return false;
-
-    sel.removeAllRanges();
-    if (note.noteSelRangeRef.current) {
-      sel.addRange(note.noteSelRangeRef.current);
-      return true;
-    }
-
-    return false;
-  }, [note.noteSelRangeRef]);
-
-  const syncNoteHtml = useCallback(
-    (html, options = {}) => {
-      note.noteTextRef.current = html;
-      note.setNoteText(html);
-      note.markDirty();
-      if (options.snapshot) {
-        note.scheduleNoteHistorySnapshot(html);
-      }
-    },
-    [note.markDirty, note.noteTextRef, note.scheduleNoteHistorySnapshot, note.setNoteText],
-  );
-
-  const execNoteCommand = useCallback(
-    (item) => {
-      const editor = note.noteEditorRef.current;
-      if (!editor) return;
-
-      editor.focus();
-      restoreNoteSelection();
-
-      if (item.isBlock) {
-        const currentBlock = String(document.queryCommandValue("formatBlock") || "").toLowerCase();
-        document.execCommand("formatBlock", false, currentBlock === item.cmd.toLowerCase() ? "p" : item.cmd);
-      } else {
-        document.execCommand(item.cmd, false, item.arg || null);
-      }
-
-      const html = editor.innerHTML;
-      syncNoteHtml(html, { snapshot: true });
-      saveNoteSelection();
-    },
-    [note.noteEditorRef, restoreNoteSelection, saveNoteSelection, syncNoteHtml],
-  );
-
-  const applyFontSize = useCallback(
-    (pt) => {
-      const editor = note.noteEditorRef.current;
-      if (!editor) return;
-
-      editor.focus();
-      const sel = window.getSelection();
-      if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return;
-
-      const range = sel.getRangeAt(0);
-      const span = document.createElement("span");
-      span.style.fontSize = `${pt}pt`;
-
-      try {
-        range.surroundContents(span);
-      } catch (error) {
-        const frag = range.extractContents();
-        span.appendChild(frag);
-        range.insertNode(span);
-      }
-
-      const nextRange = document.createRange();
-      nextRange.selectNodeContents(span);
-      sel.removeAllRanges();
-      sel.addRange(nextRange);
-      note.noteSelRangeRef.current = nextRange.cloneRange();
-
-      syncNoteHtml(editor.innerHTML);
-    },
-    [note.noteEditorRef, note.noteSelRangeRef, syncNoteHtml],
-  );
-
-  const applyNoteColor = useCallback(
-    (color) => {
-      const editor = note.noteEditorRef.current;
-      if (!editor) return;
-
-      editor.focus();
-      restoreNoteSelection();
-      document.execCommand("foreColor", false, color);
-
-      const html = editor.innerHTML;
-      syncNoteHtml(html, { snapshot: true });
-      note.setNoteColorOpen(false);
-    },
-    [note.noteEditorRef, note.setNoteColorOpen, restoreNoteSelection, syncNoteHtml],
-  );
-
   const pageModel = useMemo(
     () =>
       buildDocumentPages({
@@ -768,11 +665,6 @@ export function useEditorDocument({
     cssVars,
     shortLogoInputId,
     onDocumentMouseDown,
-    saveNoteSelection,
-    restoreNoteSelection,
-    execNoteCommand,
-    applyFontSize,
-    applyNoteColor,
     pages: pageModel.pages,
     pagePadMode: pageModel.pagePadMode,
   };

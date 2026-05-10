@@ -1,0 +1,15 @@
+.editor-document-note-font-size-control {
+  @apply mr-[3px] flex items-center;
+
+  &__button {
+    @apply text-[14px] font-light;
+  }
+
+  &__input {
+    @apply mx-0.5 w-7 rounded border bg-transparent px-[2px] py-px text-center text-[10px];
+    border-color: var(--ed-t3-33);
+    color: var(--ed-t2);
+    font-family: inherit;
+    outline: none;
+  }
+}

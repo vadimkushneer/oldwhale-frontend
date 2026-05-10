@@ -2,50 +2,15 @@
 import React from "react";
 import { PlayHeaderEditor } from "../PlayHeader";
 import {
-  NOTE_ALIGN_OPTIONS,
-  NOTE_COLORS,
-  NOTE_TOOLBAR_ITEMS,
   buildBlockRowVars,
   buildPlayLineOverlayStyle,
   buildStandardBlockOverlayStyle,
   cx,
   useEditorDocument,
 } from "./useEditorDocument";
-import {
-  EditorActionButtons,
-  EditorActionCloseGlyph,
-} from "../EditorActionButtons/EditorActionButtons";
+import { EditorActionButtons } from "../EditorActionButtons/EditorActionButtons";
+import { EditorDocumentNote } from "./EditorDocumentNote/EditorDocumentNote";
 import "./EditorDocument.scss";
-
-function AlignIcon({ align }: { align: "left" | "center" | "right" }) {
-  if (align === "center") {
-    return (
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
-        <line x1="3" y1="6" x2="21" y2="6" />
-        <line x1="6" y1="12" x2="18" y2="12" />
-        <line x1="4" y1="18" x2="20" y2="18" />
-      </svg>
-    );
-  }
-
-  if (align === "right") {
-    return (
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
-        <line x1="3" y1="6" x2="21" y2="6" />
-        <line x1="9" y1="12" x2="21" y2="12" />
-        <line x1="6" y1="18" x2="21" y2="18" />
-      </svg>
-    );
-  }
-
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
-      <line x1="3" y1="6" x2="21" y2="6" />
-      <line x1="3" y1="12" x2="15" y2="12" />
-      <line x1="3" y1="18" x2="18" y2="18" />
-    </svg>
-  );
-}
 
 function ShortTitleHeader({
   inputId,
@@ -185,14 +150,6 @@ export function EditorDocument({
     setNoteText,
     markDirty,
     scheduleNoteHistorySnapshot,
-    noteColorOpen,
-    setNoteColorOpen,
-    noteAlignOpen,
-    setNoteAlignOpen,
-    noteAlign,
-    setNoteAlign,
-    noteFontSize,
-    setNoteFontSize,
   } = note;
   const {
     playHeader,
@@ -249,11 +206,6 @@ export function EditorDocument({
     cssVars,
     shortLogoInputId,
     onDocumentMouseDown,
-    saveNoteSelection,
-    restoreNoteSelection,
-    execNoteCommand,
-    applyFontSize,
-    applyNoteColor,
     pages,
     pagePadMode,
   } = useEditorDocument({
@@ -263,15 +215,6 @@ export function EditorDocument({
     projectId,
     scrollRef,
     theme,
-    note: {
-      noteEditorRef,
-      noteTextRef,
-      noteSelRangeRef,
-      setNoteText,
-      markDirty,
-      scheduleNoteHistorySnapshot,
-      setNoteColorOpen,
-    },
     headers: {
       mediaHeader,
       contentHeader,
@@ -297,241 +240,17 @@ export function EditorDocument({
         <div className={cx("editor-document__width", zoom > 100 && "editor-document__width--zoomed")}>
           <div className="editor-document__inner">
             {mode === "note" ? (
-              <div className="editor-document__note">
-                <div className="editor-document__note-toolbar">
-                  {NOTE_TOOLBAR_ITEMS.slice(0, 4).map((item, index) =>
-                    item.sep ? (
-                      <div key={`note-sep-${index}`} className="editor-document__note-toolbar-separator" />
-                    ) : (
-                      <button
-                        key={item.cmd || index}
-                        type="button"
-                        {...(item.tooltip ? getTooltipAnchorProps(item.tooltip) : {})}
-                        title={item.tooltip ? undefined : item.title}
-                        className={cx(
-                          "editor-document__note-toolbar-button",
-                          item.compact && "editor-document__note-toolbar-button--compact",
-                          item.styleMod && `editor-document__note-toolbar-button--${item.styleMod}`,
-                        )}
-                        onMouseDown={(e) => {
-                          e.preventDefault();
-                          execNoteCommand(item);
-                        }}
-                      >
-                        {item.icon}
-                      </button>
-                    ),
-                  )}
-
-                  <div className="editor-document__note-color">
-                    <button
-                      type="button"
-                      {...getTooltipAnchorProps("Цвет текста")}
-                      className="editor-document__note-color-button"
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        saveNoteSelection();
-                        setNoteColorOpen((value) => !value);
-                      }}
-                    >
-                      <span className="editor-document__note-color-dot" />
-                    </button>
-
-                    {noteColorOpen ? (
-                      <div className="editor-document__note-color-menu">
-                        {NOTE_COLORS.map((color, index) => (
-                          <button
-                            key={color}
-                            type="button"
-                            className={cx("editor-document__note-color-swatch", `editor-document__note-color-swatch--${index}`)}
-                            onMouseDown={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              applyNoteColor(color);
-                            }}
-                          />
-                        ))}
-
-                        <button
-                          type="button"
-                          className="editor-document__note-color-close"
-                          title="Закрыть"
-                          onMouseDown={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            setNoteColorOpen(false);
-                          }}
-                        >
-                          <EditorActionCloseGlyph />
-                        </button>
-                      </div>
-                    ) : null}
-                  </div>
-
-                  {NOTE_TOOLBAR_ITEMS.slice(4).map((item, index) =>
-                    item.sep ? (
-                      <div key={`note-tail-sep-${index}`} className="editor-document__note-toolbar-separator" />
-                    ) : (
-                      <button
-                        key={`note-tail-${item.cmd || index}`}
-                        type="button"
-                        title={item.title}
-                        className={cx(
-                          "editor-document__note-toolbar-button",
-                          item.compact && "editor-document__note-toolbar-button--compact",
-                          item.styleMod && `editor-document__note-toolbar-button--${item.styleMod}`,
-                        )}
-                        onMouseDown={(e) => {
-                          e.preventDefault();
-                          execNoteCommand(item);
-                        }}
-                      >
-                        {item.icon}
-                      </button>
-                    ),
-                  )}
-
-                  <div className="editor-document__note-toolbar-separator" />
-
-                  <div className="editor-document__note-align">
-                    <button
-                      type="button"
-                      title="Выравнивание"
-                      className={cx(
-                        "editor-document__note-toolbar-button",
-                        noteAlignOpen && "editor-document__note-toolbar-button--active",
-                      )}
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                        setNoteAlignOpen((value) => !value);
-                      }}
-                    >
-                      <AlignIcon align={noteAlign} />
-                    </button>
-
-                    {noteAlignOpen ? (
-                      <div className="editor-document__note-align-menu">
-                        {NOTE_ALIGN_OPTIONS.map((option) => (
-                          <button
-                            key={option.align}
-                            type="button"
-                            className={cx(
-                              "editor-document__note-align-item",
-                              noteAlign === option.align && "editor-document__note-align-item--active",
-                            )}
-                            onMouseDown={(e) => {
-                              e.preventDefault();
-                              const editor = noteEditorRef.current;
-                              if (!editor) return;
-                              editor.focus();
-                              restoreNoteSelection();
-                              document.execCommand(option.cmd, false);
-                              const html = editor.innerHTML;
-                              noteTextRef.current = html;
-                              setNoteText(html);
-                              markDirty();
-                              scheduleNoteHistorySnapshot(html);
-                              saveNoteSelection();
-                              setNoteAlign(option.align);
-                              setNoteAlignOpen(false);
-                            }}
-                          >
-                            <AlignIcon align={option.align as "left" | "center" | "right"} />
-                            <span>{option.label}</span>
-                          </button>
-                        ))}
-                      </div>
-                    ) : null}
-                  </div>
-
-                  <div className="editor-document__note-toolbar-separator" />
-
-                  <div className="editor-document__note-font-size">
-                    <button
-                      type="button"
-                      className="editor-document__note-toolbar-button"
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                        const next = Math.max(4, noteFontSize - 1);
-                        setNoteFontSize(next);
-                        applyFontSize(next);
-                      }}
-                    >
-                      −
-                    </button>
-
-                    <input
-                      key={noteFontSize}
-                      type="text"
-                      defaultValue={noteFontSize}
-                      className="editor-document__note-font-input"
-                      onMouseDown={() => saveNoteSelection()}
-                      onBlur={(e) => {
-                        const value = parseInt(e.target.value, 10);
-                        if (Number.isNaN(value) || value < 4 || value > 96) return;
-                        const selection = window.getSelection();
-                        selection?.removeAllRanges();
-                        if (noteSelRangeRef.current) selection?.addRange(noteSelRangeRef.current);
-                        setNoteFontSize(value);
-                        applyFontSize(value);
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key !== "Enter") return;
-                        e.preventDefault();
-                        const value = parseInt(e.currentTarget.value, 10);
-                        if (!Number.isNaN(value) && value >= 4 && value <= 96) {
-                          const selection = window.getSelection();
-                          selection?.removeAllRanges();
-                          if (noteSelRangeRef.current) selection?.addRange(noteSelRangeRef.current);
-                          setNoteFontSize(value);
-                          applyFontSize(value);
-                        }
-                        e.currentTarget.blur();
-                      }}
-                    />
-
-                    <button
-                      type="button"
-                      className="editor-document__note-toolbar-button"
-                      onMouseDown={(e) => {
-                        e.preventDefault();
-                        const next = Math.min(96, noteFontSize + 1);
-                        setNoteFontSize(next);
-                        applyFontSize(next);
-                      }}
-                    >
-                      +
-                    </button>
-                  </div>
-                </div>
-
-                <div
-                  className="ow-note-editor editor-document__note-editor"
-                  key={projectId}
-                  ref={noteEditorRef}
-                  contentEditable
-                  suppressContentEditableWarning
-                  spellCheck={spellOn}
-                  onInput={(e) => {
-                    const html = e.currentTarget.innerHTML;
-                    noteTextRef.current = html;
-                    setNoteText(html);
-                    markDirty();
-                    scheduleNoteHistorySnapshot(html);
-                    saveNoteSelection();
-                  }}
-                  onFocus={saveNoteSelection}
-                  onKeyUp={saveNoteSelection}
-                  onMouseUp={saveNoteSelection}
-                  onPaste={(e) => {
-                    e.preventDefault();
-                    const text = e.clipboardData.getData("text/plain");
-                    document.execCommand("insertText", false, text);
-                  }}
-                  data-placeholder="Мысли, идеи, наброски…"
-                />
-              </div>
+              <EditorDocumentNote
+                projectId={projectId}
+                spellOn={spellOn}
+                noteEditorRef={noteEditorRef}
+                noteTextRef={noteTextRef}
+                noteSelRangeRef={noteSelRangeRef}
+                setNoteText={setNoteText}
+                markDirty={markDirty}
+                scheduleNoteHistorySnapshot={scheduleNoteHistorySnapshot}
+                getTooltipAnchorProps={getTooltipAnchorProps}
+              />
             ) : null}
 
             {mode !== "note" && mode === "play" ? (

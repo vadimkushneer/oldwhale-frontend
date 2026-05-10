@@ -46,14 +46,6 @@ function makeBaseProps(overrides: Record<string, any> = {}) {
       setNoteText: vi.fn(),
       markDirty: vi.fn(),
       scheduleNoteHistorySnapshot: vi.fn(),
-      noteColorOpen: false,
-      setNoteColorOpen: vi.fn(),
-      noteAlignOpen: false,
-      setNoteAlignOpen: vi.fn(),
-      noteAlign: "left",
-      setNoteAlign: vi.fn(),
-      noteFontSize: 14,
-      setNoteFontSize: vi.fn(),
     },
     headers: {
       playHeader: makeHeaderItems(),
@@ -234,7 +226,7 @@ describe("EditorDocument", () => {
 
     fireEvent.mouseDown(screen.getByTitle("Жирный"));
 
-    expect(execCommand).toHaveBeenCalledWith("bold", false, null);
+    expect(execCommand).toHaveBeenCalledWith("bold", false);
     expect(props.note.setNoteText).toHaveBeenCalledWith("Draft text");
     expect(props.note.markDirty).toHaveBeenCalled();
     expect(props.note.scheduleNoteHistorySnapshot).toHaveBeenCalledWith("Draft text");

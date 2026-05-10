@@ -1,0 +1,43 @@
+.editor-document-note-toolbar {
+  @apply mb-3 flex flex-wrap items-center border-b pb-[10px] pt-2;
+  border-color: var(--ed-t3-22);
+
+  &__separator {
+    @apply mr-1.5 h-[18px] w-px;
+    background: var(--ed-t3-33);
+  }
+
+  &__button {
+    @apply mr-[3px] flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-md border p-0 text-[11px] transition-all duration-75;
+    background: transparent;
+    border-color: var(--ed-t3-33);
+    color: var(--ed-t2);
+    cursor: pointer;
+    font-family: inherit;
+    -webkit-appearance: none;
+
+    &--compact {
+      @apply text-[9px];
+    }
+
+    &--active {
+      background: var(--ed-accent-22);
+      border-color: var(--ed-accent);
+      color: var(--ed-accent);
+    }
+
+    &--bold {
+      font-family: serif;
+      font-weight: 700;
+    }
+
+    &--italic {
+      font-family: serif;
+      font-style: italic;
+    }
+
+    &--underline {
+      text-decoration: underline;
+    }
+  }
+}

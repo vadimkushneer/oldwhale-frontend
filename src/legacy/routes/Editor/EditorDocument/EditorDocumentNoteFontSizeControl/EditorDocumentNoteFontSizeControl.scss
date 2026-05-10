@@ -1,0 +1,12 @@
+/* BEM: `editor-document-note-font-size-control` */
+.editor-document-note-font-size-control {
+  @apply mr-[3px] flex items-center;
+}
+
+.editor-document-note-font-size-control__input {
+  @apply mx-0.5 w-7 rounded border bg-transparent px-[2px] py-px text-center text-[10px];
+  border-color: var(--ed-t3-33);
+  color: var(--ed-t2);
+  font-family: inherit;
+  outline: none;
+}

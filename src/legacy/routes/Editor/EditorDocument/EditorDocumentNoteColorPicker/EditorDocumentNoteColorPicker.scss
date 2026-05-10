@@ -1,0 +1,64 @@
+/* BEM: `editor-document-note-color-picker` */
+.editor-document-note-color-picker {
+  @apply relative mr-[3px];
+}
+
+.editor-document-note-color-picker__trigger {
+  @apply flex h-[26px] w-[26px] items-center justify-center rounded-md border p-0;
+  background: transparent;
+  border-color: var(--ed-t3-33);
+  cursor: pointer;
+  -webkit-appearance: none;
+}
+
+.editor-document-note-color-picker__dot {
+  @apply h-[10px] w-[10px] rounded-full;
+  background: #a9a6c9;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08) inset;
+}
+
+.editor-document-note-color-picker__menu {
+  @apply absolute bottom-8 left-0 z-[100] flex w-max flex-nowrap rounded-xl p-2;
+  background: var(--ed-surf);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+
+.editor-document-note-color-picker__swatch {
+  @apply mb-1 mr-1 h-5 w-5 rounded-full border-2 border-transparent p-0;
+  cursor: pointer;
+  -webkit-appearance: none;
+
+  &--0 {
+    background: #e8e4d8;
+  }
+  &--1 {
+    background: #f472b6;
+  }
+  &--2 {
+    background: #60a5fa;
+  }
+  &--3 {
+    background: #4ade80;
+  }
+  &--4 {
+    background: #fbbf24;
+  }
+  &--5 {
+    background: #a78bfa;
+  }
+  &--6 {
+    background: #f87171;
+  }
+  &--7 {
+    background: #34d399;
+  }
+}
+
+.editor-document-note-color-picker__close {
+  @apply flex h-5 w-5 items-center justify-center rounded-full p-0 text-[10px];
+  background: transparent;
+  border: 1px dashed var(--ed-t3);
+  color: var(--ed-t3);
+  cursor: pointer;
+  -webkit-appearance: none;
+}

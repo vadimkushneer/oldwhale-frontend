@@ -110,7 +110,7 @@ export function Login({
           }}>
             <Whale size={52}/>
           </div>
-          <div style={{color:T1, fontSize:"20px", letterSpacing:"7px", marginBottom:"6px"}}>OLD WHALE</div>
+          <div style={{color:"#ef4444", fontSize:"20px", letterSpacing:"7px", marginBottom:"6px"}}>OLD WHALE</div>
           <div style={{color:T3, fontSize:"10px", letterSpacing:"4px"}}>РЕДАКТОР ИСТОРИЙ</div>
         </div>
 

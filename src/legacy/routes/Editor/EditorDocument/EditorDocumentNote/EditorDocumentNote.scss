@@ -1,0 +1,27 @@
+/* BEM: `editor-document-note` — note mode surface */
+.editor-document-note {
+  @apply flex min-h-[70vh] flex-col;
+}
+
+.editor-document-note__editor {
+  @apply box-border min-h-[60vh] flex-1 outline-none;
+  color: var(--ed-t1);
+  font-size: 15px;
+  line-height: 1.8;
+  font-family: var(--ed-note-font), monospace;
+  background-image:
+    repeating-linear-gradient(
+      to bottom,
+      transparent 0,
+      transparent 1026px,
+      var(--ed-t3-44) 1026px,
+      var(--ed-t3-44) 1027px
+    );
+  background-attachment: local;
+}
+
+.editor-document-note__editor:empty::before {
+  content: attr(data-placeholder);
+  color: var(--ed-t3);
+  pointer-events: none;
+}

@@ -64,6 +64,25 @@ describe("EditorDocumentNote", () => {
     expect(props.scheduleNoteHistorySnapshot).toHaveBeenCalledWith("Draft text");
   });
 
+  it("pastes desktop plain text directly when the note is empty", () => {
+    const props = makeProps();
+    const { container } = render(<EditorDocumentNote {...props} />);
+    const editor = container.querySelector(".ow-note-editor") as HTMLDivElement;
+
+    fireEvent.paste(editor, {
+      clipboardData: {
+        getData: vi.fn().mockReturnValue("first note"),
+      },
+    });
+
+    expect(screen.queryByLabelText("Проверка вставленного текста")).not.toBeInTheDocument();
+    expect(editor.innerHTML).toBe("first note");
+    expect(props.noteTextRef.current).toBe("first note");
+    expect(props.setNoteText).toHaveBeenCalledWith("first note");
+    expect(props.markDirty).toHaveBeenCalled();
+    expect(props.scheduleNoteHistorySnapshot).toHaveBeenCalledWith("first note");
+  });
+
   it("reviews pasted desktop text as an accept-or-decline diff", () => {
     const props = makeProps();
     const { container } = render(<EditorDocumentNote {...props} />);

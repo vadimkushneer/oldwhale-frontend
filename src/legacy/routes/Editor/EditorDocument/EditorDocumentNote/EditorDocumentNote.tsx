@@ -68,7 +68,7 @@ export function EditorDocumentNote({
         getTooltipAnchorProps={getTooltipAnchorProps}
       />
 
-      {pasteDiff ? (
+      {pasteDiff && (
         <div className="editor-document-note__paste-diff" role="region" aria-label="Проверка вставленного текста">
           <div className="editor-document-note__paste-diff-header">
             <span className="editor-document-note__paste-diff-title">Вставленный текст отличается от заметки</span>
@@ -103,7 +103,7 @@ export function EditorDocumentNote({
             ))}
           </div>
         </div>
-      ) : null}
+      )}
 
       <div
         className={editorClassName}

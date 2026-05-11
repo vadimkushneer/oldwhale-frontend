@@ -199,16 +199,27 @@ export function useEditorDocumentNote({
     [editorVariant],
   );
 
-  const handleEditorPaste = useCallback((event: ClipboardEvent<HTMLDivElement>) => {
-    if (editorVariant === "mobile") return;
+  const handleEditorPaste = useCallback(
+    (event: ClipboardEvent<HTMLDivElement>) => {
+      if (editorVariant === "mobile") return;
 
-    event.preventDefault();
-    const pastedText = event.clipboardData.getData("text/plain");
-    const currentText = getEditorPlainText(event.currentTarget);
-    const parts = diffWordsWithSpace(currentText, pastedText);
+      event.preventDefault();
+      const pastedText = event.clipboardData.getData("text/plain");
+      const editor = event.currentTarget;
+      const currentText = getEditorPlainText(editor);
 
-    setPasteDiff({ parts, pastedText });
-  }, [editorVariant]);
+      if (currentText.trim() === "") {
+        editor.innerHTML = plainTextToNoteHtml(pastedText);
+        syncNoteHtml(editor.innerHTML, { snapshot: true });
+        editor.focus();
+        return;
+      }
+
+      const parts = diffWordsWithSpace(currentText, pastedText);
+      setPasteDiff({ parts, pastedText });
+    },
+    [editorVariant, syncNoteHtml],
+  );
 
   const acceptPasteDiff = useCallback(() => {
     const editor = noteEditorRef.current;

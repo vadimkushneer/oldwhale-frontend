@@ -4,14 +4,23 @@
  */
 
 .chat-message {
-  @apply mb-3;
+  @apply mb-3 w-fit max-w-[90%];
+
+  &--user {
+    @apply self-end;
+  }
+
+  &--ai,
+  &--sys {
+    @apply self-start;
+  }
 
   &--selected .chat-message__bubble {
     @apply ring-2 ring-[var(--aml-t3)] ring-opacity-60;
   }
 
   &__row {
-    @apply flex;
+    @apply flex w-full;
 
     &--user {
       @apply justify-end;
@@ -23,7 +32,7 @@
   }
 
   &__inner {
-    @apply flex max-w-[90%] items-stretch gap-0;
+    @apply flex w-full items-stretch gap-0;
   }
 
   &__accent-swatch {

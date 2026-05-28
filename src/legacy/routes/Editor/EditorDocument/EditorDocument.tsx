@@ -1,5 +1,5 @@
 // @ts-nocheck
-import React from "react";
+import React, { useEffect } from "react";
 import { PlayHeaderEditor } from "../PlayHeader";
 import {
   buildBlockRowVars,
@@ -227,6 +227,34 @@ export function EditorDocument({
     },
   });
 
+  useEffect(() => {
+    if (!typeMenu) return;
+
+    const closeTypeMenu = () => setTypeMenu(null);
+
+    const onPointerDown = (event) => {
+      const target = event.target;
+      if (!(target instanceof Element)) {
+        closeTypeMenu();
+        return;
+      }
+      if (target.closest(".editor-document__type-menu")) return;
+      if (target.closest(".editor-document__gutter-button--round")) return;
+      closeTypeMenu();
+    };
+
+    const onKeyDown = (event) => {
+      if (event.key === "Escape") closeTypeMenu();
+    };
+
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [typeMenu, setTypeMenu]);
+
   let pageNum = 1;
 
   return (
@@ -380,7 +408,11 @@ export function EditorDocument({
                           const isContinuedMeasuredSlice = isMeasuredSlice && continued;
 
                           let charName = "";
-                          if (block.type === "dialogue" && (part === "first" || part === "second")) {
+                          if (
+                            block.type === "dialogue" &&
+                            (part === "first" || part === "second" ||
+                              (isFilmSlice && continued))
+                          ) {
                             for (let i = bi - 1; i >= 0; i -= 1) {
                               if (blocks[i].type === "char") {
                                 charName = (blocks[i].text || "").toUpperCase();
@@ -390,9 +422,25 @@ export function EditorDocument({
                             }
                           }
 
+                          // (ПРОД.) header — shown at the top of a page that
+                          // continues a dialogue from the previous page.
+                          const showDialogueContd =
+                            mode === "film" &&
+                            block.type === "dialogue" &&
+                            ((part === "second" && charName) ||
+                              (isFilmSlice && continued && charName));
+
+                          // (ДАЛЬШЕ) footer — shown at the bottom of a page
+                          // when a dialogue spills over to the next page.
+                          const showDialogueMore =
+                            mode === "film" &&
+                            block.type === "dialogue" &&
+                            (part === "first" ||
+                              (isFilmSlice && (end ?? blockText.length) < blockText.length));
+
                           return (
                             <React.Fragment key={isMeasuredSlice ? `${block.id}-${part}-${sliceIx}` : `${block.id}-${part}`}>
-                              {mode === "film" && block.type === "dialogue" && part === "second" && charName ? (
+                              {showDialogueContd ? (
                                 <div className="editor-document__dialogue-meta editor-document__dialogue-meta--continued">
                                   {charName} (ПРОД.)
                                 </div>
@@ -568,9 +616,11 @@ export function EditorDocument({
                                               onMouseDown={(e) => {
                                                 e.preventDefault();
                                                 if (mode === "film" && changeFilmBlockTypeFromActiveLine(block.id, item.type)) {
+                                                  setTypeMenu(null);
                                                   return;
                                                 }
                                                 chType(block.id, item.type);
+                                                setTypeMenu(null);
                                               }}
                                             >
                                               <span
@@ -599,6 +649,7 @@ export function EditorDocument({
                                             onMouseDown={(e) => {
                                               e.preventDefault();
                                               addAfter(block.id, item.type);
+                                              setTypeMenu(null);
                                             }}
                                           >
                                             <span>{item.hotkey}</span>+ {item.label}
@@ -906,7 +957,7 @@ export function EditorDocument({
                                 )}
                               </div>
 
-                              {mode === "film" && block.type === "dialogue" && part === "first" ? (
+                              {showDialogueMore ? (
                                 <div className="editor-document__dialogue-meta editor-document__dialogue-meta--next">(ДАЛЬШЕ)</div>
                               ) : null}
                             </React.Fragment>

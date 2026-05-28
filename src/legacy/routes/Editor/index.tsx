@@ -136,6 +136,41 @@ function parseAiChatSseBlock(raw) {
   }
 }
 
+/** Film editor: one block.id may render as several page slices — resolve by abs text offset. */
+function listFilmBlockTextareas(root, blockId) {
+  if (!root?.querySelectorAll) return [];
+  return Array.from(root.querySelectorAll("textarea[data-block-id]"))
+    .filter((node) => String(node.dataset.blockId || "") === String(blockId))
+    .map((node) => ({
+      node,
+      sliceStart: parseInt(node.dataset.sliceStart || "0", 10) || 0,
+    }))
+    .sort((a, b) => a.sliceStart - b.sliceStart);
+}
+
+function findFilmTextareaByAbs(root, blockId, absPos) {
+  const entries = listFilmBlockTextareas(root, blockId);
+  if (!entries.length) return null;
+  const pos = Math.max(0, Number(absPos) || 0);
+  for (const entry of entries) {
+    const sliceEnd = entry.sliceStart + entry.node.value.length;
+    if (pos >= entry.sliceStart && pos <= sliceEnd) return entry.node;
+  }
+  for (let i = entries.length - 1; i >= 0; i -= 1) {
+    if (entries[i].sliceStart <= pos) return entries[i].node;
+  }
+  return entries[0].node;
+}
+
+function restoreFilmTextareaFocus(el, pending) {
+  if (!el || !pending) return;
+  const sliceStart = parseInt(el.dataset.sliceStart || "0", 10) || 0;
+  const relStart = Math.max(0, Math.min(el.value.length, pending.absStart - sliceStart));
+  const relEnd = Math.max(0, Math.min(el.value.length, pending.absEnd - sliceStart));
+  try { el.focus({ preventScroll: true }); } catch (e) { el.focus(); }
+  try { el.setSelectionRange(relStart, relEnd); } catch (e) {}
+}
+
 async function readAiChatSseEvent(res) {
   if (!res.body?.getReader) {
     return parseAiChatSseBlock(await res.text());
@@ -4136,7 +4171,12 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
     const nb = blocks.filter(x=>x.id!==id);
     setBlocks(nb); markDirty();
     const prev = nb[Math.max(0,i-1)];
-    if (prev) setTimeout(()=>blockRefs.current[prev.id]?.focus(), 60);
+    if (prev) {
+      setTimeout(()=>{
+        if (filmEditStateRef.current) return;
+        blockRefs.current[prev.id]?.focus();
+      }, 60);
+    }
   };
 
   const dupScene = (sceneId) => {
@@ -4301,10 +4341,14 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
           return a;
         });
         markDirty();
-        setTimeout(() => {
-          const newEl = blockRefs.current[dialId];
-          if (newEl) { newEl.focus(); newEl.selectionStart = newEl.selectionEnd = 0; }
-        }, 0);
+        filmEditStateRef.current = {
+          blockId: dialId,
+          absStart: 0,
+          absEnd: 0,
+          scrollTop: scrollRef.current ? scrollRef.current.scrollTop : null,
+          sliceStart: null,
+        };
+        setFoc(dialId);
       } else if (el && absCursor > 0 && absCursor < block.text.length && !["scene", "act", "spacer"].includes(block.type)) {
         const before = block.text.substring(0, absCursor);
         const after = block.text.substring(absCursor).trimStart();
@@ -4317,10 +4361,14 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
           return a;
         });
         markDirty();
-        setTimeout(() => {
-          const newEl = blockRefs.current[newId];
-          if (newEl) { newEl.focus(); newEl.selectionStart = newEl.selectionEnd = 0; }
-        }, 0);
+        filmEditStateRef.current = {
+          blockId: newId,
+          absStart: 0,
+          absEnd: 0,
+          scrollTop: scrollRef.current ? scrollRef.current.scrollTop : null,
+          sliceStart: null,
+        };
+        setFoc(newId);
       } else {
         addAfter(block.id, def.next||defs[0].type);
       }
@@ -4354,10 +4402,8 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
             .filter(x => x.node !== el && String(x.node.dataset.blockId || "") === String(block.id) && x.sliceStart < currentSliceStart)
             .sort((a,b) => b.sliceStart - a.sliceStart)[0];
           if (prevEntry && prevEntry.node) {
-            const prevEl = prevEntry.node;
-            try { prevEl.focus({ preventScroll: true }); } catch(err) { prevEl.focus(); }
-            const pos = prevEl.value.length;
-            try { prevEl.setSelectionRange(pos, pos); } catch(err) {}
+            const absPos = prevEntry.sliceStart + prevEntry.node.value.length;
+            restoreFilmTextareaFocus(prevEntry.node, { absStart: absPos, absEnd: absPos });
           }
           return;
         }
@@ -4368,17 +4414,24 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
           if (prev && prev.type && prev.type !== "act") {
             e.preventDefault();
             if (isBlankBlock) {
+              filmEditStateRef.current = {
+                blockId: prev.id,
+                absStart: (prev.text || "").length,
+                absEnd: (prev.text || "").length,
+                scrollTop: scrollRef.current ? scrollRef.current.scrollTop : null,
+                sliceStart: null,
+              };
               delBlock(block.id);
-              setTimeout(() => {
-                const prevEl = blockRefs.current[prev.id];
-                if (!prevEl) return;
-                try { prevEl.focus({ preventScroll: true }); } catch(err) { prevEl.focus(); }
-                const pos = (prevEl.value || "").length;
-                try { prevEl.setSelectionRange(pos, pos); } catch(err) {}
-              }, 0);
               return;
             }
             if (prev.type !== block.type) {
+              filmEditStateRef.current = {
+                blockId: block.id,
+                absStart: 0,
+                absEnd: 0,
+                scrollTop: scrollRef.current ? scrollRef.current.scrollTop : null,
+                sliceStart: null,
+              };
               chType(block.id, prev.type);
               return;
             }
@@ -4387,6 +4440,13 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
             const needsSpace = !!prevText && !!curText && !/\s$/.test(prevText) && !/^\s/.test(curText);
             const joiner = needsSpace ? " " : "";
             const caretPos = prevText.length + joiner.length;
+            filmEditStateRef.current = {
+              blockId: prev.id,
+              absStart: caretPos,
+              absEnd: caretPos,
+              scrollTop: scrollRef.current ? scrollRef.current.scrollTop : null,
+              sliceStart: null,
+            };
             setBlocks(bs => {
               const prevIdx = bs.findIndex(b => b.id === prev.id);
               const curIdx = bs.findIndex(b => b.id === block.id);
@@ -4398,13 +4458,6 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
               return next;
             });
             markDirty();
-            setTimeout(() => {
-              const prevEl = blockRefs.current[prev.id];
-              if (!prevEl) return;
-              try { prevEl.focus({ preventScroll: true }); } catch(err) { prevEl.focus(); }
-              try { prevEl.setSelectionRange(caretPos, caretPos); } catch(err) {}
-              autoH(prevEl);
-            }, 0);
             return;
           }
         }
@@ -5177,20 +5230,13 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
     if (mode !== "film") return;
     const pending = filmEditStateRef.current;
     if (!pending) return;
-    let el = null;
     const root = scrollRef.current || document;
-    if (pending.sliceStart != null && root && root.querySelectorAll) {
-      const nodes = Array.from(root.querySelectorAll('textarea[data-block-id]'));
-      el = nodes.find(node => (node.dataset.blockId === String(pending.blockId)) && (((parseInt(node.dataset.sliceStart || "0", 10)) || 0) === pending.sliceStart)) || null;
-    }
+    let el = findFilmTextareaByAbs(root, pending.blockId, pending.absStart);
     if (!el) el = blockRefs.current[pending.blockId];
     if (!el) return;
     const restore = () => {
-      const sliceStart = parseInt(el.dataset.sliceStart || "0", 10) || 0;
-      const relStart = Math.max(0, Math.min(el.value.length, pending.absStart - sliceStart));
-      const relEnd = Math.max(0, Math.min(el.value.length, pending.absEnd - sliceStart));
-      try { el.focus({ preventScroll: true }); } catch(e) { el.focus(); }
-      try { el.setSelectionRange(relStart, relEnd); } catch(e) {}
+      restoreFilmTextareaFocus(el, pending);
+      autoH(el);
       if (scrollRef.current && typeof pending.scrollTop === "number") {
         scrollRef.current.scrollTop = pending.scrollTop;
       }

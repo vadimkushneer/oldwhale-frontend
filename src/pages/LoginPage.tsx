@@ -3,7 +3,13 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { IonSpinner, IonText } from "@ionic/react";
 import { Login } from "../legacy/routes/Login";
 import { useAppDispatch, useAppSelector } from "../hooks";
-import { clearFormError, loginThunk, registerThunk } from "../features/auth/authSlice";
+import {
+  clearFormError,
+  completeRegistrationThunk,
+  loginThunk,
+  requestRegistrationOtpThunk,
+  verifyRegistrationOtpThunk,
+} from "../features/auth/authSlice";
 import { buildLoginTarget } from "../features/auth/loginRedirect";
 import type { LoginRedirectState } from "../features/auth/loginRedirect";
 import { useOnlineStatus } from "../hooks/useOnlineStatus";
@@ -87,9 +93,17 @@ export function LoginPage() {
         if (!navigator.onLine) throw new Error(OFFLINE_MESSAGE);
         await dispatch(loginThunk({ login, password })).unwrap();
       }}
-      submitRegister={async (login, email, password) => {
+      submitRegisterEmail={async (email) => {
         if (!navigator.onLine) throw new Error(OFFLINE_MESSAGE);
-        await dispatch(registerThunk({ login, email, password })).unwrap();
+        await dispatch(requestRegistrationOtpThunk({ email })).unwrap();
+      }}
+      submitVerifyRegistrationOtp={async (email, otp) => {
+        if (!navigator.onLine) throw new Error(OFFLINE_MESSAGE);
+        return await dispatch(verifyRegistrationOtpThunk({ email, otp })).unwrap();
+      }}
+      submitCompleteRegistration={async (email, setupToken, password) => {
+        if (!navigator.onLine) throw new Error(OFFLINE_MESSAGE);
+        await dispatch(completeRegistrationThunk({ email, setupToken, password })).unwrap();
       }}
       onLogin={() => {
         dispatch(clearFormError());

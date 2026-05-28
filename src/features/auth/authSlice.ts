@@ -109,18 +109,61 @@ export const loginThunk = createAsyncThunk(
   },
 );
 
-export const registerThunk = createAsyncThunk(
-  "auth/register",
+export const requestRegistrationOtpThunk = createAsyncThunk(
+  "auth/register/requestOtp",
   async (
-    { login, email, password }: { login: string; email: string; password: string },
+    { email }: { email: string },
     { rejectWithValue },
   ) => {
     const base = apiRequestBase();
     if (!base) return rejectWithValue("API base URL unavailable");
-    const res = await fetch(`${base}/api/auth/register`, {
+    const res = await fetch(`${base}/api/auth/register/request-otp`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username: login, email, password }),
+      body: JSON.stringify({ email }),
+    });
+    const data = (await readJsonSafe(res)) as { error?: string; expiresInSeconds?: number };
+    if (!res.ok) {
+      return rejectWithValue(data?.error || res.statusText);
+    }
+    return { expiresInSeconds: data?.expiresInSeconds ?? 600 };
+  },
+);
+
+export const verifyRegistrationOtpThunk = createAsyncThunk(
+  "auth/register/verifyOtp",
+  async (
+    { email, otp }: { email: string; otp: string },
+    { rejectWithValue },
+  ) => {
+    const base = apiRequestBase();
+    if (!base) return rejectWithValue("API base URL unavailable");
+    const res = await fetch(`${base}/api/auth/register/verify-otp`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, otp }),
+    });
+    const data = (await readJsonSafe(res)) as { error?: string; setupToken?: string; expiresInSeconds?: number };
+    if (!res.ok) {
+      return rejectWithValue(data?.error || res.statusText);
+    }
+    if (!data.setupToken) return rejectWithValue("Некорректный ответ сервера");
+    return { setupToken: data.setupToken, expiresInSeconds: data.expiresInSeconds ?? 900 };
+  },
+);
+
+export const completeRegistrationThunk = createAsyncThunk(
+  "auth/register/complete",
+  async (
+    { email, setupToken, password }: { email: string; setupToken: string; password: string },
+    { rejectWithValue },
+  ) => {
+    const base = apiRequestBase();
+    if (!base) return rejectWithValue("API base URL unavailable");
+    const res = await fetch(`${base}/api/auth/register/complete`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, setupToken, password }),
     });
     const data = (await readJsonSafe(res)) as { error?: string; token?: string; user?: User };
     if (!res.ok) {
@@ -206,18 +249,40 @@ export const authSlice = createSlice({
         state.loginLoading = false;
         state.lastError = String(action.payload || action.error.message || "Ошибка входа");
       })
-      .addCase(registerThunk.pending, (state) => {
+      .addCase(requestRegistrationOtpThunk.pending, (state) => {
         state.registerLoading = true;
         state.lastError = null;
       })
-      .addCase(registerThunk.fulfilled, (state, action) => {
+      .addCase(requestRegistrationOtpThunk.fulfilled, (state) => {
+        state.registerLoading = false;
+      })
+      .addCase(requestRegistrationOtpThunk.rejected, (state, action) => {
+        state.registerLoading = false;
+        state.lastError = String(action.payload || action.error.message || "Ошибка регистрации");
+      })
+      .addCase(verifyRegistrationOtpThunk.pending, (state) => {
+        state.registerLoading = true;
+        state.lastError = null;
+      })
+      .addCase(verifyRegistrationOtpThunk.fulfilled, (state) => {
+        state.registerLoading = false;
+      })
+      .addCase(verifyRegistrationOtpThunk.rejected, (state, action) => {
+        state.registerLoading = false;
+        state.lastError = String(action.payload || action.error.message || "Ошибка подтверждения кода");
+      })
+      .addCase(completeRegistrationThunk.pending, (state) => {
+        state.registerLoading = true;
+        state.lastError = null;
+      })
+      .addCase(completeRegistrationThunk.fulfilled, (state, action) => {
         state.registerLoading = false;
         state.token = action.payload.token;
         state.user = action.payload.user;
         state.sessionExpired = false;
         writeStoredToken(action.payload.token);
       })
-      .addCase(registerThunk.rejected, (state, action) => {
+      .addCase(completeRegistrationThunk.rejected, (state, action) => {
         state.registerLoading = false;
         state.lastError = String(action.payload || action.error.message || "Ошибка регистрации");
       });

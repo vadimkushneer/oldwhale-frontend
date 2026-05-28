@@ -15,15 +15,47 @@ const E2E_API_ORIGIN = "http://127.0.0.1:4173";
 const MOCK_JWT = "e2e-register-jwt";
 
 function registerUrl() {
-  return `${E2E_API_ORIGIN}/api/auth/register`;
+  return `${E2E_API_ORIGIN}/api/auth/register/complete`;
+}
+
+function requestOtpUrl() {
+  return `${E2E_API_ORIGIN}/api/auth/register/request-otp`;
+}
+
+function verifyOtpUrl() {
+  return `${E2E_API_ORIGIN}/api/auth/register/verify-otp`;
 }
 
 function meUrl() {
   return `${E2E_API_ORIGIN}/api/me`;
 }
 
-/** Stubs POST /api/auth/register and GET /api/me so post-auth restore succeeds on /editor. */
+/** Stubs OTP registration endpoints and GET /api/me so post-auth restore succeeds on /editor. */
 async function installRegisterSuccessMocks(page: Page, user: User) {
+  await page.route(requestOtpUrl(), async (route) => {
+    if (route.request().method() !== "POST") {
+      await route.fallback();
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ ok: true, expiresInSeconds: 600 }),
+    });
+  });
+
+  await page.route(verifyOtpUrl(), async (route) => {
+    if (route.request().method() !== "POST") {
+      await route.fallback();
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ setupToken: "e2e-setup-token", expiresInSeconds: 900 }),
+    });
+  });
+
   await page.route(registerUrl(), async (route) => {
     if (route.request().method() !== "POST") {
       await route.fallback();
@@ -55,7 +87,7 @@ async function installRegisterSuccessMocks(page: Page, user: User) {
 }
 
 async function installRegisterErrorMock(page: Page, status: number, errorMessage: string) {
-  await page.route(registerUrl(), async (route) => {
+  await page.route(requestOtpUrl(), async (route) => {
     if (route.request().method() !== "POST") {
       await route.fallback();
       return;
@@ -86,13 +118,12 @@ function seedProfileAndClearStorage(page: Page, mode: string) {
 test.describe("auth / registration", () => {
   test("completes registration and lands on editor with token", async ({ page }) => {
     const suffix = `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
-    const login = `e2e-reg-${suffix}`;
     const email = `e2e-reg-${suffix}@e2e.invalid`;
     const password = `pw-${suffix}`;
 
     const user: User = {
       id: 9001,
-      login,
+      login: `e2e-reg-${suffix}`,
       email,
       role: "user",
       disabled: false,
@@ -104,9 +135,11 @@ test.describe("auth / registration", () => {
     await page.goto("/login");
 
     await page.getByRole("button", { name: "РЕГИСТРАЦИЯ" }).click();
-    await page.getByPlaceholder("логин").fill(login);
     await page.getByPlaceholder("email").fill(email);
-    await page.getByPlaceholder("пароль").fill(password);
+    await page.getByRole("button", { name: "ПОЛУЧИТЬ КОД" }).click();
+    await page.getByPlaceholder("код из email").fill("123456");
+    await page.getByRole("button", { name: "ПОДТВЕРДИТЬ EMAIL" }).click();
+    await page.getByPlaceholder("придумайте пароль").fill(password);
     await page.getByRole("button", { name: "СОЗДАТЬ АККАУНТ" }).click();
 
     await page.waitForURL("**/editor", { timeout: 30_000 });
@@ -116,9 +149,7 @@ test.describe("auth / registration", () => {
 
   test("shows API error and stays on login", async ({ page }) => {
     const suffix = `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
-    const login = `e2e-err-${suffix}`;
     const email = `e2e-err-${suffix}@e2e.invalid`;
-    const password = `pw-${suffix}`;
     const errorText = "e2e-duplicate";
 
     await seedProfileAndClearStorage(page, "film");
@@ -126,10 +157,8 @@ test.describe("auth / registration", () => {
     await page.goto("/login");
 
     await page.getByRole("button", { name: "РЕГИСТРАЦИЯ" }).click();
-    await page.getByPlaceholder("логин").fill(login);
     await page.getByPlaceholder("email").fill(email);
-    await page.getByPlaceholder("пароль").fill(password);
-    await page.getByRole("button", { name: "СОЗДАТЬ АККАУНТ" }).click();
+    await page.getByRole("button", { name: "ПОЛУЧИТЬ КОД" }).click();
 
     await expect(page.getByText(errorText)).toBeVisible();
     await expect(page).toHaveURL(/\/login$/);

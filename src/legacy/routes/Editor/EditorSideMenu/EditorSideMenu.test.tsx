@@ -25,6 +25,7 @@ function makeBaseProps(overrides: Partial<EditorSideMenuProps> = {}): EditorSide
     onSwitchMode: vi.fn(),
     onShare: vi.fn(),
     onGoHome: vi.fn(),
+    onLogout: vi.fn(),
     ...overrides,
   };
 }
@@ -113,6 +114,14 @@ describe("EditorSideMenu", () => {
 
     fireEvent.click(screen.getByText("Открыть"));
     expect(onOpenImportPicker).toHaveBeenCalledTimes(1);
+  });
+
+  it("calls onLogout when Выйти is clicked", () => {
+    const onLogout = vi.fn();
+    render(<EditorSideMenu {...makeBaseProps({ onLogout })} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Выйти" }));
+    expect(onLogout).toHaveBeenCalledTimes(1);
   });
 
   it("uses whale-import on mobile and whale-import-desk on desktop", () => {

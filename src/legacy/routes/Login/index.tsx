@@ -29,29 +29,52 @@ import { Whale } from "../../ui/Whale";
 export function Login({
   onLogin,
   submitLogin,
-  submitRegister,
+  submitRegisterEmail,
+  submitVerifyRegistrationOtp,
+  submitCompleteRegistration,
   authError,
 }: {
   onLogin: () => void;
   submitLogin?: (login: string, password: string) => Promise<void>;
-  submitRegister?: (login: string, email: string, password: string) => Promise<void>;
+  submitRegisterEmail?: (email: string) => Promise<void>;
+  submitVerifyRegistrationOtp?: (email: string, otp: string) => Promise<{ setupToken: string }>;
+  submitCompleteRegistration?: (email: string, setupToken: string, password: string) => Promise<void>;
   authError?: string | null;
 }) {
   const [tab, setTab] = useState("in");
+  const [registerStep, setRegisterStep] = useState("email");
   const [login, setLogin] = useState("");
   const [pass, setPass] = useState("");
   const [email, setEmail] = useState("");
+  const [otp, setOtp] = useState("");
+  const [setupToken, setSetupToken] = useState("");
   const [loading, setLoading] = useState(false);
 
   const submit = async () => {
-    if (!login || !pass) return;
-    if (tab === "reg" && !email) return;
+    if (tab === "in" && (!login || !pass)) return;
+    if (tab === "reg" && registerStep === "email" && !email) return;
+    if (tab === "reg" && registerStep === "otp" && !otp) return;
+    if (tab === "reg" && registerStep === "password" && (!pass || !setupToken)) return;
     setLoading(true);
     try {
-      if (submitLogin && submitRegister) {
-        if (tab === "in") await submitLogin(login, pass);
-        else await submitRegister(login, email, pass);
-        onLogin();
+      if (submitLogin && submitRegisterEmail && submitVerifyRegistrationOtp && submitCompleteRegistration) {
+        if (tab === "in") {
+          await submitLogin(login, pass);
+          onLogin();
+        } else if (registerStep === "email") {
+          await submitRegisterEmail(email);
+          setRegisterStep("otp");
+          setOtp("");
+          setPass("");
+        } else if (registerStep === "otp") {
+          const result = await submitVerifyRegistrationOtp(email, otp);
+          setSetupToken(result.setupToken);
+          setRegisterStep("password");
+          setPass("");
+        } else {
+          await submitCompleteRegistration(email, setupToken, pass);
+          onLogin();
+        }
       } else {
         await new Promise((r) => setTimeout(r, 1600));
         onLogin();
@@ -62,6 +85,34 @@ export function Login({
       setLoading(false);
     }
   };
+
+  const switchTab = (nextTab) => {
+    setTab(nextTab);
+    setPass("");
+    if (nextTab === "reg") {
+      setRegisterStep("email");
+      setOtp("");
+      setSetupToken("");
+    }
+  };
+
+  const submitLabel =
+    tab === "in"
+      ? "ВОЙТИ"
+      : registerStep === "email"
+        ? "ПОЛУЧИТЬ КОД"
+        : registerStep === "otp"
+          ? "ПОДТВЕРДИТЬ EMAIL"
+          : "СОЗДАТЬ АККАУНТ";
+
+  const loadingLabel =
+    tab === "in"
+      ? "ВХОДИМ..."
+      : registerStep === "email"
+        ? "ОТПРАВЛЯЕМ..."
+        : registerStep === "otp"
+          ? "ПРОВЕРЯЕМ..."
+          : "СОЗДАЕМ...";
 
   const nmCard = {
     background: SURF,
@@ -124,34 +175,71 @@ export function Login({
             boxShadow: SH_IN,
           }}>
             {[["in","ВОЙТИ"],["reg","РЕГИСТРАЦИЯ"]].map(([id,l])=>(
-              <button key={id} onClick={()=>setTab(id)} style={nmBtn(tab===id)}>{l}</button>
+              <button key={id} onClick={()=>switchTab(id)} style={nmBtn(tab===id)}>{l}</button>
             ))}
           </div>
 
           {/* Fields */}
           <div style={{display:"flex", flexDirection:"column"}}>
-            <div style={{position:"relative", marginBottom:"8px"}}>
-              <span style={{position:"absolute",left:"18px",top:"50%",transform:"translateY(-50%)",width:"16px",display:"flex",alignItems:"center",justifyContent:"center",color:T3,fontSize:"13px",lineHeight:1,pointerEvents:"none"}}>◉</span>
-              <input value={login} onChange={e=>setLogin(e.target.value)}
-                onKeyDown={e=>e.key==="Enter"&&submit()}
-                style={nmInput} placeholder="логин"/>
-            </div>
-
-            {tab==="reg" && (
+            {tab==="in" && (
               <div style={{position:"relative", marginBottom:"8px"}}>
-                <span style={{position:"absolute",left:"18px",top:"50%",transform:"translateY(-50%)",width:"16px",display:"flex",alignItems:"center",justifyContent:"center",color:T3,fontSize:"13px",lineHeight:1,pointerEvents:"none"}}>✉</span>
-                <input value={email} onChange={e=>setEmail(e.target.value)}
-                  style={nmInput} placeholder="email" type="email"/>
+                <span style={{position:"absolute",left:"18px",top:"50%",transform:"translateY(-50%)",width:"16px",display:"flex",alignItems:"center",justifyContent:"center",color:T3,fontSize:"13px",lineHeight:1,pointerEvents:"none"}}>◉</span>
+                <input value={login} onChange={e=>setLogin(e.target.value)}
+                  onKeyDown={e=>e.key==="Enter"&&submit()}
+                  style={nmInput} placeholder="логин или email"/>
               </div>
             )}
 
-            <div style={{position:"relative", marginBottom:"8px"}}>
-              <span style={{position:"absolute",left:"18px",top:"50%",transform:"translateY(-50%)",width:"16px",display:"flex",alignItems:"center",justifyContent:"center",color:T3,fontSize:"13px",lineHeight:1,pointerEvents:"none"}}>◈</span>
-              <input value={pass} onChange={e=>setPass(e.target.value)}
-                onKeyDown={e=>e.key==="Enter"&&submit()}
-                style={nmInput} placeholder="пароль" type="password"/>
-            </div>
+            {tab==="reg" && (
+              <>
+                <div style={{position:"relative", marginBottom:"8px"}}>
+                  <span style={{position:"absolute",left:"18px",top:"50%",transform:"translateY(-50%)",width:"16px",display:"flex",alignItems:"center",justifyContent:"center",color:T3,fontSize:"13px",lineHeight:1,pointerEvents:"none"}}>✉</span>
+                  <input value={email} onChange={e=>setEmail(e.target.value)}
+                    onKeyDown={e=>e.key==="Enter"&&submit()}
+                    style={{...nmInput, opacity: registerStep === "email" ? 1 : 0.72}}
+                    placeholder="email" type="email" disabled={registerStep !== "email"}/>
+                </div>
+
+                {registerStep==="otp" && (
+                  <div style={{position:"relative", marginBottom:"8px"}}>
+                    <span style={{position:"absolute",left:"18px",top:"50%",transform:"translateY(-50%)",width:"16px",display:"flex",alignItems:"center",justifyContent:"center",color:T3,fontSize:"13px",lineHeight:1,pointerEvents:"none"}}>✦</span>
+                    <input value={otp} onChange={e=>setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                      onKeyDown={e=>e.key==="Enter"&&submit()}
+                      style={nmInput} placeholder="код из email" inputMode="numeric"/>
+                  </div>
+                )}
+              </>
+            )}
+
+            {(tab==="in" || registerStep==="password") && (
+              <div style={{position:"relative", marginBottom:"8px"}}>
+                <span style={{position:"absolute",left:"18px",top:"50%",transform:"translateY(-50%)",width:"16px",display:"flex",alignItems:"center",justifyContent:"center",color:T3,fontSize:"13px",lineHeight:1,pointerEvents:"none"}}>◈</span>
+                <input value={pass} onChange={e=>setPass(e.target.value)}
+                  onKeyDown={e=>e.key==="Enter"&&submit()}
+                  style={nmInput} placeholder={tab==="reg" ? "придумайте пароль" : "пароль"} type="password"/>
+              </div>
+            )}
           </div>
+
+          {tab==="reg" && registerStep !== "email" && (
+            <div style={{marginTop:"6px", color:T3, fontSize:"10px", letterSpacing:"1px", lineHeight:1.5}}>
+              {registerStep==="otp"
+                ? "Введите 6-значный код, отправленный на email."
+                : "Email подтвержден. Теперь задайте пароль для аккаунта."}
+              <button
+                type="button"
+                onClick={() => {
+                  setRegisterStep("email");
+                  setOtp("");
+                  setSetupToken("");
+                  setPass("");
+                }}
+                style={{marginLeft:"8px", border:"none", background:"transparent", color:ACCENT, cursor:"pointer", fontFamily:"inherit", fontSize:"10px", letterSpacing:"1px", padding:0}}
+              >
+                изменить email
+              </button>
+            </div>
+          )}
 
           {/* Forgot */}
           {tab==="in" && (
@@ -178,11 +266,11 @@ export function Login({
                   <span style={{display:"inline-flex", alignItems:"center", transform:"translateX(5px)"}}>
                     <span style={{display:"inline-flex", alignItems:"center", justifyContent:"center", width:"18px", flex:"0 0 18px"}}><Whale size={18}/></span>
                     <span aria-hidden="true" style={{display:"inline-block", width:"8px", flex:"0 0 8px"}} />
-                    <span style={{letterSpacing:"2px"}}>ВХОДИМ...</span>
+                    <span style={{letterSpacing:"2px"}}>{loadingLabel}</span>
                     <span aria-hidden="true" style={{display:"inline-block", width:"26px", flex:"0 0 26px"}} />
                   </span>
                 </span>
-              : (tab==="in" ? "ВОЙТИ" : "СОЗДАТЬ АККАУНТ")
+              : submitLabel
             }
           </button>
           {authError ? (

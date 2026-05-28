@@ -6131,6 +6131,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
               setMenuOpen(false);
             }}
             onGoHome={goHome}
+            onLogout={onLogout}
             showAdminLink={showAdminLink}
           />
         )}
@@ -7087,6 +7088,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
             setMenuOpen(false);
           }}
           onGoHome={goHome}
+          onLogout={onLogout}
           showAdminLink={showAdminLink}
         />
       )}

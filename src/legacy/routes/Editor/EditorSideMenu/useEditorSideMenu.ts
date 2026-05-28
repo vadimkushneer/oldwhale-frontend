@@ -28,6 +28,7 @@ export type EditorSideMenuProps = {
   onSwitchMode: (modeId: string) => void;
   onShare?: () => void;
   onGoHome: () => void;
+  onLogout: () => void;
   showAdminLink?: boolean;
 };
 

@@ -137,6 +137,16 @@ function IconAdmin() {
   );
 }
 
+function IconLogout() {
+  return strokeIcon(
+    <>
+      <path d="M10 5H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h4" />
+      <polyline points="15 8 19 12 15 16" />
+      <line x1="19" y1="12" x2="9" y2="12" />
+    </>,
+  );
+}
+
 function SideMenuHeader({ showClose, onClose }: { showClose: boolean; onClose: () => void }) {
   return (
     <div className="editor-side-menu__header">
@@ -174,8 +184,17 @@ function SideMenuSection({
 }
 
 export function EditorSideMenu(props: EditorSideMenuProps) {
-  const { variant, onClose, onSwitchMode, onOpenImportPicker, onImportFileChange, onGoHome, onShare, showAdminLink } =
-    props;
+  const {
+    variant,
+    onClose,
+    onSwitchMode,
+    onOpenImportPicker,
+    onImportFileChange,
+    onGoHome,
+    onLogout,
+    onShare,
+    showAdminLink,
+  } = props;
   const vm = useEditorSideMenu(props);
 
   return (
@@ -298,6 +317,12 @@ export function EditorSideMenu(props: EditorSideMenuProps) {
             <button type="button" className="editor-side-menu__simple-row" onClick={onGoHome}>
               <span className="editor-side-menu__misc-icon">⏻</span>
               На главную
+            </button>
+            <button type="button" className="editor-side-menu__simple-row" onClick={onLogout}>
+              <span className="editor-side-menu__row-icon">
+                <IconLogout />
+              </span>
+              Выйти
             </button>
           </SideMenuSection>
         </div>

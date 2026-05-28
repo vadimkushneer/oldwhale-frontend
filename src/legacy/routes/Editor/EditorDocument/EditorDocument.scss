@@ -22,8 +22,10 @@
   }
 
   &__inner {
-    @apply mx-auto box-border max-w-[750px];
-    padding: 32px 0;
+    @apply mx-auto box-border;
+    max-width: var(--ed-page-w);     /* 816px — US Letter */
+    width: var(--ed-page-w);
+    padding: 0;
     zoom: var(--ed-zoom);
     transition: zoom 0.15s;
   }
@@ -37,7 +39,9 @@
   }
 
   &__page {
-    @apply relative box-border min-h-[1123px];
+    @apply relative box-border;
+    min-height: var(--ed-page-h);    /* 1056px — US Letter */
+    width: var(--ed-page-w);
 
     &--sheet {
       background: var(--ed-bg);
@@ -51,8 +55,15 @@
       margin-bottom: 0;
     }
 
+    /* Hollywood margins: 1.5" left (binding), 1" right/top/bottom. */
     &--film {
-      padding: 48px 96px;
+      height: var(--ed-page-h);
+      max-height: var(--ed-page-h);
+      overflow: hidden;
+      padding-top:    var(--ed-margin-top);
+      padding-right:  var(--ed-margin-right);
+      padding-bottom: var(--ed-margin-bottom);
+      padding-left:   var(--ed-margin-left);
     }
 
     &--play,
@@ -119,20 +130,22 @@
 
   &__dialogue-meta {
     font-family: "Courier New", Courier, monospace;
-    font-size: 14px;
-    line-height: 1.5;
+    font-size: var(--ed-film-fs);
+    line-height: var(--ed-film-lh);
     color: var(--ed-t2);
 
+    /* (CONT'D) marker — under the character cue at the top of the next page. */
     &--continued {
-      padding-left: 211px;
-      padding-top: 18px;
+      padding-left: var(--ed-film-char-l);
+      padding-top: 0;
       padding-bottom: 0;
       text-transform: uppercase;
     }
 
+    /* (MORE) marker — at the bottom of the page where the dialogue spills over. */
     &--next {
-      padding-left: 211px;
-      padding-top: 4px;
+      padding-left: var(--ed-film-char-l);
+      padding-top: 0;
     }
   }
 
@@ -346,8 +359,9 @@
     box-sizing: border-box;
 
     &--script {
-      font-size: 14px;
-      line-height: 1.85;
+      /* Hollywood: Courier 12pt (16px at 96dpi), single-spaced. */
+      font-size: var(--ed-film-fs);
+      line-height: var(--ed-film-lh);
       font-family: "Courier New", Courier, monospace;
     }
 
@@ -418,12 +432,18 @@
   }
 
   &--mode-film {
+    /*
+     * Per-block layout for Hollywood format. All padding values come from
+     * CSS variables fed by `screenplayFormat.ts`. Do NOT hardcode pixel
+     * indents here — change them in `screenplayFormat.ts` and they
+     * propagate to the measure textarea, real textarea, and search overlay
+     * all at once.
+     */
     .editor-document__textarea--scene {
-      padding-top: 32px;
+      padding-top: var(--ed-film-pt-scene);
       padding-bottom: 0;
       color: #f0ece0;
       font-weight: 700;
-      line-height: 1.5;
       text-transform: uppercase;
     }
 
@@ -431,55 +451,52 @@
       padding-top: 0;
       padding-bottom: 0;
       color: #aaa;
-      line-height: 1.5;
       text-transform: uppercase;
     }
 
     .editor-document__textarea--action {
-      padding-top: 18px;
+      padding-top: var(--ed-film-pt-action);
       padding-bottom: 0;
       color: #e0dcd0;
     }
 
     .editor-document__textarea--char {
-      padding-left: 211px;
-      padding-top: 18px;
+      padding-left: var(--ed-film-char-l);
+      padding-top: var(--ed-film-pt-char);
       padding-bottom: 0;
       color: #f0ece0;
       font-weight: 700;
-      line-height: 1.5;
       text-transform: uppercase;
     }
 
     .editor-document__textarea--dialogue {
-      padding-left: 96px;
-      padding-right: 144px;
+      padding-left: var(--ed-film-dialogue-l);
+      padding-right: var(--ed-film-dialogue-r);
       padding-top: 0;
       padding-bottom: 0;
     }
 
     .editor-document__textarea--paren {
-      padding-left: 154px;
-      padding-right: 144px;
+      padding-left: var(--ed-film-paren-l);
+      padding-right: var(--ed-film-paren-r);
       padding-top: 0;
       padding-bottom: 0;
       color: #666;
       font-style: italic;
-      line-height: 1.5;
     }
 
     .editor-document__textarea--note {
       border-left: 2px solid #2a2a4a;
-      padding-left: 14px;
-      padding-top: 14px;
-      padding-bottom: 4px;
+      padding-left: var(--ed-film-note-l);
+      padding-top: var(--ed-film-pt-note);
+      padding-bottom: 0;
       color: #4a4a6a;
       font-style: italic;
     }
 
     .editor-document__textarea--trans {
-      padding-top: 18px;
-      padding-bottom: 4px;
+      padding-top: var(--ed-film-pt-trans);
+      padding-bottom: 0;
       color: #555;
       text-align: right;
       text-transform: uppercase;

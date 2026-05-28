@@ -1,5 +1,10 @@
 // @ts-nocheck
 import { useCallback, useMemo, type CSSProperties } from "react";
+import {
+  SCREENPLAY_FORMAT,
+  buildScreenplayCssVars,
+  buildFilmBlockCssVars,
+} from "../../../domain/screenplayFormat";
 
 export function cx(...values: Array<string | false | null | undefined>) {
   return values.filter(Boolean).join(" ");
@@ -47,12 +52,21 @@ export function buildEditorDocumentCssVars({
     "--ed-zoom-width": `${zoom}%`,
     "--ed-doc-font": docFont || "Times New Roman",
     "--ed-note-font": docFont || "Courier New",
+    // Hollywood screenplay format — single source of truth.
+    ...buildScreenplayCssVars(),
+    ...buildFilmBlockCssVars(),
   } as CSSProperties;
 }
 
-const A4_H = 1027;
-const PAGE_TEXT_W = 670;
-const FILM_PAGE_SPLIT_TYPES = ["action", "paren", "note"];
+const PAGE_H = SCREENPLAY_FORMAT.PAGE_H;       // 1056 — US Letter at 96dpi
+const PAGE_TEXT_H = SCREENPLAY_FORMAT.TEXT_H;  // 864 — text column inside 1" top/bottom margins
+const PAGE_TEXT_W = SCREENPLAY_FORMAT.TEXT_W;  // 576 — 6.0" inside 1.5"/1.0" margins
+/**
+ * Block types that can be split across page boundaries with a (MORE)/(CONT'D)
+ * marker. `dialogue` is included because long monologues legitimately span
+ * multiple pages — without this the second page just overflows past the bottom.
+ */
+const FILM_PAGE_SPLIT_TYPES = ["action", "paren", "note", "dialogue"];
 const PLAY_PAGE_SPLIT_TYPES = ["stage", "line", "note", "cast"];
 
 function ensureMeasureTextarea(id: string) {
@@ -166,35 +180,79 @@ function ensurePlayLineMeasure() {
   return root;
 }
 
+/**
+ * Indent table for film blocks — read from SCREENPLAY_FORMAT, not from
+ * `def.st`. This is the source of truth for both the measure textarea and
+ * for the real textarea's padding (via CSS vars). Keeping it in one place
+ * stops the historical drift between `blocks.tsx`, `EditorDocument.scss`
+ * and `buildStandardBlockOverlayStyle`.
+ */
+function getFilmBlockIndent(blockType: string) {
+  const I = SCREENPLAY_FORMAT.INDENT;
+  switch (blockType) {
+    case "dialogue": return { padL: I.DIALOGUE_LEFT, padR: I.DIALOGUE_RIGHT };
+    case "paren":    return { padL: I.PAREN_LEFT,    padR: I.PAREN_RIGHT };
+    case "char":     return { padL: I.CHAR_LEFT,     padR: 0 };
+    case "note":     return { padL: I.NOTE_LEFT,     padR: 0 };
+    // scene, cast, action, trans, spacer: flush to text column
+    default:         return { padL: 0,               padR: 0 };
+  }
+}
+
+/**
+ * Vertical space before a block, in pixels. `continued` slices never get
+ * top padding — they pick up where the previous page left off.
+ */
+function getFilmBlockPaddingTop(blockType: string, continued: boolean) {
+  if (continued) return 0;
+  const S = SCREENPLAY_FORMAT.SPACE;
+  switch (blockType) {
+    case "scene":  return S.BEFORE_SCENE;
+    case "action": return S.BEFORE_ACTION;
+    case "char":   return S.BEFORE_CHAR;
+    case "note":   return S.BEFORE_NOTE;
+    case "trans":  return S.BEFORE_TRANS;
+    // cast, dialogue, paren, spacer follow their preceding block tightly
+    default:       return 0;
+  }
+}
+
 function getBlockMetrics({ defs, mode }, block, text, continued = false) {
   const def = defs.find((item) => item.type === block.type) || defs[0];
 
-  const basePt = parseInt(def.st?.paddingTop) || 0;
-  const pt = continued ? 0 : basePt;
-  const pb = parseInt(def.st?.paddingBottom) || 0;
-  const fs = parseFloat(def.st?.fontSize) || (mode === "play" ? 15 : 14);
-  const lh = parseFloat(def.st?.lineHeight) || (mode === "play" ? 1.7 : 1.85);
+  // For film we read typography + indentation from SCREENPLAY_FORMAT; for
+  // other modes we still defer to `def.st` (those modes are being reworked
+  // separately and aren't strict Hollywood).
+  const isFilm = mode === "film";
+  const fs = isFilm
+    ? SCREENPLAY_FORMAT.FONT_SIZE
+    : parseFloat(def.st?.fontSize) || (mode === "play" ? 15 : 14);
+  const lh = isFilm
+    ? SCREENPLAY_FORMAT.LINE_HEIGHT
+    : parseFloat(def.st?.lineHeight) || (mode === "play" ? 1.7 : 1.85);
+  const pt = isFilm
+    ? getFilmBlockPaddingTop(block.type, continued)
+    : (continued ? 0 : (parseInt(def.st?.paddingTop) || 0));
+  const pb = isFilm ? 0 : (parseInt(def.st?.paddingBottom) || 0);
 
-  let colW = 670;
-  if (mode === "film") {
-    if (block.type === "dialogue") colW = 340;
-    else if (block.type === "paren" || block.type === "char") colW = 300;
-    else colW = 566;
+  let colW = PAGE_TEXT_W;
+  if (isFilm) {
+    const ind = getFilmBlockIndent(block.type);
+    colW = PAGE_TEXT_W - ind.padL - ind.padR;
   }
 
   const charsPerLine = Math.max(20, Math.round(colW / (fs * 0.6)));
   const safeText = text && text.length ? text : " ";
   const lineH = fs * lh;
 
-  if (mode === "film") {
+  if (isFilm) {
     const el = ensureMeasureTextarea("ow-film-measure");
     if (el) {
-      const padL = parseInt(def.st?.paddingLeft) || 0;
-      const padR = parseInt(def.st?.paddingRight) || 0;
+      const { padL, padR } = getFilmBlockIndent(block.type);
       el.value = safeText;
       el.rows = 1;
       el.style.width = `${PAGE_TEXT_W}px`;
-      el.style.fontFamily = "'Courier New',Courier,monospace";
+      el.style.fontFamily = SCREENPLAY_FORMAT.FONT_FAMILY_FILM;
       el.style.fontSize = `${fs}px`;
       el.style.lineHeight = String(lh);
       el.style.paddingTop = `${pt}px`;
@@ -205,13 +263,13 @@ function getBlockMetrics({ defs, mode }, block, text, continued = false) {
       el.style.fontWeight = block.bold ? "bold" : block.semibold ? "600" : (def.st?.fontWeight || "400");
       el.style.textTransform = def.st?.textTransform || "none";
       el.style.textAlign = def.st?.textAlign || "left";
-      el.style.letterSpacing = def.st?.letterSpacing || "normal";
-      el.style.borderLeft = def.st?.borderLeft || "none";
+      el.style.letterSpacing = "normal";
+      el.style.borderLeft = "none";
       el.style.borderRight = "none";
       el.style.borderTop = "none";
       el.style.borderBottom = "none";
       el.style.height = "0px";
-      return { def, pt, pb, fs, lh, colW, charsPerLine, lineH, blockH: el.scrollHeight + 10 };
+      return { def, pt, pb, fs, lh, colW, charsPerLine, lineH, blockH: el.scrollHeight };
     }
   }
 
@@ -337,6 +395,8 @@ export function buildDocumentPages({
   }
 
   const config = { defs, mode };
+  // Film: paginate inside margins (~54 lines). Other modes keep full page height.
+  const pageBudgetH = mode === "film" ? PAGE_TEXT_H : PAGE_H;
   const pageBreaks = new Map();
 
   const estimateDesktopTitleEditorH = () => {
@@ -353,7 +413,7 @@ export function buildDocumentPages({
     const logoH = mode === "short" ? 96 : 0;
     const focusExtra = mode === "media" ? (mediaHeaderFoc ? 48 : 0) : (contentHeaderFoc ? 48 : 0);
 
-    return Math.min(A4_H - 140, rowsH + logoH + 92 + focusExtra);
+    return Math.min(PAGE_H - 140, rowsH + logoH + 92 + focusExtra);
   };
 
   const desktopTitleEditorH = estimateDesktopTitleEditorH();
@@ -364,11 +424,11 @@ export function buildDocumentPages({
 
     const metrics = getBlockMetrics(config, block, block.text || "", false);
     const text = block.text || " ";
-    const pageStart = Math.floor(runH / A4_H);
-    const pageEnd = Math.floor((runH + metrics.blockH) / A4_H);
+    const pageStart = Math.floor(runH / pageBudgetH);
+    const pageEnd = Math.floor((runH + metrics.blockH) / pageBudgetH);
 
     if (bi > 0 && pageEnd > pageStart) {
-      const remaining = A4_H * (pageStart + 1) - runH - metrics.pt;
+      const remaining = pageBudgetH * (pageStart + 1) - runH - metrics.pt;
       const linesFit = Math.floor(remaining / metrics.lineH);
       if (linesFit <= 0) {
         pageBreaks.set(bi, -1);
@@ -405,14 +465,14 @@ export function buildDocumentPages({
   runH = desktopTitleEditorH;
 
   const pageRemaining = () => {
-    const used = runH % A4_H;
-    return used === 0 ? A4_H : A4_H - used;
+    const used = runH % pageBudgetH;
+    return used === 0 ? pageBudgetH : pageBudgetH - used;
   };
 
   const pushPage = () => {
     if (curPage.length > 0) pages.push(curPage);
     curPage = [];
-    runH = Math.ceil(runH / A4_H) * A4_H;
+    runH = Math.ceil(runH / pageBudgetH) * pageBudgetH;
   };
 
   blocks.forEach((block, bi) => {
@@ -539,7 +599,17 @@ export function buildDocumentPages({
   };
 }
 
-export function getGutterTopPx({ def, mode, continued }) {
+export function getGutterTopPx({ def, mode, continued, block }) {
+  // In film mode, gutter alignment must match the block's actual padding-top
+  // and typography — both of which now live in SCREENPLAY_FORMAT.
+  if (mode === "film") {
+    const blockType = block?.type ?? def?.type;
+    const pt = getFilmBlockPaddingTop(blockType, continued);
+    const fs = SCREENPLAY_FORMAT.FONT_SIZE;
+    const lh = SCREENPLAY_FORMAT.LINE_HEIGHT;
+    return pt + Math.round((fs * lh) / 2);
+  }
+
   let pt = 5;
   if (continued) pt = 0;
   else if (def.st?.paddingTop !== undefined) pt = parseInt(def.st.paddingTop) || 0;
@@ -554,7 +624,7 @@ export function getGutterTopPx({ def, mode, continued }) {
 
 export function buildBlockRowVars({ def, mode, continued, block }) {
   const vars: CSSProperties = {
-    "--ed-gutter-top": `${getGutterTopPx({ def, mode, continued })}px`,
+    "--ed-gutter-top": `${getGutterTopPx({ def, mode, continued, block })}px`,
   } as CSSProperties;
 
   if (block?.color) {
@@ -565,6 +635,31 @@ export function buildBlockRowVars({ def, mode, continued, block }) {
 }
 
 export function buildStandardBlockOverlayStyle({ mode, def, block, continued }) {
+  // For film, padding/font come from SCREENPLAY_FORMAT so the search/marker
+  // overlay sits pixel-perfect over the real textarea. `def.st` is no longer
+  // consulted for layout in film mode (only for visual styling like color/
+  // textTransform).
+  if (mode === "film") {
+    const ind = getFilmBlockIndent(block.type);
+    const pt = getFilmBlockPaddingTop(block.type, continued);
+    return {
+      boxSizing: "border-box",
+      fontSize: `${SCREENPLAY_FORMAT.FONT_SIZE}px`,
+      lineHeight: String(SCREENPLAY_FORMAT.LINE_HEIGHT),
+      fontFamily: SCREENPLAY_FORMAT.FONT_FAMILY_FILM,
+      paddingLeft: `${ind.padL}px`,
+      paddingRight: `${ind.padR}px`,
+      paddingTop: `${pt}px`,
+      paddingBottom: "0",
+      color: def.st?.color,
+      textTransform: def.st?.textTransform,
+      textAlign: def.st?.textAlign,
+      fontWeight: block.bold ? "bold" : block.semibold ? "600" : def.st?.fontWeight,
+      fontStyle: block.italic ? "italic" : def.st?.fontStyle,
+      textDecoration: block.underline ? "underline" : def.st?.textDecoration,
+    };
+  }
+
   return {
     boxSizing: "border-box",
     fontSize: mode === "play" ? "15px" : "14px",

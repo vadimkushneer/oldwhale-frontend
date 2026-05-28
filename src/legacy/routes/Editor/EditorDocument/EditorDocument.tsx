@@ -380,7 +380,11 @@ export function EditorDocument({
                           const isContinuedMeasuredSlice = isMeasuredSlice && continued;
 
                           let charName = "";
-                          if (block.type === "dialogue" && (part === "first" || part === "second")) {
+                          if (
+                            block.type === "dialogue" &&
+                            (part === "first" || part === "second" ||
+                              (isFilmSlice && continued))
+                          ) {
                             for (let i = bi - 1; i >= 0; i -= 1) {
                               if (blocks[i].type === "char") {
                                 charName = (blocks[i].text || "").toUpperCase();
@@ -390,9 +394,25 @@ export function EditorDocument({
                             }
                           }
 
+                          // (ПРОД.) header — shown at the top of a page that
+                          // continues a dialogue from the previous page.
+                          const showDialogueContd =
+                            mode === "film" &&
+                            block.type === "dialogue" &&
+                            ((part === "second" && charName) ||
+                              (isFilmSlice && continued && charName));
+
+                          // (ДАЛЬШЕ) footer — shown at the bottom of a page
+                          // when a dialogue spills over to the next page.
+                          const showDialogueMore =
+                            mode === "film" &&
+                            block.type === "dialogue" &&
+                            (part === "first" ||
+                              (isFilmSlice && (end ?? blockText.length) < blockText.length));
+
                           return (
                             <React.Fragment key={isMeasuredSlice ? `${block.id}-${part}-${sliceIx}` : `${block.id}-${part}`}>
-                              {mode === "film" && block.type === "dialogue" && part === "second" && charName ? (
+                              {showDialogueContd ? (
                                 <div className="editor-document__dialogue-meta editor-document__dialogue-meta--continued">
                                   {charName} (ПРОД.)
                                 </div>
@@ -906,7 +926,7 @@ export function EditorDocument({
                                 )}
                               </div>
 
-                              {mode === "film" && block.type === "dialogue" && part === "first" ? (
+                              {showDialogueMore ? (
                                 <div className="editor-document__dialogue-meta editor-document__dialogue-meta--next">(ДАЛЬШЕ)</div>
                               ) : null}
                             </React.Fragment>

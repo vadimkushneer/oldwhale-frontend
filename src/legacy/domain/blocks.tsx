@@ -22,7 +22,7 @@ export const BLOCK_DEFS = {
   film: [
     { type:"scene",    label:"Место и время",     hotkey:"0", spell:false, ph:"ИНТ. ЛОКАЦИЯ. ДЕНЬ.",
       next:"cast",
-      st:{ textTransform:"uppercase", fontWeight:"bold", color:"#f0ece0",
+      st:{ textTransform:"uppercase", color:"#f0ece0",
            paddingTop:"32px", paddingBottom:"0", lineHeight:"1.5" } },
     { type:"cast",     label:"Участники сцены",   hotkey:"1", spell:false, ph:"ГЕРОЙ (возраст), ВТОРОЙ",
       next:"action",

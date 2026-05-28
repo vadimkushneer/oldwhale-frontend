@@ -104,6 +104,7 @@ import { MarkerContextMenu } from "./MarkerContextMenu";
 import { EditorDocument } from "./EditorDocument/EditorDocument";
 import { EditorDocumentNote } from "./EditorDocument/EditorDocumentNote/EditorDocumentNote";
 import { buildEditorDocumentCssVars } from "./EditorDocument/useEditorDocument";
+import { normalizeFilmBlockText } from "../../domain/screenplayFormat";
 import { EditorTopBar } from "./EditorTopBar/EditorTopBar";
 import { EditorSideMenu } from "./EditorSideMenu/EditorSideMenu";
 
@@ -3985,7 +3986,11 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
     setPlayHeader(ph => ph.map(item => item.key===key ? {...item,[field]:value} : item));
   };
 
-  const updBlock     = (id, text) => { setBlocks(bs=>bs.map(b=>b.id===id?{...b,text}:b)); markDirty(); };
+  const updBlock     = (id, text) => { setBlocks(bs=>bs.map(b=>{
+    if (b.id !== id) return b;
+    const nextText = mode === "film" ? normalizeFilmBlockText(b.type, text) : text;
+    return {...b, text: nextText};
+  })); markDirty(); };
   const updBlockName = (id, name) => { setBlocks(bs=>bs.map(b=>b.id===id?{...b,name}:b)); markDirty(); };
   const buildFilmTypeChangedBlock = (block, type, textOverride) => {
     const next = {

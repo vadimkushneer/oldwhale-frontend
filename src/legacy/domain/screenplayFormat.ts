@@ -130,3 +130,29 @@ export function buildFilmBlockCssVars(): CSSProperties {
     "--ed-film-pt-trans":   `${S.BEFORE_TRANS}px`,
   } as CSSProperties;
 }
+
+/** Film block types that use sentence case (not ALL CAPS). */
+export const FILM_CAPITALIZE_START_TYPES = ["action", "dialogue", "note"] as const;
+
+/**
+ * Uppercase the first letter of a block, before the first newline only.
+ * Does not touch later lines — "hello\nworld" → "Hello\nworld".
+ */
+export function capitalizeBlockStart(text: string) {
+  if (!text) return text;
+  const firstLineEnd = text.indexOf("\n");
+  const end = firstLineEnd === -1 ? text.length : firstLineEnd;
+  for (let i = 0; i < end; i += 1) {
+    const ch = text[i];
+    if (/[a-zа-яё]/i.test(ch) && ch === ch.toLowerCase() && ch !== ch.toUpperCase()) {
+      return text.slice(0, i) + ch.toUpperCase() + text.slice(i + 1);
+    }
+    if (/[A-ZА-ЯЁ]/.test(ch)) return text;
+  }
+  return text;
+}
+
+export function normalizeFilmBlockText(blockType: string, text: string) {
+  if (!FILM_CAPITALIZE_START_TYPES.includes(blockType)) return text;
+  return capitalizeBlockStart(text ?? "");
+}

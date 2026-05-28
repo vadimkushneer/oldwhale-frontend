@@ -1,5 +1,5 @@
 // @ts-nocheck
-import React from "react";
+import React, { useEffect } from "react";
 import { PlayHeaderEditor } from "../PlayHeader";
 import {
   buildBlockRowVars,
@@ -226,6 +226,34 @@ export function EditorDocument({
       blocks,
     },
   });
+
+  useEffect(() => {
+    if (!typeMenu) return;
+
+    const closeTypeMenu = () => setTypeMenu(null);
+
+    const onPointerDown = (event) => {
+      const target = event.target;
+      if (!(target instanceof Element)) {
+        closeTypeMenu();
+        return;
+      }
+      if (target.closest(".editor-document__type-menu")) return;
+      if (target.closest(".editor-document__gutter-button--round")) return;
+      closeTypeMenu();
+    };
+
+    const onKeyDown = (event) => {
+      if (event.key === "Escape") closeTypeMenu();
+    };
+
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [typeMenu, setTypeMenu]);
 
   let pageNum = 1;
 
@@ -588,9 +616,11 @@ export function EditorDocument({
                                               onMouseDown={(e) => {
                                                 e.preventDefault();
                                                 if (mode === "film" && changeFilmBlockTypeFromActiveLine(block.id, item.type)) {
+                                                  setTypeMenu(null);
                                                   return;
                                                 }
                                                 chType(block.id, item.type);
+                                                setTypeMenu(null);
                                               }}
                                             >
                                               <span
@@ -619,6 +649,7 @@ export function EditorDocument({
                                             onMouseDown={(e) => {
                                               e.preventDefault();
                                               addAfter(block.id, item.type);
+                                              setTypeMenu(null);
                                             }}
                                           >
                                             <span>{item.hotkey}</span>+ {item.label}

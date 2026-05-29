@@ -4488,7 +4488,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
       lines.push("=".repeat(60));
       lines.push("","");
     } else {
-      // Film — стандартный (не трогаем)
+      // Film — титул по titlePage
       lines.push("","","","","","","","","","","","","");
       lines.push(center((tp.title||projectName).toUpperCase()));
       if (tp.genre) lines.push(center(tp.genre));
@@ -4577,6 +4577,28 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
         } else if (b.type==="spacer") {
           lines.push("");
         }
+      } else if (mode === "film") {
+        if (b.type === "act") {
+          lines.push("", ""); lines.push(center((b.text || "").toUpperCase())); lines.push("", "");
+        } else if (b.type === "scene") {
+          lines.push(""); lines.push((b.text || "").toUpperCase());
+        } else if (b.type === "cast") {
+          lines.push((b.text || "").toUpperCase()); lines.push("");
+        } else if (b.type === "action") {
+          wrap(b.text || "", 0, 60).forEach(l => lines.push(l)); lines.push("");
+        } else if (b.type === "char") {
+          lines.push(""); lines.push(center((b.text || "").toUpperCase()));
+        } else if (b.type === "dialogue") {
+          wrap(b.text || "", 20, 40).forEach(l => lines.push(l)); lines.push("");
+        } else if (b.type === "paren") {
+          wrap("(" + b.text + ")", 25, 30).forEach(l => lines.push(l));
+        } else if (b.type === "trans") {
+          lines.push(""); lines.push(" ".repeat(42) + (b.text || "").toUpperCase()); lines.push("");
+        } else if (b.type === "note") {
+          wrap(b.text || "", 0, 60).forEach(l => lines.push(l)); lines.push("");
+        } else if (b.type === "spacer") {
+          lines.push("");
+        }
       } else {
         if (b.type==="scene") {
           sceneNum++;
@@ -4593,7 +4615,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
           wrap("("+b.text+")",25,30).forEach(l=>lines.push(l));
         } else if (b.type==="trans") {
           lines.push(""); lines.push(" ".repeat(42)+(b.text||"").toUpperCase()); lines.push("");
-        } else if (b.type==="act" && mode!=="film") {
+        } else if (b.type==="act") {
           lines.push("",""); lines.push(center((b.text||"").toUpperCase())); lines.push("","");
         }
       }

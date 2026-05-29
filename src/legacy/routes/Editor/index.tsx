@@ -2268,6 +2268,13 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
     pushHistory(blks);
   };
 
+  const markDirtyPlay = (nextBlocks) => {
+    if ((modeRef.current || mode) !== "play") return;
+    blocksRef.current = nextBlocks;
+    scheduleProjectAutosave();
+    pushHistory(nextBlocks);
+  };
+
   useEffect(()=>{
     ensureModeHistory(mode, blocks);
   }, []);
@@ -4866,12 +4873,20 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
     setPlayHeader(ph => ph.map(item => item.key===key ? {...item,[field]:value} : item));
   };
 
-  const updBlock     = (id, text) => { setBlocks(bs=>bs.map(b=>{
-    if (b.id !== id) return b;
-    const nextText = mode === "film" ? normalizeFilmBlockText(b.type, text) : text;
-    return {...b, text: nextText};
-  })); markDirty(); };
-  const updBlockName = (id, name) => { setBlocks(bs=>bs.map(b=>b.id===id?{...b,name}:b)); markDirty(); };
+  const updBlock     = (id, text) => { setBlocks(bs=>{
+    const next = bs.map(b=>{
+      if (b.id !== id) return b;
+      const nextText = mode === "film" ? normalizeFilmBlockText(b.type, text) : text;
+      return {...b, text: nextText};
+    });
+    markDirtyPlay(next);
+    return next;
+  }); if ((modeRef.current || mode) !== "play") markDirty(); };
+  const updBlockName = (id, name) => { setBlocks(bs=>{
+    const next = bs.map(b=>b.id===id?{...b,name}:b);
+    markDirtyPlay(next);
+    return next;
+  }); if ((modeRef.current || mode) !== "play") markDirty(); };
   const buildFilmTypeChangedBlock = (block, type, textOverride) => {
     const next = {
       id: block.id,
@@ -4975,10 +4990,21 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
       : type==="line"
       ? [{id:nid,type:"line",name:"",text:""}]
       : [{id:nid,type,text:""}];
-    setBlocks(bs=>{ const i=bs.findIndex(b=>b.id===id); const a=[...bs]; a.splice(i+1,0,...toAdd); return a; });
+    setBlocks(bs=>{ const i=bs.findIndex(b=>b.id===id); const a=[...bs]; a.splice(i+1,0,...toAdd); if (mode === "play") markDirtyPlay(a); return a; });
     if (type==="scene" || type==="act") setActiveSceneId(nid);
-    markDirty();
-    setTimeout(()=>{ blockRefs.current[nid]?.focus(); setFoc(nid); }, 60);
+    if (mode !== "play") markDirty();
+    setFoc(nid);
+    if (mode === "play") {
+      filmEditStateRef.current = {
+        blockId: nid,
+        absStart: 0,
+        absEnd: 0,
+        scrollTop: scrollRef.current ? scrollRef.current.scrollTop : null,
+        sliceStart: null,
+      };
+    } else {
+      setTimeout(()=>{ blockRefs.current[nid]?.focus(); setFoc(nid); }, 60);
+    }
   }, [mode]);
 
   const addBefore = useCallback((id, type) => {
@@ -5058,7 +5084,9 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
     const b = blocks[i];
 
     const nb = blocks.filter(x=>x.id!==id);
-    setBlocks(nb); markDirty();
+    setBlocks(nb);
+    if ((modeRef.current || mode) === "play") markDirtyPlay(nb);
+    else markDirty();
     const prev = nb[Math.max(0,i-1)];
     if (prev) {
       setTimeout(()=>{
@@ -5184,6 +5212,86 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
     markDirty(moved);
   };
 
+  /** Play `line`: Backspace at start of name field — merge/delete like film block start. */
+  const playLineBackspaceMergeWithPrev = (block) => {
+    if (mode !== "play" || block.type !== "line") return;
+    const currentBlocks = blocksRef.current || blocks;
+    const bi = currentBlocks.findIndex((b) => b.id === block.id);
+    if (bi <= 0) return;
+    const prev = currentBlocks[bi - 1];
+    if (!prev || prev.type === "act") return;
+    const isBlankLine = !(block.name || "").trim() && !(block.text || "").trim();
+    if (isBlankLine) {
+      filmEditStateRef.current = {
+        blockId: prev.id,
+        absStart: (prev.text || "").length,
+        absEnd: (prev.text || "").length,
+        scrollTop: scrollRef.current ? scrollRef.current.scrollTop : null,
+        sliceStart: null,
+      };
+      delBlock(block.id);
+      return;
+    }
+    if (prev.type !== block.type) {
+      filmEditStateRef.current = {
+        blockId: block.id,
+        absStart: 0,
+        absEnd: 0,
+        scrollTop: scrollRef.current ? scrollRef.current.scrollTop : null,
+        sliceStart: null,
+      };
+      chType(block.id, prev.type);
+      return;
+    }
+    const prevText = prev.text || "";
+    const curText = block.text || "";
+    const needsSpace = !!prevText && !!curText && !/\s$/.test(prevText) && !/^\s/.test(curText);
+    const joiner = needsSpace ? " " : "";
+    const caretPos = prevText.length + joiner.length;
+    const mergedName = (prev.name || "").trim() ? (prev.name || "") : (block.name || "");
+    filmEditStateRef.current = {
+      blockId: prev.id,
+      absStart: caretPos,
+      absEnd: caretPos,
+      scrollTop: scrollRef.current ? scrollRef.current.scrollTop : null,
+      sliceStart: null,
+    };
+    setBlocks((bs) => {
+      const prevIdx = bs.findIndex((b) => b.id === prev.id);
+      const curIdx = bs.findIndex((b) => b.id === block.id);
+      if (prevIdx < 0 || curIdx < 0 || prevIdx >= curIdx) return bs;
+      const mergedPrev = {
+        ...bs[prevIdx],
+        name: mergedName,
+        text: (bs[prevIdx].text || "") + joiner + curText,
+      };
+      const next = [...bs];
+      next[prevIdx] = mergedPrev;
+      next.splice(curIdx, 1);
+      markDirtyPlay(next);
+      return next;
+    });
+  };
+
+  const onPlayLineNameKey = (e, block) => {
+    if (mode !== "play" || block.type !== "line") return;
+    if (e.key === "Tab" || e.key === "Enter") {
+      e.preventDefault();
+      blockRefs.current[block.id]?.focus();
+      return;
+    }
+    if (e.key !== "Backspace" || e.shiftKey || e.altKey || e.ctrlKey || e.metaKey) return;
+    const input = e.target;
+    if (!input || input.selectionStart !== 0 || input.selectionEnd !== 0) return;
+    const currentBlocks = blocksRef.current || blocks;
+    const bi = currentBlocks.findIndex((b) => b.id === block.id);
+    if (bi <= 0) return;
+    const prev = currentBlocks[bi - 1];
+    if (!prev || prev.type === "act") return;
+    e.preventDefault();
+    playLineBackspaceMergeWithPrev(block);
+  };
+
   const onKey = (e, block, ctx={}) => {
     if (!defs || defs.length === 0) return;
     const def = defs.find(d=>d.type===block.type)||defs[0];
@@ -5243,13 +5351,17 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
         const after = block.text.substring(absCursor).trimStart();
         updBlock(block.id, before);
         const newId = uid();
+        const newBlock = mode === "play" && block.type === "line"
+          ? { id: newId, type: block.type, name: block.name || "", text: after }
+          : { id: newId, type: block.type, text: after };
         setBlocks(bs => {
           const i = bs.findIndex(b => b.id === block.id);
           const a = [...bs];
-          a.splice(i + 1, 0, { id: newId, type: block.type, text: after });
+          a.splice(i + 1, 0, newBlock);
+          if (mode === "play") markDirtyPlay(a);
           return a;
         });
-        markDirty();
+        if (mode !== "play") markDirty();
         filmEditStateRef.current = {
           blockId: newId,
           absStart: 0,
@@ -5282,7 +5394,8 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
       if (selStart === 0 && selEnd === 0) {
         const currentSliceStart = (ctx && typeof ctx.sliceStartAbs === "number") ? ctx.sliceStartAbs : 0;
         const isContinuedVisualSlice = (ctx && ctx.isFilmSlice && ctx.continued) || (ctx && ctx.part === "second");
-        if (mode === "film" && isContinuedVisualSlice && el) {
+        const isPlayContinuedSlice = mode === "play" && ctx && ctx.part === "playSlice" && currentSliceStart > 0;
+        if ((mode === "film" && isContinuedVisualSlice || isPlayContinuedSlice) && el) {
           e.preventDefault();
           const root = scrollRef.current || document;
           const nodes = Array.from(root.querySelectorAll('textarea[data-block-id]'));
@@ -5294,6 +5407,9 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
             const absPos = prevEntry.sliceStart + prevEntry.node.value.length;
             restoreFilmTextareaFocus(prevEntry.node, { absStart: absPos, absEnd: absPos });
           }
+          return;
+        }
+        if (mode === "play" && block.type === "line" && currentSliceStart === 0) {
           return;
         }
         const currentBlocks = blocksRef.current || blocks;
@@ -5350,38 +5466,29 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
             return;
           }
         }
-        if (mode === "play" && bi > 0 && block.type !== "act") {
-          if (block.type === "line") {
-            const nameText = block.name || "";
-            const rowEl = el && el.parentElement ? el.parentElement : null;
-            const nameInput = rowEl ? rowEl.querySelector('input') : null;
-            e.preventDefault();
-            if (nameText.length > 0) {
-              updBlockName(block.id, nameText.slice(0, -1));
-            }
-            setTimeout(() => {
-              if (!nameInput) return;
-              try { nameInput.focus({ preventScroll: true }); } catch(err) { nameInput.focus(); }
-              const pos = Math.max(0, nameText.length - 1);
-              try { nameInput.setSelectionRange(pos, pos); } catch(err) {}
-            }, 0);
-            return;
-          }
+        if (mode === "play" && bi > 0 && block.type !== "act" && block.type !== "line") {
           const prev = currentBlocks[bi - 1];
           if (prev && prev.type && prev.type !== "act") {
             e.preventDefault();
             if (isBlankBlock) {
+              filmEditStateRef.current = {
+                blockId: prev.id,
+                absStart: (prev.text || "").length,
+                absEnd: (prev.text || "").length,
+                scrollTop: scrollRef.current ? scrollRef.current.scrollTop : null,
+                sliceStart: null,
+              };
               delBlock(block.id);
-              setTimeout(() => {
-                const prevEl = blockRefs.current[prev.id];
-                if (!prevEl) return;
-                try { prevEl.focus({ preventScroll: true }); } catch(err) { prevEl.focus(); }
-                const pos = (prevEl.value || "").length;
-                try { prevEl.setSelectionRange(pos, pos); } catch(err) {}
-              }, 0);
               return;
             }
             if (prev.type !== block.type) {
+              filmEditStateRef.current = {
+                blockId: block.id,
+                absStart: 0,
+                absEnd: 0,
+                scrollTop: scrollRef.current ? scrollRef.current.scrollTop : null,
+                sliceStart: null,
+              };
               chType(block.id, prev.type);
               return;
             }
@@ -5390,6 +5497,13 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
             const needsSpace = !!prevText && !!curText && !/\s$/.test(prevText) && !/^\s/.test(curText);
             const joiner = needsSpace ? " " : "";
             const caretPos = prevText.length + joiner.length;
+            filmEditStateRef.current = {
+              blockId: prev.id,
+              absStart: caretPos,
+              absEnd: caretPos,
+              scrollTop: scrollRef.current ? scrollRef.current.scrollTop : null,
+              sliceStart: null,
+            };
             setBlocks(bs => {
               const prevIdx = bs.findIndex(b => b.id === prev.id);
               const curIdx = bs.findIndex(b => b.id === block.id);
@@ -5398,16 +5512,9 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
               const next = [...bs];
               next[prevIdx] = mergedPrev;
               next.splice(curIdx, 1);
+              markDirtyPlay(next);
               return next;
             });
-            markDirty();
-            setTimeout(() => {
-              const prevEl = blockRefs.current[prev.id];
-              if (!prevEl) return;
-              try { prevEl.focus({ preventScroll: true }); } catch(err) { prevEl.focus(); }
-              try { prevEl.setSelectionRange(caretPos, caretPos); } catch(err) {}
-              autoH(prevEl);
-            }, 0);
             return;
           }
         }
@@ -6116,7 +6223,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
   }, [projectId, mode, isMobile]);
 
   useLayoutEffect(()=>{
-    if (mode !== "film") return;
+    if (mode !== "film" && mode !== "play") return;
     const pending = filmEditStateRef.current;
     if (!pending) return;
     const root = scrollRef.current || document;
@@ -9236,6 +9343,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
             renderMarkerOverlay,
             handleMarkerContextMenu,
             onKey,
+            onPlayLineNameKey,
             autoH,
             updBlock,
             updBlockName,

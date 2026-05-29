@@ -1303,7 +1303,11 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
         const curId = lastFocId.current;
         const curIdx = blocksRef.current.findIndex(b=>b.id===curId);
         const prevScene = [...sc].reverse().find(s=>s.index<curIdx);
-        if (prevScene) { const el=sceneRefs.current[prevScene.id]; el?.scrollIntoView({behavior:"smooth",block:"start"}); blockRefs.current[prevScene.id]?.focus(); }
+        if (prevScene) {
+          goToScene(prevScene.id);
+          const el = blockRefs.current[prevScene.id];
+          if (el) { try { el.focus({ preventScroll: true }); } catch(e) { el.focus(); } }
+        }
       }
       // Cmd+↓ — следующая сцена
       if (mod && e.key==="ArrowDown") {
@@ -1312,7 +1316,11 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
         const curId = lastFocId.current;
         const curIdx = blocksRef.current.findIndex(b=>b.id===curId);
         const nextScene = sc.find(s=>s.index>curIdx);
-        if (nextScene) { const el=sceneRefs.current[nextScene.id]; el?.scrollIntoView({behavior:"smooth",block:"start"}); blockRefs.current[nextScene.id]?.focus(); }
+        if (nextScene) {
+          goToScene(nextScene.id);
+          const el = blockRefs.current[nextScene.id];
+          if (el) { try { el.focus({ preventScroll: true }); } catch(e) { el.focus(); } }
+        }
       }
     };
     window.addEventListener("keydown", onKey);
@@ -1609,23 +1617,31 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
     }, ms);
   };
 
+  const scrollSceneAnchorIntoView = (id, { behavior = "smooth" } = {}) => {
+    const el = sceneRefs.current[id];
+    const sc = scrollRef.current;
+    if (!el || !sc) return false;
+    const nextTop = sc.scrollTop + el.getBoundingClientRect().top - sc.getBoundingClientRect().top - 60;
+    sc.scrollTo({ top: Math.max(0, nextTop), behavior });
+    return true;
+  };
+
   const onScroll = () => {
     const c = scrollRef.current; if (!c) return;
     if (sceneJumpLockRef.current) return;
-    const top = c.scrollTop; let cur = null;
+    const cTop = c.getBoundingClientRect().top;
+    let cur = null;
     for (const s of scenes) {
       const el = sceneRefs.current[s.id];
-      if (el && el.offsetTop - 80 <= top) cur = s.id;
+      if (!el) continue;
+      if (el.getBoundingClientRect().top - cTop <= 80) cur = s.id;
     }
     if (cur) setActiveSceneId(cur);
   };
 
   const goToScene = (id) => {
-    const el = sceneRefs.current[id];
-    if (el && scrollRef.current) {
-      lockActiveScene(id);
-      scrollRef.current.scrollTo({top: el.offsetTop - 60, behavior:"smooth"});
-    }
+    lockActiveScene(id);
+    scrollSceneAnchorIntoView(id);
     setActiveSceneId(id);
   };
 
@@ -4006,11 +4022,15 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
     if (block.underline) next.underline = true;
     return next;
   };
-  const chType       = (id, type) => { setBlocks(bs=>bs.map(b=>{
-    if (b.id !== id) return b;
-    if (mode === "film" && b.type === "note" && type !== "note") return buildFilmTypeChangedBlock(b, type);
-    return {...b,type};
-  })); markDirty(); };
+  const chType       = (id, type) => { setBlocks(bs=>{
+    const next = bs.map(b=>{
+      if (b.id !== id) return b;
+      if (mode === "film" && b.type === "note" && type !== "note") return buildFilmTypeChangedBlock(b, type);
+      return {...b,type};
+    });
+    markDirty(next);
+    return next;
+  }); };
 
   const changeFilmBlockTypeFromActiveLine = (id, targetType) => {
     if (mode !== "film") return false;
@@ -4062,9 +4082,9 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
       if (afterBlock) replacement.push(afterBlock);
       const next = [...bs];
       next.splice(i, 1, ...replacement);
+      markDirty(next);
       return next;
     });
-    markDirty();
     setFocId(id);
     setTimeout(() => {
       const nextEl = blockRefs.current[id];
@@ -6450,7 +6470,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
                       if (mode==="media"||mode==="short") { toggleSceneSelect(s.id); return; }
                       if (selectedScenes.size > 0) { toggleActSelect(s.actNum); return; }
                       if (mode==="film") { setActiveSceneId(s.id); return; }
-                      setMobileTab("editor");setActiveSceneId(s.id);setTimeout(()=>{const el=sceneRefs.current[s.id];if(el&&scrollRef.current)scrollRef.current.scrollTo({top:el.offsetTop-60,behavior:"smooth"});},80);
+                      setMobileTab("editor");setTimeout(()=>goToScene(s.id),80);
                     }}
                       style={{
                         padding:"12px 14px",borderRadius:"14px",cursor:"pointer",marginBottom:"6px",
@@ -6571,12 +6591,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
                       if (mode==="media" || mode==="short") { toggleSceneSelect(s.id); return; }
                       if (selectedScenes.size > 0) { toggleSceneSelect(s.id); return; }
                       setMobileTab("editor");
-                      setActiveSceneId(s.id);
-                      setTimeout(()=>{
-                        const el = sceneRefs.current[s.id];
-                        if (el && scrollRef.current)
-                          scrollRef.current.scrollTo({top: el.offsetTop - 60, behavior:"smooth"});
-                      }, 80);
+                      goToScene(s.id);
                     }} style={{
                       padding:"12px 14px",borderRadius:"14px",cursor:"pointer",marginBottom:"6px",
                       background:SURF,
@@ -8428,59 +8443,81 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
               {(() => {
                 const activeId = getActiveBlockId();
                 const curBlock = activeId ? blocks.find(b=>b.id===activeId) : null;
+                const colorOpenBlock = blocks.find(b=>b._colorOpen) || null;
                 const toggle = (field) => {
                   if(!activeId) return;
                   setBlocks(bs=>bs.map(b=>b.id===activeId?{...b,[field]:!b[field]}:b));
                   markDirty();
                 };
                 const setColor = (color) => {
-                  if(!activeId) return;
-                  setBlocks(bs=>bs.map(b=>b.id===activeId?{...b,color,_colorOpen:false}:b));
+                  const blockId = colorOpenBlock?.id || activeId;
+                  if (!blockId) return;
+                  setBlocks(bs=>bs.map(b=>b.id===blockId?{...b,color,_colorOpen:false}:b));
                   markDirty();
                 };
-                const btnStyle = (active, col) => ({
-                  width:"28px", height:"28px",
-                  background: active ? `${mc}22` : BG,
-                  boxShadow: SH_SM,
-                  border:`1px solid ${active ? mc : mc+"33"}`,
-                  borderRadius:"8px",
-                  color: active ? mc : T2,
-                  fontSize:"12px", cursor:"pointer",
+                const filmSquareBtn = {
+                  width:"26px", height:"26px", minWidth:"26px", minHeight:"26px", padding:0,
+                  background:BG, boxShadow:SH_SM, border:`1px solid ${mc}44`, borderRadius:"8px",
+                  color:mc, fontSize:"11px", cursor:"pointer",
                   display:"flex", alignItems:"center", justifyContent:"center",
-                  marginRight:"3px", WebkitAppearance:"none",
-                  ...(col ? {color: col} : {}),
-                });
+                  marginRight:"3px", WebkitAppearance:"none", boxSizing:"border-box", flexShrink:0,
+                };
+                const btnStyle = (active, col) => {
+                  if (mode === "film") {
+                    return {
+                      ...filmSquareBtn,
+                      color: active ? mc : mc,
+                      ...(col ? { color: col } : {}),
+                    };
+                  }
+                  return {
+                    width:"28px", height:"28px",
+                    background: active ? `${mc}22` : BG,
+                    boxShadow: SH_SM,
+                    border:`1px solid ${active ? mc : mc+"33"}`,
+                    borderRadius:"8px",
+                    color: active ? mc : T2,
+                    fontSize:"12px", cursor:"pointer",
+                    display:"flex", alignItems:"center", justifyContent:"center",
+                    marginRight:"3px", WebkitAppearance:"none",
+                    ...(col ? {color: col} : {}),
+                  };
+                };
                 const COLORS = ["#e8e4d8","#f472b6","#60a5fa","#4ade80","#fbbf24","#a78bfa","#f87171","#34d399"];
                 const fmtCfg = getFormatConfig(mode);
+                const fmtGlyphColor = (colorOpenBlock||curBlock)?.color || T2;
                 return (
                   <div style={{display:"flex", alignItems:"center", marginRight:"6px"}}>
                     {fmtCfg.bold && <button onMouseDown={e=>e.preventDefault()} onClick={()=>toggle("bold")}
-                      style={{...btnStyle(curBlock?.bold), fontWeight:"bold", fontFamily:"serif"}}>Ж</button>}
+                      style={{...btnStyle(curBlock?.bold), fontWeight:"bold", fontFamily:"serif", color: fmtGlyphColor}}>Ж</button>}
                     <button onMouseDown={e=>e.preventDefault()} onClick={()=>{if(!activeId)return;setBlocks(bs=>bs.map(b=>b.id===activeId?{...b,bold:false,italic:false,underline:false,semibold:false,color:null,_colorOpen:false}:b));markDirty();}} {...getTooltipAnchorProps("Сбросить формат")}
-                      style={{...btnStyle(false)}}>Н</button>
+                      style={{...btnStyle(false), color: fmtGlyphColor}}>Н</button>
                     {fmtCfg.italic && <button onMouseDown={e=>e.preventDefault()} onClick={()=>toggle("italic")}
                       style={{...btnStyle(curBlock?.italic), fontStyle:"italic", fontFamily:"serif"}}>К</button>}
                     {fmtCfg.underline && <button onMouseDown={e=>e.preventDefault()} onClick={()=>toggle("underline")}
                       style={{...btnStyle(curBlock?.underline), textDecoration:"underline"}}>Ч</button>}
                     {/* Цвет */}
-                    <div style={{position:"relative"}}>
-                      <button onMouseDown={e=>e.preventDefault()} onClick={()=>{ if(!activeId) return; setBlocks(bs=>bs.map(b=>b.id===activeId?{...b,_colorOpen:!b._colorOpen}:b)); }} {...getTooltipAnchorProps("Цвет текста")}
-                        style={{...btnStyle(false), background: curBlock?.color && curBlock.color!=="inherit" ? curBlock.color+"22" : BG, border:`2px solid ${curBlock?.color||mc+"33"}`, marginRight:0}}>
-                        <div style={{width:"10px",height:"10px",borderRadius:"50%",background:curBlock?.color||T2}}/>
+                    <div style={{position:"relative", display:"flex", alignItems:"center"}}>
+                      <button onMouseDown={e=>e.preventDefault()} onClick={()=>{ const id = activeId || colorOpenBlock?.id; if(!id) return; setBlocks(bs=>bs.map(b=>b.id===id?{...b,_colorOpen:!b._colorOpen}:b)); }} {...getTooltipAnchorProps("Цвет текста")}
+                        style={{...btnStyle(!!colorOpenBlock), marginRight: mode==="film" ? 0 : undefined, ...(mode!=="film" ? {
+                          background: (colorOpenBlock||curBlock)?.color && (colorOpenBlock||curBlock).color!=="inherit" ? (colorOpenBlock||curBlock).color+"22" : BG,
+                          border:`2px solid ${(colorOpenBlock||curBlock)?.color||mc+"33"}`,
+                        } : {})}}>
+                        <div style={{width:"10px",height:"10px",borderRadius:"50%",background:(colorOpenBlock||curBlock)?.color||T2}}/>
                       </button>
-                      {curBlock?._colorOpen && (
+                      {colorOpenBlock && (
                         <div style={{position:"absolute",bottom:"34px",right:0,background:SURF,borderRadius:"12px",
                           boxShadow:"0 8px 24px rgba(0,0,0,0.5)",padding:"8px",zIndex:100,
                           display:"flex", flexWrap:"wrap", width:"100px"}}>
                           {COLORS.map(c=>(
                             <button key={c} onMouseDown={e=>e.preventDefault()}
-                              onClick={()=>{ if(!activeId) return; setColor(c); }}
+                              onClick={()=>setColor(c)}
                               style={{width:"20px",height:"20px",borderRadius:"50%",background:c,
-                                border: curBlock?.color===c ? "2px solid #fff" : "2px solid transparent",
+                                border: colorOpenBlock?.color===c ? "2px solid #fff" : "2px solid transparent",
                                 cursor:"pointer",marginRight:"4px",marginBottom:"4px",WebkitAppearance:"none"}}/>
                           ))}
                           <button onMouseDown={e=>e.preventDefault()}
-                            onClick={()=>{ if(!activeId) return; setColor(null); }}
+                            onClick={()=>setColor(null)}
                             style={{width:"20px",height:"20px",borderRadius:"50%",background:"transparent",
                               border:"1px dashed "+T3,cursor:"pointer",fontSize:"10px",color:T3,
                               display:"flex",alignItems:"center",justifyContent:"center",WebkitAppearance:"none"}}>✕</button>
@@ -8490,7 +8527,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
                   </div>
                 );
               })()}
-              {/* Аа — шрифт */}
+              {(mode==="play"||mode==="media"||mode==="short") && (
               <div style={{position:"relative"}}>
                 <button onMouseDown={e=>e.preventDefault()} onClick={()=>setDocFontOpen(o=>!o)} {...getTooltipAnchorProps("Шрифт")}
                   style={{padding:"4px 10px",background:BG,boxShadow:SH_SM,border:`1px solid ${mc}44`,borderRadius:"8px",
@@ -8512,14 +8549,23 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
                   </div>
                 )}
               </div>
+              )}
             </div>
           )}
           <button onMouseDown={e=>e.preventDefault()} onClick={()=>setSpellOn(v=>!v)} {...getTooltipAnchorProps("Орфография")}
-            style={{padding:"4px 10px",background:spellOn?`${mc}22`:BG,boxShadow:SH_SM,
+            style={mode==="film" ? {
+              padding:"4px 10px", background:BG, boxShadow:SH_SM,
+              border:`1px solid ${mc}44`, borderRadius:"8px",
+              color:mc, fontSize:"10px", cursor:"pointer",
+              fontFamily:"inherit", letterSpacing:"1px", position:"relative", flexShrink:0,
+              marginRight:"6px", WebkitAppearance:"none", boxSizing:"border-box",
+            } : {
+              padding:"4px 10px",background:spellOn?`${mc}22`:BG,boxShadow:SH_SM,
               border:`1px solid ${spellOn?mc:mc+"44"}`,borderRadius:"8px",
               color:spellOn?mc:mc+"77",fontSize:"10px",cursor:"pointer",
               fontFamily:"inherit",letterSpacing:"1px",position:"relative",flexShrink:0,
-              marginRight:"6px",WebkitAppearance:"none"}}>
+              marginRight:"6px",WebkitAppearance:"none",
+            }}>
             АБВ{spellOn&&<span style={{position:"absolute",top:"-3px",right:"-3px",width:"6px",height:"6px",background:mc,borderRadius:"50%"}}/>}
           </button>
           <button onClick={showPreview} style={{

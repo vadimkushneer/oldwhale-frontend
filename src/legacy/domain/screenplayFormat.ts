@@ -92,6 +92,55 @@ export const SCREENPLAY_FORMAT = {
   },
 } as const;
 
+/** Horizontal padding for a film block (text column, not page edge). */
+export function getFilmBlockIndent(blockType: string) {
+  const I = SCREENPLAY_FORMAT.INDENT;
+  switch (blockType) {
+    case "dialogue":
+      return { padL: I.DIALOGUE_LEFT, padR: I.DIALOGUE_RIGHT };
+    case "paren":
+      return { padL: I.PAREN_LEFT, padR: I.PAREN_RIGHT };
+    case "char":
+      return { padL: I.CHAR_LEFT, padR: 0 };
+    case "note":
+      return { padL: I.NOTE_LEFT, padR: 0 };
+    default:
+      return { padL: 0, padR: 0 };
+  }
+}
+
+/**
+ * First scene on script page 1 (pageIdx 0) — not “entry 0”, so cast above INT
+ * does not steal opening-scene zero padding.
+ */
+export function isFilmOpeningSceneEntry(
+  pageIdx: number,
+  blockType: string,
+  continued: boolean,
+  hasEarlierSceneOnPage: boolean,
+) {
+  return pageIdx === 0 && blockType === "scene" && !continued && !hasEarlierSceneOnPage;
+}
+
+/** Inline layout for film `<textarea>` — must match `ow-film-measure` in pagination. */
+export function buildFilmTextareaLayoutStyle(
+  blockType: string,
+  opts: { continued?: boolean; openingScene?: boolean } = {},
+): CSSProperties {
+  const ind = getFilmBlockIndent(blockType);
+  const pt = filmBlockPaddingTop(blockType, opts);
+  const F = SCREENPLAY_FORMAT;
+  return {
+    margin: 0,
+    boxSizing: "border-box",
+    lineHeight: `${F.LINE_PX}px`,
+    paddingTop: `${pt}px`,
+    paddingBottom: 0,
+    paddingLeft: `${ind.padL}px`,
+    paddingRight: `${ind.padR}px`,
+  };
+}
+
 /** Top padding for a film block — shared by editor, measure textarea, and PDF HTML. */
 export function filmBlockPaddingTop(
   blockType: string,
@@ -129,6 +178,7 @@ export function buildScreenplayCssVars(): CSSProperties {
     "--ed-text-h": `${F.TEXT_H}px`,
     "--ed-film-fs": `${F.FONT_SIZE}px`,
     "--ed-film-lh": `${F.LINE_HEIGHT}`,
+    "--ed-film-line-px": `${F.LINE_PX}px`,
   } as CSSProperties;
 }
 

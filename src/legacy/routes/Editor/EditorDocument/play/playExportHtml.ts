@@ -3,72 +3,20 @@ import { BLOCK_DEFS, PLAY_TYPO } from "../../../../domain/blocks";
 import { SCREENPLAY_FORMAT } from "../../../../domain/screenplayFormat";
 import { getPlayActDisplayText } from "../../../../util/doc";
 import { buildPlayDocumentPages } from "./playPagination";
-
-type PlayExportBlock = {
-  type: string;
-  text?: string;
-  name?: string;
-  bold?: boolean;
-  semibold?: boolean;
-  italic?: boolean;
-  underline?: boolean;
-};
-
-type PlayHeaderLine = {
-  key?: string;
-  type?: string;
-  text?: string;
-  size?: number;
-  font?: string;
-  bold?: boolean;
-  italic?: boolean;
-  underline?: boolean;
-  align?: string;
-};
-
-type PageEntry = {
-  bi: number;
-  part: string;
-  split?: number;
-  start?: number;
-  end?: number | null;
-  continued?: boolean;
-};
+import {
+  getPlayActNum,
+  getPlayScenePlaceholder,
+  resolvePlayDisplayText,
+  type PlayExportBlock,
+  type PlayHeaderLine,
+  type PlayPageEntry,
+} from "./playExportCommon";
 
 const PAGE_W = SCREENPLAY_FORMAT.PAGE_W;
 const PAGE_H = SCREENPLAY_FORMAT.PAGE_H;
 const PAD = { top: 48, right: 72, bottom: 48, left: 72 };
 
 const playFontFamily = (docFont?: string) => `'${docFont || "Times New Roman"}', Times, serif`;
-
-function getPlayActNum(blocks: PlayExportBlock[], blockIndex: number): number {
-  let actNum = 0;
-  for (let i = 0; i <= blockIndex; i += 1) {
-    if (blocks[i]?.type === "act") actNum += 1;
-  }
-  return actNum;
-}
-
-function getPlayScenePlaceholder(blocks: PlayExportBlock[], blockIndex: number): string {
-  let sceneInAct = 0;
-  for (let i = 0; i <= blockIndex; i += 1) {
-    if (blocks[i]?.type === "act" && i < blockIndex) sceneInAct = 0;
-    if (blocks[i]?.type === "scene") sceneInAct += 1;
-  }
-  return `Сцена ${sceneInAct}`;
-}
-
-function resolvePlayDisplayText(blocks: PlayExportBlock[], entry: PageEntry): string {
-  const block = blocks[entry.bi];
-  if (!block) return "";
-  const blockText = block.text || "";
-  const { part, split = -1, start = 0, end = null } = entry;
-
-  if (part === "playSlice") return blockText.substring(start, end ?? blockText.length);
-  if (part === "first") return blockText.substring(0, split);
-  if (part === "second") return blockText.substring(split).replace(/^\s+/, "");
-  return blockText;
-}
 
 function playBlockExportStyle(
   def: { st?: Record<string, string> },
@@ -139,7 +87,7 @@ function renderPlayLineHtml(
 
 function renderPlayExportBlock(
   blocks: PlayExportBlock[],
-  entry: PageEntry,
+  entry: PlayPageEntry,
   docFont?: string,
 ): string {
   const block = blocks[entry.bi];
@@ -186,7 +134,7 @@ function buildPlayScriptPagesHtml(blocks: PlayExportBlock[], docFont?: string, f
   pages.forEach((pageBlocks, pageIdx) => {
     let blocksHtml = "";
     pageBlocks.forEach((entry) => {
-      blocksHtml += renderPlayExportBlock(blocks, entry as PageEntry, docFont);
+      blocksHtml += renderPlayExportBlock(blocks, entry, docFont);
     });
     const pageNumber =
       pageIdx > 0 ? `<div style="position:absolute;right:24px;top:24px;font-size:14px;color:#000;font-family:'Courier New',monospace;">${pageIdx + 1}.</div>` : "";

@@ -6,6 +6,12 @@
 import { BLOCK_DEFS, PLAY_TYPO } from "../../../../domain/blocks";
 import { SCREENPLAY_FORMAT } from "../../../../domain/screenplayFormat";
 import { getPlayActDisplayText } from "../../../../util/doc";
+import {
+  getPlayActNum,
+  getPlayScenePlaceholder,
+  playExportBaseName,
+  resolvePlayDisplayText,
+} from "./playExportCommon";
 import { buildPlayDocumentPages } from "./playPagination";
 
 const PLAY_DOCX_FONT_SIZE = 28; // 14pt
@@ -13,35 +19,6 @@ const PLAY_DOCX_LINE_TWIP = 284; // 14px × 1.35 lh → twips (×15)
 
 function playPxToTwip(px) {
   return Math.round(px * 15);
-}
-
-function getPlayActNum(blocks, blockIndex) {
-  let actNum = 0;
-  for (let i = 0; i <= blockIndex; i += 1) {
-    if (blocks[i]?.type === "act") actNum += 1;
-  }
-  return actNum;
-}
-
-function getPlayScenePlaceholder(blocks, blockIndex) {
-  let sceneInAct = 0;
-  for (let i = 0; i <= blockIndex; i += 1) {
-    if (blocks[i]?.type === "act" && i < blockIndex) sceneInAct = 0;
-    if (blocks[i]?.type === "scene") sceneInAct += 1;
-  }
-  return `Сцена ${sceneInAct}`;
-}
-
-function resolvePlayDisplayText(blocks, entry) {
-  const block = blocks[entry.bi];
-  if (!block) return "";
-  const blockText = block.text || "";
-  const { part, split = -1, start = 0, end = null } = entry;
-
-  if (part === "playSlice") return blockText.substring(start, end ?? blockText.length);
-  if (part === "first") return blockText.substring(0, split);
-  if (part === "second") return blockText.substring(split).replace(/^\s+/, "");
-  return blockText;
 }
 
 function playDocxLineSpacing(docx, beforePx = 0) {
@@ -322,5 +299,5 @@ export function buildPlayDocxDocument({ blocks, playHeader, docFont, titleSepPag
 }
 
 export function playDocxFileName(playHeader, projectName) {
-  return `${playHeader?.find?.((h) => h.key === "title")?.text?.trim() || projectName || "play"}.docx`;
+  return `${playExportBaseName(playHeader, projectName)}.docx`;
 }

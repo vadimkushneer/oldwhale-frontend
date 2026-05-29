@@ -2,10 +2,15 @@
 import React, { useEffect } from "react";
 import { PlayHeaderEditor } from "../PlayHeader";
 import {
+  buildFilmTextareaLayoutStyle,
+  isFilmOpeningSceneEntry,
+} from "../../../domain/screenplayFormat";
+import {
   buildBlockRowVars,
   buildPlayLineOverlayStyle,
   buildStandardBlockOverlayStyle,
   cx,
+  measureFilmBlockHeight,
   useEditorDocument,
 } from "./useEditorDocument";
 import { EditorActionButtons } from "../EditorActionButtons/EditorActionButtons";
@@ -418,12 +423,29 @@ export function EditorDocument({
                           const isFirstPart = isMeasuredSlice ? !editable : part === "first";
                           const textareaReadOnly = canEditSlicedText ? false : isFirstPart;
                           const isContinuedMeasuredSlice = isMeasuredSlice && continued;
-                          const isOpeningScene =
-                            mode === "film" &&
-                            pageIdx === 0 &&
-                            entryIdx === 0 &&
-                            block.type === "scene" &&
-                            !isContinuedMeasuredSlice;
+                          const hasEarlierSceneOnPage = pageBlocks
+                            .slice(0, entryIdx)
+                            .some((earlier) => blocks[earlier.bi]?.type === "scene");
+                          const isOpeningScene = isFilmOpeningSceneEntry(
+                            pageIdx,
+                            block.type,
+                            isContinuedMeasuredSlice,
+                            hasEarlierSceneOnPage,
+                          );
+                          const setFilmTextareaHeight = (el) => {
+                            if (!el || mode !== "film") return;
+                            el.style.height = `${measureFilmBlockHeight(
+                              defs,
+                              block,
+                              el.value,
+                              isContinuedMeasuredSlice,
+                              isOpeningScene,
+                            )}px`;
+                          };
+                          const syncTextareaHeight = (el) => {
+                            if (mode === "film") setFilmTextareaHeight(el);
+                            else autoH(el);
+                          };
 
                           let charName = "";
                           if (
@@ -804,9 +826,17 @@ export function EditorDocument({
                                         if (el) {
                                           el.dataset.sliceStart = String(sliceStartAbs);
                                           el.dataset.blockId = String(block.id);
-                                          autoH(el);
+                                          syncTextareaHeight(el);
                                         }
                                       }}
+                                      style={
+                                        mode === "film"
+                                          ? buildFilmTextareaLayoutStyle(block.type, {
+                                              continued: isContinuedMeasuredSlice,
+                                              openingScene: isOpeningScene,
+                                            })
+                                          : undefined
+                                      }
                                       value={displayText}
                                       onChange={(e) => {
                                         if (canEditSlicedText) {
@@ -820,14 +850,14 @@ export function EditorDocument({
                                           const prefix = blockText.substring(0, sliceStartAbs);
                                           const suffix = sliceEndAbs != null ? blockText.substring(sliceEndAbs) : "";
                                           updBlock(block.id, prefix + e.target.value + suffix);
-                                          autoH(e.target);
+                                          syncTextareaHeight(e.target);
                                           return;
                                         }
 
                                         if (!textareaReadOnly) {
                                           const prefix = part === "second" ? blockText.substring(0, split) : "";
                                           updBlock(block.id, prefix + e.target.value);
-                                          autoH(e.target);
+                                          syncTextareaHeight(e.target);
                                         }
                                       }}
                                       readOnly={textareaReadOnly}

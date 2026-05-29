@@ -5,6 +5,7 @@ import {
   buildScreenplayCssVars,
   buildFilmBlockCssVars,
   filmBlockPaddingTop,
+  getFilmBlockIndent,
 } from "../../../domain/screenplayFormat";
 import { buildPlayDocumentPages } from "./play/playPagination";
 import {
@@ -121,25 +122,6 @@ function ensureMeasureTextarea(id: string) {
   return el;
 }
 
-/**
- * Indent table for film blocks — read from SCREENPLAY_FORMAT, not from
- * `def.st`. This is the source of truth for both the measure textarea and
- * for the real textarea's padding (via CSS vars). Keeping it in one place
- * stops the historical drift between `blocks.tsx`, `EditorDocument.scss`
- * and `buildStandardBlockOverlayStyle`.
- */
-function getFilmBlockIndent(blockType: string) {
-  const I = SCREENPLAY_FORMAT.INDENT;
-  switch (blockType) {
-    case "dialogue": return { padL: I.DIALOGUE_LEFT, padR: I.DIALOGUE_RIGHT };
-    case "paren":    return { padL: I.PAREN_LEFT,    padR: I.PAREN_RIGHT };
-    case "char":     return { padL: I.CHAR_LEFT,     padR: 0 };
-    case "note":     return { padL: I.NOTE_LEFT,     padR: 0 };
-    // scene, cast, action, trans, spacer: flush to text column
-    default:         return { padL: 0,               padR: 0 };
-  }
-}
-
 function getBlockMetrics({ defs, mode }, block, text, continued = false, openingScene = false) {
   const def = defs.find((item) => item.type === block.type) || defs[0];
 
@@ -198,6 +180,17 @@ function getBlockMetrics({ defs, mode }, block, text, continued = false, opening
 
   const totalLines = Math.max(1, Math.ceil(safeText.length / charsPerLine));
   return { def, pt, pb, fs, lh, colW, charsPerLine, lineH, blockH: pt + pb + totalLines * lineH + 10 };
+}
+
+/** Film block height — same DOM measure as pagination (`ow-film-measure`). */
+export function measureFilmBlockHeight(
+  defs,
+  block,
+  text,
+  continued = false,
+  openingScene = false,
+) {
+  return getBlockMetrics({ defs, mode: "film" }, block, text, continued, openingScene).blockH;
 }
 
 function findWordSplit(text, approx) {
@@ -335,11 +328,10 @@ export function buildDocumentPages({
     runH = Math.ceil(runH / pageBudgetH) * pageBudgetH;
   };
 
-  const isOpeningSceneBlock = (block) =>
-    mode === "film" &&
-    block.type === "scene" &&
-    pages.length === 0 &&
-    curPage.length === 0;
+  const isOpeningSceneBlock = (block) => {
+    if (mode !== "film" || block.type !== "scene" || pages.length > 0) return false;
+    return !curPage.some((entry) => blocks[entry.bi]?.type === "scene");
+  };
 
   blocks.forEach((block, bi) => {
     if (mode === "film" && block.type === "act") return;

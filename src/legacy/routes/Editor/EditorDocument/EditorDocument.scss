@@ -361,7 +361,8 @@
     &--script {
       /* Hollywood: Courier 12pt (16px at 96dpi), single-spaced. */
       font-size: var(--ed-film-fs);
-      line-height: var(--ed-film-lh);
+      /* px line-height — unitless `1` drifts vs measure textarea / PDF divs */
+      line-height: var(--ed-film-line-px);
       font-family: "Courier New", Courier, monospace;
     }
 
@@ -443,8 +444,9 @@
       align-items: flex-start;
     }
 
-    /* Reset UA textarea padding — PDF uses divs; extra ~2px was pushing INT down. */
+    /* Reset UA textarea box — PDF uses divs; inline layout from buildFilmTextareaLayoutStyle. */
     .editor-document__textarea--script {
+      margin: 0;
       padding-left: 0;
       padding-right: 0;
       padding-bottom: 0;

@@ -107,6 +107,9 @@ import { EditorDocumentNote } from "./EditorDocument/EditorDocumentNote/EditorDo
 import { buildDocumentPages, buildEditorDocumentCssVars } from "./EditorDocument/useEditorDocument";
 import { buildPlayScriptExportHTML } from "./EditorDocument/play/playExportHtml";
 import { buildPlayDocxDocument, playDocxFileName } from "./EditorDocument/play/playExportDocx";
+import { buildPlayFdxExport } from "./EditorDocument/play/playExportFdx";
+import { playExportBaseName } from "./EditorDocument/play/playExportCommon";
+import { buildPlayTxtExport } from "./EditorDocument/play/playExportTxt";
 import { normalizeFilmBlockText, SCREENPLAY_FORMAT, filmBlockPaddingTop } from "../../domain/screenplayFormat";
 import { EditorTopBar } from "./EditorTopBar/EditorTopBar";
 import { EditorSideMenu } from "./EditorSideMenu/EditorSideMenu";
@@ -197,11 +200,14 @@ function buildFilmScriptExportHTML({ fmt, tp, projectName, blocks, defs, forPDF 
       if (showDialogueContd) {
         blocksHtml += `<div style="${metaStyle}text-transform:uppercase;">${charName} (ПРОД.)</div>`;
       }
+      const hasEarlierSceneOnPage = pageBlocks
+        .slice(0, entryIdx)
+        .some((earlier) => blocks[earlier.bi]?.type === "scene");
       const openingScene =
         pageIdx === 0 &&
-        entryIdx === 0 &&
         block.type === "scene" &&
-        !(isFilmSlice && continued);
+        !(isFilmSlice && continued) &&
+        !hasEarlierSceneOnPage;
       blocksHtml += `<div style="${blockStyle(block.type, isFilmSlice && continued, openingScene)}">${fmt(block, displayText)}</div>`;
       if (showDialogueMore) {
         blocksHtml += `<div style="${metaStyle}">(ДАЛЬШЕ)</div>`;
@@ -4189,7 +4195,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
     const html = buildExportHTML(true);
     const isPlayPdf = mode === "play";
     const fname = (isPlayPdf
-      ? (playHeader.find(h=>h.key==="title")?.text || projectName || "play")
+      ? playExportBaseName(playHeader, projectName)
       : (titlePage.title||projectName||"screenplay")) + ".pdf";
 
     let pdfHandle = null;
@@ -4644,6 +4650,12 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
       setTitlePageOpen(false);
       return;
     }
+    if (mode === "play") {
+      const { text, fileName } = buildPlayTxtExport({ playHeader, blocks, projectName });
+      saveFile(new Blob(["\ufeff" + text], { type: "text/plain;charset=utf-8" }), fileName, "text/plain");
+      setTitlePageOpen(false);
+      return;
+    }
     const tp = titlePage;
     const lines = [];
     const center = (s, w=60) => { const p=Math.max(0,Math.floor((w-s.length)/2)); return " ".repeat(p)+s; };
@@ -4658,15 +4670,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
     };
 
     // Title page
-    if (mode === "play") {
-      // Пьеса — из playHeader
-      const ph = playHeader.filter(h=>h.type!=="spacer");
-      lines.push("","","","","","","","","","","","","");
-      ph.forEach(h => { if(h.text) lines.push(h.text); });
-      lines.push("","","","","","","","","","","","","","","","","","","");
-      lines.push("=".repeat(60));
-      lines.push("","");
-    } else if (mode === "short") {
+    if (mode === "short") {
       // Видео — из contentHeader
       const ch = contentHeader.filter(h=>h.type!=="spacer");
       lines.push("","","","","","","","","","","","","");
@@ -4750,29 +4754,9 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
     }
 
     // Script
-    let sceneNum = 0; let actNum = 0; let sceneInAct = 0;
-    const isPlayTXT = mode === "play";
+    let sceneNum = 0;
     for (const b of blocks) {
-      if (isPlayTXT) {
-        if (b.type==="act") {
-          actNum++; sceneInAct=0;
-          lines.push("",""); lines.push(center(getPlayActDisplayText(b.text, actNum).toUpperCase())); lines.push("","");
-        } else if (b.type==="scene") {
-          sceneInAct++;
-          lines.push(""); lines.push((b.text||("Сцена "+sceneInAct)));
-        } else if (b.type==="cast") {
-          lines.push("("+b.text+")"); lines.push("");
-        } else if (b.type==="stage") {
-          wrap(b.text||"",0,60).forEach(l=>lines.push(l)); lines.push("");
-        } else if (b.type==="line") {
-          const prefix = b.name ? b.name.toUpperCase()+".  " : "";
-          wrap(prefix+(b.text||""),0,60).forEach(l=>lines.push(l)); lines.push("");
-        } else if (b.type==="note") {
-          lines.push("["+b.text+"]"); lines.push("");
-        } else if (b.type==="spacer") {
-          lines.push("");
-        }
-      } else if (mode === "film") {
+      if (mode === "film") {
         if (b.type === "act") {
           lines.push("", ""); lines.push(center((b.text || "").toUpperCase())); lines.push("", "");
         } else if (b.type === "scene") {
@@ -4828,23 +4812,21 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
   };
 
   const exportFDX = () => {
+    if (mode === "play") {
+      const { xml, fileName } = buildPlayFdxExport({ blocks, playHeader, projectName });
+      saveFile(new Blob([xml], { type: "application/xml" }), fileName, "application/xml");
+      setTitlePageOpen(false);
+      return;
+    }
     const tp = titlePage;
     let xml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n`;
     xml += `<FinalDraft DocumentType="Script" Template="No" Version="3">\n`;
     xml += `<Content>\n`;
 
-    let sceneNum = 0; let actNum = 0; let sceneInAct = 0;
-    const isPlayFDX = mode === "play";
+    let sceneNum = 0;
     for (const b of blocks) {
       let type = ""; let text = b.text||"";
-      if (isPlayFDX) {
-        if (b.type==="act")      { actNum++; sceneInAct=0; type="Scene Heading"; text=getPlayActDisplayText(text, actNum).toUpperCase(); }
-        else if (b.type==="scene")    { sceneInAct++; type="Scene Heading"; text=text||(actNum+"."+sceneInAct); }
-        else if (b.type==="cast")     { type="Action"; text="("+text+")"; }
-        else if (b.type==="stage")    { type="Action"; }
-        else if (b.type==="line")     { type="Action"; text=(b.name?b.name.toUpperCase()+".  ":"")+text; }
-        else if (b.type==="note")     { type="Action"; text="["+text+"]"; }
-      } else if (mode === "film") {
+      if (mode === "film") {
         if (b.type === "act") { type = "New Act"; text = text.toUpperCase(); }
         else if (b.type === "scene") { type = "Scene Heading"; text = text.toUpperCase(); }
         else if (b.type === "cast") { type = "Cast List"; text = text.toUpperCase(); }

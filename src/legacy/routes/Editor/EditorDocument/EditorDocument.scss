@@ -502,6 +502,10 @@
   }
 
   &--mode-play {
+    .editor-document__gutter-num {
+      visibility: hidden;
+    }
+
     .editor-document__textarea--act {
       padding-top: 48px;
       padding-bottom: 8px;
@@ -521,6 +525,11 @@
       font-size: 13px;
       font-weight: 700;
       line-height: 1.35;
+
+      &::placeholder {
+        color: #c8c4e0;
+        opacity: 1;
+      }
     }
 
     .editor-document__textarea--cast {

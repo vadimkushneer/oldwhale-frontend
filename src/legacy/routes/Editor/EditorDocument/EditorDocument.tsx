@@ -84,6 +84,15 @@ function ShortTitleHeader({
   );
 }
 
+function getPlayScenePlaceholder(blocks: { type?: string }[], blockIndex: number): string {
+  let sceneInAct = 0;
+  for (let i = 0; i <= blockIndex; i += 1) {
+    if (blocks[i]?.type === "act" && i < blockIndex) sceneInAct = 0;
+    if (blocks[i]?.type === "scene") sceneInAct += 1;
+  }
+  return `Сцена ${sceneInAct}`;
+}
+
 function getGutterVisibilityClass({
   focused,
   isHead,
@@ -943,7 +952,11 @@ export function EditorDocument({
                                           autoH(lastEl);
                                         }, 0);
                                       }}
-                                      placeholder={def.ph}
+                                      placeholder={
+                                        mode === "play" && block.type === "scene"
+                                          ? getPlayScenePlaceholder(blocks, bi)
+                                          : def.ph
+                                      }
                                       spellCheck={spellOn && def.spell}
                                       rows={1}
                                       className={getStandardTextareaClassName({

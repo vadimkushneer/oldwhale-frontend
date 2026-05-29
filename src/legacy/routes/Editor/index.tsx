@@ -105,6 +105,7 @@ import { MarkerContextMenu } from "./MarkerContextMenu";
 import { EditorDocument } from "./EditorDocument/EditorDocument";
 import { EditorDocumentNote } from "./EditorDocument/EditorDocumentNote/EditorDocumentNote";
 import { buildDocumentPages, buildEditorDocumentCssVars } from "./EditorDocument/useEditorDocument";
+import { buildPlayScriptExportHTML } from "./EditorDocument/play/playExportHtml";
 import { normalizeFilmBlockText, SCREENPLAY_FORMAT } from "../../domain/screenplayFormat";
 import { EditorTopBar } from "./EditorTopBar/EditorTopBar";
 import { EditorSideMenu } from "./EditorSideMenu/EditorSideMenu";
@@ -848,6 +849,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
   const syncingRouteModeRef = useRef(null);
   const whaleFileHandleRef = useRef(null);
   const saveAsFileHandleRef = useRef(null);
+  const saveAsExportedRef = useRef(false);
   const saveNowRef = useRef(()=>{});
   const [focId, setFocId]             = useState(null);
   const [activeSceneId, setActiveSceneId] = useState(null);
@@ -2543,6 +2545,52 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   };
 
+  const shareBlobAsFile = async (blob, fileName) => {
+    const file = new File([blob], fileName, { type: "application/octet-stream" });
+    if (navigator.share && navigator.canShare?.({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file], title: fileName });
+        return "shared";
+      } catch (e) {
+        if (e.name === "AbortError") return "cancelled";
+      }
+    }
+    return "unsupported";
+  };
+
+  const saveWhaleBlobToDisk = async (blob, fileName, fh = null) => {
+    if (fh) {
+      try {
+        await writeBlobToFileHandle(fh, blob);
+        whaleFileHandleRef.current = fh;
+        return "picker";
+      } catch (e) {
+        if (e.name === "AbortError") return "cancelled";
+      }
+    }
+    const shared = await shareBlobAsFile(blob, fileName);
+    if (shared === "shared") return "share";
+    if (shared === "cancelled") return "cancelled";
+    downloadBlobAsFile(blob, fileName);
+    return "download";
+  };
+
+  const buildSaveAsExportDraft = () => {
+    const mod = modeRef.current || mode;
+    const trimmed = (saveAsName || "").trim() || DEFAULT_PROJECT_NAME;
+    const blks = blocksRef.current.map(b => ({ ...b }));
+    const snapshot = buildEditorSnapshotForSave(mod, trimmed);
+    const resolvedName = resolveProjectName({
+      mode: mod,
+      name: trimmed,
+      titlePage: snapshot.titlePage,
+      playHeader: snapshot.playHeader,
+    });
+    const { fileName, blob } = buildWhaleExportPayload({ resolvedName, mod, blks, snapshot });
+    const downloadName = resolveSaveAsDownloadName(trimmed, fileName);
+    return { blob, downloadName };
+  };
+
   const pickWhaleSaveHandle = async (suggestedName, { startIn = "documents" } = {}) => {
     if (!window.showSaveFilePicker) return null;
     return window.showSaveFilePicker({ suggestedName, startIn, types: WHALE_FILE_TYPES });
@@ -2611,9 +2659,8 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
     const currentName = resolveLiveProjectName(mod);
     const draftName = currentName === DEFAULT_PROJECT_NAME ? "" : currentName;
     saveAsFileHandleRef.current = null;
-    setSaveAsPathLabel(
-      window.showSaveFilePicker ? "Документы" : saveAsSuggestedFileName(draftName),
-    );
+    saveAsExportedRef.current = false;
+    setSaveAsPathLabel(window.showSaveFilePicker ? "Документы" : "");
     setSaveAsName(draftName);
     setSaveAsOpen(true);
     setMenuOpen(false);
@@ -2631,7 +2678,12 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
       }
       return;
     }
-    setSaveAsPathLabel(saveAsSuggestedFileName(saveAsName));
+    const { blob, downloadName } = buildSaveAsExportDraft();
+    const shared = await shareBlobAsFile(blob, downloadName);
+    if (shared === "shared") {
+      saveAsExportedRef.current = true;
+      setSaveAsPathLabel(downloadName);
+    }
   };
 
   const resolveSaveAsDownloadName = (projectName, fallbackFileName) => {
@@ -2680,10 +2732,13 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
         whaleFileHandleRef.current = fh;
         setSaveAsPathLabel(fh.name || downloadName);
       } catch (e) {
-        if (e.name !== "AbortError") downloadBlobAsFile(blob, downloadName);
+        if (e.name !== "AbortError") await saveWhaleBlobToDisk(blob, downloadName);
       }
+    } else if (saveAsExportedRef.current) {
+      saveAsExportedRef.current = false;
     } else {
-      downloadBlobAsFile(blob, downloadName);
+      const saved = await saveWhaleBlobToDisk(blob, downloadName);
+      if (saved === "cancelled") return;
     }
 
     saveAsFileHandleRef.current = null;
@@ -3896,46 +3951,17 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
       <\/script>
       </head><body><div class="note-doc">${nt}</div></body></html>`;
     }
-    const isPlayMode = mode === "play";
-    const tp = isPlayMode ? {
-      title:  playHeader.find(h=>h.key==="title")?.text  || "",
-      genre:  playHeader.find(h=>h.key==="genre")?.text  || "",
-      author: playHeader.find(h=>h.key==="author")?.text || "",
-      remark: playHeader.find(h=>h.key==="remark")?.text || "",
-      phone: "", email: "", year: "",
-    } : titlePage;
     if (mode === "film") {
-      return buildFilmScriptExportHTML({ fmt, tp, projectName, blocks, defs, forPDF });
+      return buildFilmScriptExportHTML({ fmt, tp: titlePage, projectName, blocks, defs, forPDF });
     }
+    if (mode === "play") {
+      return buildPlayScriptExportHTML({ playHeader, blocks, docFont, projectName, titleSepPage, forPDF });
+    }
+    const tp = titlePage;
     const courier = "'Courier New', Courier, monospace";
     let scriptHtml = "";
     let sceneNum = 0;
-    const isPlay = isPlayMode;
-    const playFont = `'${docFont||"Times New Roman"}', serif`;
-    if (isPlay) {
-      let actNum = 0; let sceneInAct = 0;
-      for (let i = 0; i < blocks.length; i++) {
-        const b = blocks[i];
-        if (b.type === "act") {
-          actNum++; sceneInAct = 0;
-          scriptHtml += `<p style="margin:32px 0 16px;font-weight:bold;text-transform:uppercase;font-size:13pt;text-align:center;letter-spacing:2px;">${getPlayActDisplayText(b.text, actNum)}</p>`;
-        } else if (b.type === "scene") {
-          sceneInAct++;
-          scriptHtml += `<p style="margin:24px 0 4px;font-weight:bold;font-size:12pt;">${b.text||("Сцена "+sceneInAct)}</p>`;
-        } else if (b.type === "cast") {
-          scriptHtml += `<p style="margin:0 0 16px;font-style:italic;">${b.text||""}</p>`;
-        } else if (b.type === "stage") {
-          scriptHtml += `<p style="margin:0 0 12px;font-style:italic;">${b.text||""}</p>`;
-        } else if (b.type === "line") {
-          const name = b.name ? `<strong>${b.name.toUpperCase()}.</strong>  ` : "";
-          scriptHtml += `<p style="margin:6px 0;">${name}${b.text||""}</p>`;
-        } else if (b.type === "note") {
-          scriptHtml += `<p style="margin:8px 0;font-style:italic;color:#555;">${b.text||""}</p>`;
-        } else if (b.type === "spacer") {
-          scriptHtml += `<p style="margin:0;">&nbsp;</p>`;
-        }
-      }
-    } else {
+    {
       for (let i = 0; i < blocks.length; i++) {
         const b = blocks[i];
         if (b.type === "scene") {
@@ -3958,7 +3984,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
         }
       }
     }
-    if (forPDF && !isPlay) {
+    if (forPDF) {
       return `<!DOCTYPE html><html><head><meta charset="utf-8">
       <meta name="viewport" content="width=794">
       <style>
@@ -4092,10 +4118,10 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
     return `<!DOCTYPE html><html><head><meta charset="utf-8">
     <meta name="viewport" content="width=794">
     <style>
-      @page { size: A4; margin: 25.4mm 25.4mm 25.4mm ${isPlay ? "25.4mm" : "38.1mm"}; }
+      @page { size: A4; margin: 25.4mm 25.4mm 25.4mm 38.1mm; }
       * { box-sizing: border-box; }
-      body { font-family: ${isPlay ? playFont : courier}; font-size: 12pt; line-height: 1.7; color: #000; background: #fff; margin: 0; }
-      .title-page { ${isPlay && !titleSepPage ? "" : "page-break-after: always;"} display: flex; flex-direction: column; position: relative; font-family: ${isPlay ? playFont : courier}; }
+      body { font-family: ${courier}; font-size: 12pt; line-height: 1.7; color: #000; background: #fff; margin: 0; }
+      .title-page { page-break-after: always; display: flex; flex-direction: column; position: relative; font-family: ${courier}; }
       .title-center { flex: 1; display: flex; flex-direction: column; align-items: center; text-align: center; padding-top: 22vh; }
       .title-name { font-size: 12pt; text-transform: uppercase; margin-bottom: 24pt; letter-spacing: 1px; text-align: center; }
       .title-genre { font-size: 12pt; margin-bottom: 12pt; text-align: center; }
@@ -4103,167 +4129,22 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
       .title-author { font-size: 12pt; margin-bottom: 0; text-align: center; }
       .title-bottom { display: flex; justify-content: space-between; align-items: flex-end; padding-bottom: 0; font-size: 12pt; }
       .contacts { line-height: 1.8; }
-      .script { font-family: ${isPlay ? playFont : courier}; font-size: 12pt; line-height: 1.6; }
-      ${isPlay ? `
-      .script-source {
-        position: absolute;
-        left: -99999px;
-        top: 0;
-        width: 794px;
-        padding: 96px 96px 96px 96px;
-        visibility: hidden;
-        pointer-events: none;
-      }
-      .script-source-inner {
-        font-family: ${playFont};
-        font-size: 12pt;
-        line-height: 1.6;
-      }
-      .script-pages { width: 794px; }
-      .script-page {
-        height: 1123px;
-        padding: 96px 96px 96px 96px;
-        background: #fff;
-        box-shadow: 0 4px 24px rgba(0,0,0,0.3);
-        margin-bottom: 0;
-        break-after: page;
-        page-break-after: always;
-      }
-      .script-page:last-child {
-        break-after: auto;
-        page-break-after: auto;
-      }
-      .script-page-content {
-        height: 931px;
-        overflow: hidden;
-        font-family: ${playFont};
-        font-size: 12pt;
-        line-height: 1.6;
-      }
-      ` : ""}
+      .script { font-family: ${courier}; font-size: 12pt; line-height: 1.6; }
       @media print {
         body { margin: 0; }
         .title-page { height: 100vh; }
-        ${isPlay ? `
-        .script-source { display: none !important; }
-        .script-page { height: auto; min-height: auto; box-shadow: none; }
-        .script-page-content { height: auto; min-height: auto; }
-        ` : ""}
       }
       @media screen {
         html { background: #888; }
         body { width: 794px; transform-origin: top left; margin: 0; }
-        .title-page { height: 1123px; padding: 96px 96px 96px ${isPlay ? "96px" : "144px"}; background:#fff; box-shadow:0 4px 24px rgba(0,0,0,0.3); margin-bottom:0; }
-        .script { min-height: 1123px; padding: 96px 96px 96px ${isPlay ? "96px" : "144px"}; background:#fff; box-shadow:0 4px 24px rgba(0,0,0,0.3); margin-bottom:0; }
-        ${isPlay ? `
-        .script-pages { width: 794px; }
-        .script-page { height: 1123px; padding: 96px 96px 96px 96px; background:#fff; box-shadow:0 4px 24px rgba(0,0,0,0.3); margin-bottom:0; }
-        ` : `.title-page { display:block; }
-        .title-center { position:absolute; left:${isPlay ? "96px" : "144px"}; right:96px; top:50%; transform:translateY(-50%); padding-top:0; }
-        .title-bottom { position:absolute; left:${isPlay ? "96px" : "144px"}; right:96px; bottom:96px; }`}
+        .title-page { height: 1123px; padding: 96px 96px 96px 144px; background:#fff; box-shadow:0 4px 24px rgba(0,0,0,0.3); margin-bottom:0; display:block; }
+        .title-center { position:absolute; left:144px; right:96px; top:50%; transform:translateY(-50%); padding-top:0; }
+        .title-bottom { position:absolute; left:144px; right:96px; bottom:96px; }
+        .script { min-height: 1123px; padding: 96px 96px 96px 144px; background:#fff; box-shadow:0 4px 24px rgba(0,0,0,0.3); margin-bottom:0; }
       }
     </style>
     <script>
       (function(){
-        ${isPlay ? `
-        function makePlayPage(root){
-          var page = document.createElement('div');
-          page.className = 'script-page';
-          var content = document.createElement('div');
-          content.className = 'script-page-content';
-          page.appendChild(content);
-          root.appendChild(page);
-          return content;
-        }
-        function getPlaySourceText(node){
-          var text = node.textContent || '';
-          var first = node.firstElementChild;
-          if (first && first.tagName === 'STRONG') {
-            var lead = first.textContent || '';
-            if (lead && text.indexOf(lead) === 0) {
-              text = text.slice(lead.length).replace(/^\s+/, '');
-            }
-          }
-          return text;
-        }
-        function setPlayPieceText(piece, node, text){
-          var first = node.firstElementChild;
-          piece.innerHTML = '';
-          if (first && first.tagName === 'STRONG') {
-            piece.appendChild(first.cloneNode(true));
-            if (text) piece.appendChild(document.createTextNode('  ' + text));
-          } else {
-            piece.textContent = text;
-          }
-        }
-        function fillPlaySegment(node, content, tokens, start){
-          var piece = node.cloneNode(false);
-          content.appendChild(piece);
-          var low = 1;
-          var high = tokens.length - start;
-          var best = 0;
-          while (low <= high) {
-            var mid = Math.floor((low + high) / 2);
-            setPlayPieceText(piece, node, tokens.slice(start, start + mid).join(''));
-            if (content.scrollHeight <= content.clientHeight + 1) {
-              best = mid;
-              low = mid + 1;
-            } else {
-              high = mid - 1;
-            }
-          }
-          if (!best) {
-            content.removeChild(piece);
-            return 0;
-          }
-          setPlayPieceText(piece, node, tokens.slice(start, start + best).join('').replace(/^\s+/, ''));
-          return best;
-        }
-        function splitPlayNode(node, content, root){
-          var text = getPlaySourceText(node);
-          var tokens = text.match(/\S+\s*|\s+/g) || [text];
-          var index = 0;
-          var current = content;
-          while (index < tokens.length) {
-            var fitted = fillPlaySegment(node, current, tokens, index);
-            if (!fitted) {
-              current = makePlayPage(root);
-              fitted = fillPlaySegment(node, current, tokens, index);
-              if (!fitted) break;
-            }
-            index += fitted;
-            if (index < tokens.length) current = makePlayPage(root);
-          }
-          return current;
-        }
-        function paginatePlay(){
-          var source = document.querySelector('.script-source');
-          var sourceInner = document.querySelector('.script-source-inner');
-          var root = document.querySelector('.script-pages');
-          if (!source || !sourceInner || !root) return;
-          root.innerHTML = '';
-          var nodes = Array.from(sourceInner.children);
-          var current = makePlayPage(root);
-          nodes.forEach(function(node){
-            var clone = node.cloneNode(true);
-            current.appendChild(clone);
-            if (current.scrollHeight > current.clientHeight + 1) {
-              current.removeChild(clone);
-              if (!current.children.length) {
-                current = splitPlayNode(node, current, root);
-              } else {
-                current = makePlayPage(root);
-                var retry = node.cloneNode(true);
-                current.appendChild(retry);
-                if (current.scrollHeight > current.clientHeight + 1) {
-                  current.removeChild(retry);
-                  current = splitPlayNode(node, current, root);
-                }
-              }
-            }
-          });
-        }
-        ` : ""}
         ${forPDF ? "" : `
         function scale(){
           if(window.matchMedia('print').matches) return;
@@ -4271,31 +4152,20 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
           document.body.style.transform = 'scale('+s+')';
           document.documentElement.style.height = Math.ceil(document.body.scrollHeight * s) + 'px';
         }
-        function ready(){
-          ${isPlay ? "paginatePlay();" : ""}
-          scale();
-        }
+        function ready(){ scale(); }
         if (document.readyState === 'loading') {
           document.addEventListener('DOMContentLoaded', ready);
         } else {
           ready();
         }
-        window.addEventListener('resize', function(){ ${isPlay ? "paginatePlay(); " : ""}scale(); });
-        window.addEventListener('beforeprint', function(){ document.body.style.transform='none'; document.body.style.width='auto'; ${isPlay ? "paginatePlay();" : ""} });
-        window.addEventListener('afterprint', function(){ ${isPlay ? "paginatePlay(); " : ""}scale(); });
+        window.addEventListener('resize', scale);
+        window.addEventListener('beforeprint', function(){ document.body.style.transform='none'; document.body.style.width='auto'; });
+        window.addEventListener('afterprint', scale);
         `}
       })();
     <\/script>
     </head><body>
     <div class="title-page">
-      ${isPlay ? `
-        <div style="display:flex;flex-direction:column;">
-          ${playHeader.map(h => h.type==="spacer"
-            ? `<div style="height:${h.size||24}px"></div>`
-            : `<p style="margin:0 0 4px;font-family:${h.font||"Times New Roman"},serif;font-size:${h.size||14}px;font-weight:${h.bold?"bold":"normal"};font-style:${h.italic?"italic":"normal"};text-decoration:${h.underline?"underline":"none"};text-align:${h.align||"left"};">${h.text||""}</p>`
-          ).join("")}
-        </div>
-      ` : `
       <div class="title-center">
         <p class="title-name">${tp.title||projectName}</p>
         <p class="title-genre">${tp.genre||""}</p>
@@ -4305,11 +4175,8 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
         <div class="contacts">${[tp.phone,tp.email].filter(Boolean).join("<br>")}</div>
         <div class="year">${tp.year||""}</div>
       </div>
-      `}
     </div>
-    ${isPlay
-      ? `<div class="script-source"><div class="script-source-inner">${scriptHtml}</div></div><div class="script-pages"></div>`
-      : `<div class="script">${scriptHtml}</div>`}
+    <div class="script">${scriptHtml}</div>
     </body></html>`;
   };
 
@@ -4317,7 +4184,10 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
     setMenuOpen(false);
     setTitlePageOpen(false);
     const html = buildExportHTML(true);
-    const fname = (titlePage.title||projectName||"screenplay") + ".pdf";
+    const isPlayPdf = mode === "play";
+    const fname = (isPlayPdf
+      ? (playHeader.find(h=>h.key==="title")?.text || projectName || "play")
+      : (titlePage.title||projectName||"screenplay")) + ".pdf";
 
     let pdfHandle = null;
     if (window.showSaveFilePicker) {
@@ -4332,8 +4202,8 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
     }
 
     const isFilmPdf = mode === "film";
-    const pageWpx = isFilmPdf ? SCREENPLAY_FORMAT.PAGE_W : 794;
-    const pageHpx = isFilmPdf ? SCREENPLAY_FORMAT.PAGE_H : 1123;
+    const pageWpx = isFilmPdf || isPlayPdf ? SCREENPLAY_FORMAT.PAGE_W : 794;
+    const pageHpx = isFilmPdf || isPlayPdf ? SCREENPLAY_FORMAT.PAGE_H : 1123;
 
     const iframe = document.createElement("iframe");
     // Start with a tall iframe so browser renders all content
@@ -4343,8 +4213,12 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
     iframe.contentDocument.write(html);
     iframe.contentDocument.close();
 
+    if (isPlayPdf && iframe.contentDocument.fonts) {
+      try { await iframe.contentDocument.fonts.ready; } catch { /* ignore */ }
+    }
+
     // Wait for fonts, layout and PDF pagination to settle
-    await new Promise(r => setTimeout(r, isFilmPdf ? 300 : 900));
+    await new Promise(r => setTimeout(r, isFilmPdf ? 300 : isPlayPdf ? 500 : 900));
     for (let i = 0; i < 40; i++) {
       if (iframe.contentWindow && iframe.contentWindow.__pdfReady) break;
       await new Promise(r => setTimeout(r, 100));
@@ -4355,7 +4229,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
       const { jsPDF } = window.jspdf;
       const doc = new jsPDF({
         unit: "pt",
-        format: isFilmPdf ? "letter" : "a4",
+        format: isFilmPdf || isPlayPdf ? "letter" : "a4",
         orientation: "portrait",
       });
       const pageW = doc.internal.pageSize.getWidth();
@@ -6991,6 +6865,12 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
     const mod = modeRef.current || mode;
     const modeLabel = MODES.find(m => m.id === mod)?.label || mod;
     const canPickPath = Boolean(window.showSaveFilePicker);
+    const canSharePath = !canPickPath && typeof navigator !== "undefined" && Boolean(navigator.share);
+    const pathPlaceholder = canPickPath
+      ? "Документы — нажмите «Обзор…»"
+      : canSharePath
+        ? "«Обзор…» → Сохранить в Файлы"
+        : "Скачивание в браузере";
     return (
       <div onClick={()=>setSaveAsOpen(false)} style={{position:"fixed",inset:0,zIndex:400,background:"rgba(0,0,0,0.6)",display:"flex",alignItems:"center",justifyContent:"center",padding:"24px"}}>
         <div onClick={e=>e.stopPropagation()} style={{background:SURF,borderRadius:"20px",padding:"24px",width:"100%",maxWidth:"380px",boxShadow:"0 16px 48px rgba(0,0,0,0.5)"}}>
@@ -7009,28 +6889,27 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
               outline:"none",boxSizing:"border-box",marginBottom:"14px",
             }}
           />
-          <div style={{color:T3,fontSize:"9px",letterSpacing:"2px",marginBottom:"6px"}}>
-            {canPickPath ? "ПУТЬ К ФАЙЛУ .whale" : "ФАЙЛ .whale"}
-          </div>
+          <div style={{color:T3,fontSize:"9px",letterSpacing:"2px",marginBottom:"6px"}}>ПУТЬ К ФАЙЛУ .whale</div>
           <div style={{display:"flex",gap:"8px",marginBottom:"16px"}}>
             <input
-              readOnly={canPickPath}
+              readOnly
               value={saveAsPathLabel}
-              onChange={e=>setSaveAsPathLabel(e.target.value)}
-              onClick={canPickPath ? pickSaveAsFileLocation : undefined}
+              onClick={(canPickPath || canSharePath) ? pickSaveAsFileLocation : undefined}
               onKeyDown={e=>{if(e.key==="Enter")confirmSaveAs(saveAsName);}}
-              placeholder={canPickPath ? "Документы — нажмите «Обзор…»" : "имя_файла.whale"}
+              placeholder={pathPlaceholder}
               style={{
                 flex:1,minWidth:0,background:BG,border:`1px solid ${T3}44`,borderRadius:"10px",
-                padding:"12px 14px",color:T1,fontSize:"13px",fontFamily:"inherit",
-                outline:"none",boxSizing:"border-box",cursor:canPickPath?"pointer":"text",
+                padding:"12px 14px",color:saveAsPathLabel ? T1 : T2,fontSize:"13px",fontFamily:"inherit",
+                outline:"none",boxSizing:"border-box",cursor:(canPickPath || canSharePath) ? "pointer" : "default",
               }}
             />
-            <button type="button" onClick={pickSaveAsFileLocation} style={{
-              flexShrink:0,padding:"12px 14px",background:BG,border:`1px solid ${T3}44`,
-              borderRadius:"10px",color:T1,fontSize:"11px",cursor:"pointer",
-              fontFamily:"inherit",letterSpacing:"1px",whiteSpace:"nowrap",
-            }}>{canPickPath ? "Обзор…" : "Имя…"}</button>
+            {(canPickPath || canSharePath) && (
+              <button type="button" onClick={pickSaveAsFileLocation} style={{
+                flexShrink:0,padding:"12px 14px",background:BG,border:`1px solid ${T3}44`,
+                borderRadius:"10px",color:T1,fontSize:"11px",cursor:"pointer",
+                fontFamily:"inherit",letterSpacing:"1px",whiteSpace:"nowrap",
+              }}>Обзор…</button>
+            )}
           </div>
           <div style={{display:"flex",gap:"8px"}}>
             <button onClick={()=>setSaveAsOpen(false)} style={{

@@ -2844,19 +2844,28 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
 
           if (currentMode === "film") {
             const fdxTypeMap = {
-              "Scene Heading":"scene", "Action":"action",
-              "Character":"char", "Dialogue":"dialogue",
-              "Parenthetical":"paren", "Transition":"trans"
+              "Scene Heading": "scene",
+              "New Act": "act",
+              "Action": "action",
+              "Cast List": "cast",
+              "Character": "char",
+              "Dialogue": "dialogue",
+              "Parenthetical": "paren",
+              "Transition": "trans",
+              "General": "note",
             };
             const newBlocks = [];
             paragraphs.forEach(p => {
-              const fdxType = p.getAttribute("Type");
+              const fdxType = p.getAttribute("Type") || "";
+              if (fdxType === "End Of Act") return;
               const texts = p.querySelectorAll("Text");
               let fullText = Array.from(texts).map(t => t.textContent || "").join("");
               let blockType = fdxTypeMap[fdxType] || "action";
               if (blockType === "paren") fullText = fullText.replace(/^\(/, "").replace(/\)$/, "");
               if (blockType === "scene") fullText = fullText.replace(/^\d+\.\s*/, "");
-              if (fullText || blockType === "scene") newBlocks.push({ id: uid(), type: blockType, text: fullText });
+              if (fullText || blockType === "scene" || blockType === "act") {
+                newBlocks.push({ id: uid(), type: blockType, text: fullText });
+              }
             });
             if (newBlocks.length === 0) { alert("Не удалось найти содержимое в FDX-файле"); return; }
             const nid = "proj_" + Date.now();
@@ -4565,6 +4574,16 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
         else if (b.type==="stage")    { type="Action"; }
         else if (b.type==="line")     { type="Action"; text=(b.name?b.name.toUpperCase()+".  ":"")+text; }
         else if (b.type==="note")     { type="Action"; text="["+text+"]"; }
+      } else if (mode === "film") {
+        if (b.type === "act") { type = "New Act"; text = text.toUpperCase(); }
+        else if (b.type === "scene") { type = "Scene Heading"; text = text.toUpperCase(); }
+        else if (b.type === "cast") { type = "Cast List"; text = text.toUpperCase(); }
+        else if (b.type === "action") { type = "Action"; }
+        else if (b.type === "char") { type = "Character"; text = text.toUpperCase(); }
+        else if (b.type === "dialogue") { type = "Dialogue"; }
+        else if (b.type === "paren") { type = "Parenthetical"; text = "(" + text + ")"; }
+        else if (b.type === "trans") { type = "Transition"; text = text.toUpperCase(); }
+        else if (b.type === "note") { type = "General"; }
       } else {
         if (b.type==="scene")    { sceneNum++; type="Scene Heading"; text=`${sceneNum}. ${text.toUpperCase()}`; }
         else if (b.type==="cast")    { type="Action"; }
@@ -4573,7 +4592,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
         else if (b.type==="dialogue"){ type="Dialogue"; }
         else if (b.type==="paren")   { type="Parenthetical"; text="("+text+")"; }
         else if (b.type==="trans")   { type="Transition"; text=text.toUpperCase(); }
-        else if (b.type==="act" && mode!=="film")     { type="Action"; text=text.toUpperCase(); }
+        else if (b.type==="act")     { type="Action"; text=text.toUpperCase(); }
       }
       if (!type) continue;
       const escaped = text.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
@@ -4590,12 +4609,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
     xml += `</Content></TitlePage>\n</FinalDraft>`;
 
     const fname = (tp.title||projectName||"screenplay")+".fdx";
-    const file = new File([xml], fname, {type:"application/xml"});
-    if (navigator.share && navigator.canShare && navigator.canShare({files:[file]})) {
-      navigator.share({files:[file],title:fname}).catch(()=>{});
-      return;
-    }
-    saveFile(new Blob([xml],{type:"application/xml"}), fname, "application/xml");
+    saveFile(new Blob([xml], {type:"application/xml"}), fname, "application/xml");
     setTitlePageOpen(false);
   };
 

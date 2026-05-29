@@ -106,7 +106,8 @@ import { EditorDocument } from "./EditorDocument/EditorDocument";
 import { EditorDocumentNote } from "./EditorDocument/EditorDocumentNote/EditorDocumentNote";
 import { buildDocumentPages, buildEditorDocumentCssVars } from "./EditorDocument/useEditorDocument";
 import { buildPlayScriptExportHTML } from "./EditorDocument/play/playExportHtml";
-import { normalizeFilmBlockText, SCREENPLAY_FORMAT } from "../../domain/screenplayFormat";
+import { buildPlayDocxDocument, playDocxFileName } from "./EditorDocument/play/playExportDocx";
+import { normalizeFilmBlockText, SCREENPLAY_FORMAT, filmBlockPaddingTop } from "../../domain/screenplayFormat";
 import { EditorTopBar } from "./EditorTopBar/EditorTopBar";
 import { EditorSideMenu } from "./EditorSideMenu/EditorSideMenu";
 
@@ -131,16 +132,8 @@ function buildFilmScriptExportHTML({ fmt, tp, projectName, blocks, defs, forPDF 
     contentHeaderFoc: false,
   });
 
-  const blockStyle = (type, continued) => {
-    const pt = continued
-      ? 0
-      : ({
-          scene: S.BEFORE_SCENE,
-          action: S.BEFORE_ACTION,
-          char: S.BEFORE_CHAR,
-          note: S.BEFORE_NOTE,
-          trans: S.BEFORE_TRANS,
-        }[type] ?? 0);
+  const blockStyle = (type, continued, openingScene = false) => {
+    const pt = filmBlockPaddingTop(type, { continued, openingScene });
     const base = `margin:0;padding-bottom:0;font-family:${courier};font-size:${fs}px;line-height:${lh};color:#000;white-space:pre-wrap;overflow-wrap:break-word;`;
     switch (type) {
       case "scene":
@@ -169,7 +162,7 @@ function buildFilmScriptExportHTML({ fmt, tp, projectName, blocks, defs, forPDF 
   let scriptPagesHtml = "";
   pages.forEach((pageBlocks, pageIdx) => {
     let blocksHtml = "";
-    pageBlocks.forEach((entry) => {
+    pageBlocks.forEach((entry, entryIdx) => {
       const { bi, part, split, start = 0, end = null, continued = false } = entry;
       const block = blocks[bi];
       if (!block) return;
@@ -204,7 +197,12 @@ function buildFilmScriptExportHTML({ fmt, tp, projectName, blocks, defs, forPDF 
       if (showDialogueContd) {
         blocksHtml += `<div style="${metaStyle}text-transform:uppercase;">${charName} (ПРОД.)</div>`;
       }
-      blocksHtml += `<div style="${blockStyle(block.type, isFilmSlice && continued)}">${fmt(block, displayText)}</div>`;
+      const openingScene =
+        pageIdx === 0 &&
+        entryIdx === 0 &&
+        block.type === "scene" &&
+        !(isFilmSlice && continued);
+      blocksHtml += `<div style="${blockStyle(block.type, isFilmSlice && continued, openingScene)}">${fmt(block, displayText)}</div>`;
       if (showDialogueMore) {
         blocksHtml += `<div style="${metaStyle}">(ДАЛЬШЕ)</div>`;
       }
@@ -401,14 +399,9 @@ function filmDocxLineSpacing(docx, beforePx = 0) {
   return { before: filmPxToTwip(beforePx), after: 0, line: FILM_DOCX_LINE_TWIP, lineRule: LineRuleType.EXACT };
 }
 
-function filmDocxBlockSpacing(docx, blockType, continued) {
+function filmDocxBlockSpacing(docx, blockType, continued, openingScene = false) {
   if (continued) return filmDocxLineSpacing(docx, 0);
-  const S = SCREENPLAY_FORMAT.SPACE;
-  const beforePx =
-    { scene: S.BEFORE_SCENE, action: S.BEFORE_ACTION, char: S.BEFORE_CHAR, note: S.BEFORE_NOTE, trans: S.BEFORE_TRANS }[
-      blockType
-    ] ?? 0;
-  return filmDocxLineSpacing(docx, beforePx);
+  return filmDocxLineSpacing(docx, filmBlockPaddingTop(blockType, { openingScene }));
 }
 
 function buildFilmDocxTitleParagraphs(tp, projectName, docx) {
@@ -450,7 +443,7 @@ function buildFilmDocxTitleParagraphs(tp, projectName, docx) {
 }
 
 /** Same slices + (ДАЛЬШЕ)/(ПРОД.) as PDF — one pages[] entry per editor page. */
-function buildFilmDocxPageParagraphs(pageBlocks, blocks, docx, { pageBreakBefore = false } = {}) {
+function buildFilmDocxPageParagraphs(pageBlocks, blocks, docx, { pageBreakBefore = false, pageIdx = 0 } = {}) {
   const { Paragraph, TextRun } = docx;
   const txt = (text, opts = {}) => new TextRun({ text: text || "", font: "Courier New", size: 24, ...opts });
   const metaSpacing = filmDocxLineSpacing(docx, 0);
@@ -481,7 +474,8 @@ function buildFilmDocxPageParagraphs(pageBlocks, blocks, docx, { pageBreakBefore
   const paras = [];
   let isFirst = true;
 
-  for (const entry of pageBlocks) {
+  for (let entryIdx = 0; entryIdx < pageBlocks.length; entryIdx += 1) {
+    const entry = pageBlocks[entryIdx];
     const { bi, part, split, start = 0, end = null, continued = false } = entry;
     const block = blocks[bi];
     if (!block) continue;
@@ -513,6 +507,8 @@ function buildFilmDocxPageParagraphs(pageBlocks, blocks, docx, { pageBreakBefore
       block.type === "dialogue" &&
       (part === "first" || (isFilmSlice && (end ?? blockText.length) < blockText.length));
     const isContinuedSlice = isFilmSlice && continued;
+    const openingScene =
+      pageIdx === 0 && entryIdx === 0 && block.type === "scene" && !isContinuedSlice;
 
     if (showDialogueContd) {
       paras.push(
@@ -534,7 +530,7 @@ function buildFilmDocxPageParagraphs(pageBlocks, blocks, docx, { pageBreakBefore
       new Paragraph({
         style: styleForType(block.type),
         children: [txt(runText, block.type === "paren" || block.type === "note" ? { italics: true } : {})],
-        spacing: filmDocxBlockSpacing(docx, block.type, isContinuedSlice),
+        spacing: filmDocxBlockSpacing(docx, block.type, isContinuedSlice, openingScene),
         ...(isFirst && pageBreakBefore ? { pageBreakBefore: true } : {}),
       }),
     );
@@ -558,7 +554,7 @@ function buildFilmDocxScriptParagraphs(pages, blocks, docx) {
   const scriptParas = [];
   pages.forEach((pageBlocks, pageIdx) => {
     scriptParas.push(
-      ...buildFilmDocxPageParagraphs(pageBlocks, blocks, docx, { pageBreakBefore: pageIdx > 0 }),
+      ...buildFilmDocxPageParagraphs(pageBlocks, blocks, docx, { pageBreakBefore: pageIdx > 0, pageIdx }),
     );
   });
   return scriptParas;
@@ -4483,6 +4479,24 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
       const blob = await Packer.toBlob(doc);
       const url = URL.createObjectURL(blob);
       const fname = (titlePage.title || projectName || "screenplay") + ".docx";
+      const file = new File([blob], fname, { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
+      if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({ files: [file], title: fname });
+          URL.revokeObjectURL(url);
+          return;
+        } catch (e) {}
+      }
+      await saveFile(blob, fname, "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+      URL.revokeObjectURL(url);
+      return;
+    }
+
+    if (mode === "play") {
+      const doc = buildPlayDocxDocument({ blocks, playHeader, docFont, titleSepPage, projectName, docx });
+      const blob = await Packer.toBlob(doc);
+      const url = URL.createObjectURL(blob);
+      const fname = playDocxFileName(playHeader, projectName);
       const file = new File([blob], fname, { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
       if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
         try {

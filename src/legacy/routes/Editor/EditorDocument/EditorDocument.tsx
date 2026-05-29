@@ -120,11 +120,13 @@ function getStandardTextareaClassName({
   block,
   displayText,
   isContinuedMeasuredSlice,
+  isOpeningScene,
 }: any) {
   return cx(
     "editor-document__textarea",
     mode === "play" ? "editor-document__textarea--play" : "editor-document__textarea--script",
     `editor-document__textarea--${block.type}`,
+    isOpeningScene && "editor-document__textarea--scene-opening",
     isContinuedMeasuredSlice && "editor-document__textarea--continued",
     block.bold && "editor-document__textarea--bold",
     block.semibold && "editor-document__textarea--semibold",
@@ -366,7 +368,7 @@ export function EditorDocument({
                           </div>
                         ) : null}
 
-                        {pageBlocks.map((entry) => {
+                        {pageBlocks.map((entry, entryIdx) => {
                           const { bi, part, split, start = 0, end = null, continued = false, editable = true, sliceIx = 0 } = entry;
                           const block = blocks[bi];
                           const isFilmSlice = part === "filmSlice";
@@ -416,6 +418,12 @@ export function EditorDocument({
                           const isFirstPart = isMeasuredSlice ? !editable : part === "first";
                           const textareaReadOnly = canEditSlicedText ? false : isFirstPart;
                           const isContinuedMeasuredSlice = isMeasuredSlice && continued;
+                          const isOpeningScene =
+                            mode === "film" &&
+                            pageIdx === 0 &&
+                            entryIdx === 0 &&
+                            block.type === "scene" &&
+                            !isContinuedMeasuredSlice;
 
                           let charName = "";
                           if (
@@ -469,6 +477,7 @@ export function EditorDocument({
                                   mode,
                                   continued: isContinuedMeasuredSlice,
                                   block,
+                                  openingScene: isOpeningScene,
                                 })}
                               >
                                 <div
@@ -771,6 +780,7 @@ export function EditorDocument({
                                         def,
                                         block,
                                         continued: isContinuedMeasuredSlice,
+                                        openingScene: isOpeningScene,
                                       }),
                                     })}
 
@@ -784,6 +794,7 @@ export function EditorDocument({
                                         def,
                                         block,
                                         continued: isContinuedMeasuredSlice,
+                                        openingScene: isOpeningScene,
                                       }),
                                     })}
 
@@ -960,6 +971,7 @@ export function EditorDocument({
                                         block,
                                         displayText,
                                         isContinuedMeasuredSlice,
+                                        isOpeningScene,
                                       })}
                                     />
                                   </div>

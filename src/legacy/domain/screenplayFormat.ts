@@ -83,6 +83,7 @@ export const SCREENPLAY_FORMAT = {
    *   No blank line for CAST, DIALOGUE, PAREN under CHAR
    */
   SPACE: {
+    /** Blank lines before SCENE when it is not the first script line on page 1. */
     BEFORE_SCENE:  2 * LINE_PX, // 32
     BEFORE_ACTION: 1 * LINE_PX, // 16
     BEFORE_CHAR:   1 * LINE_PX, // 16
@@ -90,6 +91,29 @@ export const SCREENPLAY_FORMAT = {
     BEFORE_TRANS:  1 * LINE_PX, // 16
   },
 } as const;
+
+/** Top padding for a film block — shared by editor, measure textarea, and PDF HTML. */
+export function filmBlockPaddingTop(
+  blockType: string,
+  opts: { continued?: boolean; openingScene?: boolean } = {},
+) {
+  if (opts.continued) return 0;
+  const S = SCREENPLAY_FORMAT.SPACE;
+  switch (blockType) {
+    case "scene":
+      return opts.openingScene ? 0 : S.BEFORE_SCENE;
+    case "action":
+      return S.BEFORE_ACTION;
+    case "char":
+      return S.BEFORE_CHAR;
+    case "note":
+      return S.BEFORE_NOTE;
+    case "trans":
+      return S.BEFORE_TRANS;
+    default:
+      return 0;
+  }
+}
 
 /** CSS variables for page geometry — consumed by EditorDocument.scss. */
 export function buildScreenplayCssVars(): CSSProperties {

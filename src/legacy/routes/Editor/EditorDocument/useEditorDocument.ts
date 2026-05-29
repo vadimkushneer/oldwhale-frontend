@@ -4,6 +4,7 @@ import {
   SCREENPLAY_FORMAT,
   buildScreenplayCssVars,
   buildFilmBlockCssVars,
+  filmBlockPaddingTop,
 } from "../../../domain/screenplayFormat";
 import { buildPlayDocumentPages } from "./play/playPagination";
 import {
@@ -139,25 +140,7 @@ function getFilmBlockIndent(blockType: string) {
   }
 }
 
-/**
- * Vertical space before a block, in pixels. `continued` slices never get
- * top padding — they pick up where the previous page left off.
- */
-function getFilmBlockPaddingTop(blockType: string, continued: boolean) {
-  if (continued) return 0;
-  const S = SCREENPLAY_FORMAT.SPACE;
-  switch (blockType) {
-    case "scene":  return S.BEFORE_SCENE;
-    case "action": return S.BEFORE_ACTION;
-    case "char":   return S.BEFORE_CHAR;
-    case "note":   return S.BEFORE_NOTE;
-    case "trans":  return S.BEFORE_TRANS;
-    // cast, dialogue, paren, spacer follow their preceding block tightly
-    default:       return 0;
-  }
-}
-
-function getBlockMetrics({ defs, mode }, block, text, continued = false) {
+function getBlockMetrics({ defs, mode }, block, text, continued = false, openingScene = false) {
   const def = defs.find((item) => item.type === block.type) || defs[0];
 
   // For film we read typography + indentation from SCREENPLAY_FORMAT; for
@@ -171,7 +154,7 @@ function getBlockMetrics({ defs, mode }, block, text, continued = false) {
     ? SCREENPLAY_FORMAT.LINE_HEIGHT
     : parseFloat(def.st?.lineHeight) || (mode === "play" ? PLAY_BODY_LINE_HEIGHT : 1.85);
   const pt = isFilm
-    ? getFilmBlockPaddingTop(block.type, continued)
+    ? filmBlockPaddingTop(block.type, { continued, openingScene })
     : (continued ? 0 : (parseInt(def.st?.paddingTop) || 0));
   const pb = isFilm ? 0 : (parseInt(def.st?.paddingBottom) || 0);
 
@@ -352,12 +335,19 @@ export function buildDocumentPages({
     runH = Math.ceil(runH / pageBudgetH) * pageBudgetH;
   };
 
+  const isOpeningSceneBlock = (block) =>
+    mode === "film" &&
+    block.type === "scene" &&
+    pages.length === 0 &&
+    curPage.length === 0;
+
   blocks.forEach((block, bi) => {
     if (mode === "film" && block.type === "act") return;
 
     if (mode === "film" && FILM_PAGE_SPLIT_TYPES.includes(block.type)) {
       const fullText = block.text || "";
-      const firstMetrics = getBlockMetrics(config, block, fullText, false);
+      const openingScene = isOpeningSceneBlock(block);
+      const firstMetrics = getBlockMetrics(config, block, fullText, false, openingScene);
 
       if (firstMetrics.blockH <= filmTextBudget(pageRemaining(), block, false, false)) {
         curPage.push({ bi, part: "full", split: -1 });
@@ -372,7 +362,7 @@ export function buildDocumentPages({
 
       while (true) {
         const remaining = pageRemaining();
-        const metrics = getBlockMetrics(config, block, rest, continued);
+        const metrics = getBlockMetrics(config, block, rest, continued, false);
 
         if (metrics.blockH <= filmTextBudget(remaining, block, continued, false)) {
           if (block.type === "dialogue" && continued) runH += FILM_DIALOGUE_META_H;
@@ -396,7 +386,7 @@ export function buildDocumentPages({
 
         if (block.type === "dialogue" && continued) runH += FILM_DIALOGUE_META_H;
         curPage.push({ bi, part: "filmSlice", start, end: start + splitLocal, continued, editable: true, sliceIx });
-        runH += getBlockMetrics(config, block, rest.substring(0, splitLocal), continued).blockH;
+        runH += getBlockMetrics(config, block, rest.substring(0, splitLocal), continued, false).blockH;
         if (block.type === "dialogue") runH += FILM_DIALOGUE_META_H;
         pushPage();
 
@@ -411,7 +401,8 @@ export function buildDocumentPages({
     }
 
     if (mode === "film") {
-      const metrics = getBlockMetrics(config, block, block.text || "", false);
+      const openingScene = isOpeningSceneBlock(block);
+      const metrics = getBlockMetrics(config, block, block.text || "", false, openingScene);
       if (metrics.blockH > pageRemaining() && curPage.length > 0) pushPage();
       curPage.push({ bi, part: "full", split: -1 });
       runH += metrics.blockH;
@@ -447,12 +438,12 @@ export function buildDocumentPages({
   };
 }
 
-export function getGutterTopPx({ def, mode, continued, block }) {
+export function getGutterTopPx({ def, mode, continued, block, openingScene = false }) {
   // In film mode, gutter alignment must match the block's actual padding-top
   // and typography — both of which now live in SCREENPLAY_FORMAT.
   if (mode === "film") {
     const blockType = block?.type ?? def?.type;
-    const pt = getFilmBlockPaddingTop(blockType, continued);
+    const pt = filmBlockPaddingTop(blockType, { continued, openingScene });
     const fs = SCREENPLAY_FORMAT.FONT_SIZE;
     const lh = SCREENPLAY_FORMAT.LINE_HEIGHT;
     return pt + Math.round((fs * lh) / 2);
@@ -470,9 +461,9 @@ export function getGutterTopPx({ def, mode, continued, block }) {
   return mt + pt + Math.round((fs * lh) / 2);
 }
 
-export function buildBlockRowVars({ def, mode, continued, block }) {
+export function buildBlockRowVars({ def, mode, continued, block, openingScene = false }) {
   const vars: CSSProperties = {
-    "--ed-gutter-top": `${getGutterTopPx({ def, mode, continued, block })}px`,
+    "--ed-gutter-top": `${getGutterTopPx({ def, mode, continued, block, openingScene })}px`,
   } as CSSProperties;
 
   if (block?.color) {
@@ -482,14 +473,14 @@ export function buildBlockRowVars({ def, mode, continued, block }) {
   return vars;
 }
 
-export function buildStandardBlockOverlayStyle({ mode, def, block, continued }) {
+export function buildStandardBlockOverlayStyle({ mode, def, block, continued, openingScene = false }) {
   // For film, padding/font come from SCREENPLAY_FORMAT so the search/marker
   // overlay sits pixel-perfect over the real textarea. `def.st` is no longer
   // consulted for layout in film mode (only for visual styling like color/
   // textTransform).
   if (mode === "film") {
     const ind = getFilmBlockIndent(block.type);
-    const pt = getFilmBlockPaddingTop(block.type, continued);
+    const pt = filmBlockPaddingTop(block.type, { continued, openingScene });
     return {
       boxSizing: "border-box",
       fontSize: `${SCREENPLAY_FORMAT.FONT_SIZE}px`,

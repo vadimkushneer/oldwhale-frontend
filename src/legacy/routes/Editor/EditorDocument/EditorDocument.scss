@@ -439,11 +439,27 @@
      * propagate to the measure textarea, real textarea, and search overlay
      * all at once.
      */
+    .editor-document__block-row {
+      align-items: flex-start;
+    }
+
+    /* Reset UA textarea padding — PDF uses divs; extra ~2px was pushing INT down. */
+    .editor-document__textarea--script {
+      padding-left: 0;
+      padding-right: 0;
+      padding-bottom: 0;
+    }
+
     .editor-document__textarea--scene {
       padding-top: var(--ed-film-pt-scene);
       padding-bottom: 0;
       color: #f0ece0;
       text-transform: uppercase;
+    }
+
+    /* First script line (INT…) — only the 1" page margin, no blank lines above. */
+    .editor-document__textarea--scene-opening {
+      padding-top: 0;
     }
 
     .editor-document__textarea--cast {

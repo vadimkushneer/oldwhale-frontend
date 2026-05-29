@@ -2347,7 +2347,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
   };
 
   const buildWhaleExport = () => {
-    const data = JSON.stringify({ name: projectName, mode, blocks, playHeader, mediaHeader, contentHeader, contentLogo, docFont, sceneAlign, noteText, sceneCardMeta: sceneCardMetaRef.current, titlePage: titlePageRef.current, version: 1 }, null, 2);
+    const data = JSON.stringify({ name: projectName, mode, blocks, playHeader, mediaHeader, contentHeader, contentLogo, docFont, sceneAlign, noteText, sceneCardMeta: sceneCardMetaRef.current, markerHighlights, layout: { leftW, rightW, aiW, leftPanelOpen, rightPanelOpen, aiOpen, sceneCardsOpen, sceneCardsMiniMode, sceneCardsRect }, titlePage: titlePageRef.current, version: 1 }, null, 2);
     const name = (projectName || "project") + ".whale";
     return { name, blob: new Blob([data], { type: "application/octet-stream" }) };
   };
@@ -2583,7 +2583,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
   };
 
   const shareProject = async () => {
-    const data = JSON.stringify({ name: projectName, mode, blocks, playHeader, mediaHeader, contentHeader, contentLogo, docFont, sceneAlign, noteText, sceneCardMeta: sceneCardMetaRef.current, titlePage: titlePageRef.current, version: 1 }, null, 2);
+    const data = JSON.stringify({ name: projectName, mode, blocks, playHeader, mediaHeader, contentHeader, contentLogo, docFont, sceneAlign, noteText, sceneCardMeta: sceneCardMetaRef.current, markerHighlights, layout: { leftW, rightW, aiW, leftPanelOpen, rightPanelOpen, aiOpen, sceneCardsOpen, sceneCardsMiniMode, sceneCardsRect }, titlePage: titlePageRef.current, version: 1 }, null, 2);
     const name = (projectName||"project") + ".whale";
     const file = new File([data], name, {type: "application/octet-stream"});
     if (navigator.share && navigator.canShare && navigator.canShare({files:[file]})) {
@@ -3076,6 +3076,19 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
           if (data.sceneAlign) setSceneAlign(data.sceneAlign);
           if ((data.mode || "film") === "film") {
             setTitlePage(normalizeTitlePage(data.titlePage, data.name || file.name.replace(/\.whale$/i, "")));
+          }
+          if (data.markerHighlights) setMarkerHighlights(data.markerHighlights);
+          if (data.layout) {
+            const l = data.layout;
+            if (l.leftW)          setLeftW(l.leftW);
+            if (l.rightW)         setRightW(l.rightW);
+            if (l.aiW)            setAiW(l.aiW);
+            if (l.leftPanelOpen  !== undefined) setLeftPanelOpen(l.leftPanelOpen);
+            if (l.rightPanelOpen !== undefined) setRightPanelOpen(l.rightPanelOpen);
+            if (l.aiOpen         !== undefined) setAiOpen(l.aiOpen);
+            if (l.sceneCardsOpen !== undefined) setSceneCardsOpen(l.sceneCardsOpen);
+            if (l.sceneCardsMiniMode !== undefined) setSceneCardsMiniMode(l.sceneCardsMiniMode);
+            if (l.sceneCardsRect)  setSceneCardsRect(l.sceneCardsRect);
           }
           updateSceneCardMeta(cloneSceneCardMetaMap(data.sceneCardMeta || {}), { autosave:false });
           setSceneCardMenu(null);

@@ -714,6 +714,7 @@ async function readAiChatSseEvent(res) {
 }
 
 const OW_ACTIVE_PROJECT_KEY = "ow_active_project";
+const OW_ACTIVE_PROJECT_KEY_PLAY = "ow_active_project_play";
 
 const readProjectSnapshot = (id) => {
   if (!id) return null;
@@ -724,21 +725,38 @@ const readProjectSnapshot = (id) => {
   }
 };
 
+/** Index meta may omit mode; prefer explicit mode, then full snapshot. */
+const getStoredProjectMode = (meta) => {
+  if (meta?.mode) return meta.mode;
+  const full = readProjectSnapshot(meta?.id);
+  if (full?.mode) return full.mode;
+  return "film";
+};
+
 const readLastProjectForMode = (mode) => {
   try {
-    const active = readProjectSnapshot(localStorage.getItem(OW_ACTIVE_PROJECT_KEY));
-    if (active && (active.mode || "film") === mode) return active;
+    const storageKey = mode === "play" ? OW_ACTIVE_PROJECT_KEY_PLAY : OW_ACTIVE_PROJECT_KEY;
+    const active = readProjectSnapshot(localStorage.getItem(storageKey));
+    if (active && getStoredProjectMode(active) === mode) return active;
+    // Play: one-time fallback if last active lived in the legacy film key.
+    if (mode === "play") {
+      const legacy = readProjectSnapshot(localStorage.getItem(OW_ACTIVE_PROJECT_KEY));
+      if (legacy && getStoredProjectMode(legacy) === "play") return legacy;
+    }
     const index = JSON.parse(localStorage.getItem("ow_index") || "[]");
-    const meta = index.find(p => (p.mode || "film") === mode);
+    const meta = index.find(p => getStoredProjectMode(p) === mode);
     return meta ? readProjectSnapshot(meta.id) : null;
   } catch(e) {
     return null;
   }
 };
 
-const persistActiveProjectId = (id) => {
+const persistActiveProjectId = (id, mod = "film") => {
   if (!id) return;
-  try { localStorage.setItem(OW_ACTIVE_PROJECT_KEY, id); } catch(e) {}
+  try {
+    const key = mod === "play" ? OW_ACTIVE_PROJECT_KEY_PLAY : OW_ACTIVE_PROJECT_KEY;
+    localStorage.setItem(key, id);
+  } catch(e) {}
 };
 
 const defaultTitlePage = () => ({
@@ -763,6 +781,26 @@ const normalizeTitlePage = (raw, fallbackTitle = "") => {
     email: raw.email ?? d.email,
     year: raw.year ?? d.year,
   };
+};
+
+const DEFAULT_PROJECT_NAME = "Без названия";
+
+/** List / save name: film ← titlePage, play ← playHeader, else file or stored name. */
+const resolveProjectName = ({ mode = "film", name, titlePage, playHeader, fileBaseName = "" } = {}) => {
+  const rawName = (name || "").trim();
+  const trimmedFile = (fileBaseName || "").trim();
+
+  if (mode === "play") {
+    const playTitle = playHeader?.find?.(h => h.key === "title")?.text?.trim();
+    if (playTitle) return playTitle;
+  } else if (mode === "film") {
+    const filmTitle = titlePage?.title?.trim();
+    if (filmTitle) return filmTitle;
+  }
+
+  if (rawName && rawName !== DEFAULT_PROJECT_NAME) return rawName;
+  if (trimmedFile) return trimmedFile;
+  return DEFAULT_PROJECT_NAME;
 };
 
 function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode, onModeRouteChange, routeAiVariantGuid, onAiVariantRouteStateChange, showAdminLink }) {
@@ -809,6 +847,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
   const skipNextRouteSyncRef = useRef(false);
   const syncingRouteModeRef = useRef(null);
   const whaleFileHandleRef = useRef(null);
+  const saveAsFileHandleRef = useRef(null);
   const saveNowRef = useRef(()=>{});
   const [focId, setFocId]             = useState(null);
   const [activeSceneId, setActiveSceneId] = useState(null);
@@ -855,6 +894,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
   const [sceneCardNoteEditor, setSceneCardNoteEditor] = useState(null);
   const [sceneCardNoteDraft, setSceneCardNoteDraft] = useState("");
   const [saveAsOpen,  setSaveAsOpen]  = useState(false);
+  const [saveAsPathLabel, setSaveAsPathLabel] = useState("");
   const [exportUrl,   setExportUrl]   = useState(null);
   const [titlePageOpen, setTitlePageOpen] = useState(false);
   const [newProjectOverlay, setNewProjectOverlay] = useState(false);
@@ -867,6 +907,8 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
     { key:"genre",  label:"Жанр",     text:"", align:"left", font:"Times New Roman", size:13 },
     { key:"remark", label:"Ремарка",  text:"", align:"left", font:"Times New Roman", size:13 },
   ]);
+  const playHeaderRef = useRef(playHeader);
+  useEffect(() => { playHeaderRef.current = playHeader; }, [playHeader]);
   const [playHeaderFoc, setPlayHeaderFoc] = useState(null);
   const [mediaHeader, setMediaHeader] = useState([
     { key:"show",    label:"Программа",  text:"", align:"left", font:"Arial", size:18, bold:true },
@@ -947,6 +989,13 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
   const titlePageRef = useRef(titlePage);
   const skipTitlePagePersistRef = useRef(true);
   useEffect(() => { titlePageRef.current = titlePage; }, [titlePage]);
+  const patchTitlePage = (updater) => {
+    setTitlePage(prev => {
+      const next = typeof updater === "function" ? updater(prev) : { ...prev, ...updater };
+      titlePageRef.current = next;
+      return next;
+    });
+  };
   const [editorSearchOpen, setEditorSearchOpen] = useState(false);
   const [editorSearchQuery, setEditorSearchQuery] = useState("");
   const [editorSearchMatches, setEditorSearchMatches] = useState([]);
@@ -962,21 +1011,10 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
   const [markerHighlights, setMarkerHighlights] = useState({}); // { blockId: [{id,start,end,color}] }
   const [markerCtxMenu, setMarkerCtxMenu] = useState(null);     // {x,y,blockId,sliceStart,start,end}
 
-  // Синхронизируем название проекта только с film-титульным листом.
-  // Для play титульный лист отдельный и не должен подтягивать название из film.
-  useEffect(()=>{
-    setTitlePage(tp => (!tp.title || tp.title === tp._syncedName)
-      ? { ...tp, title: projectName, _syncedName: projectName }
-      : tp
-    );
-  }, [projectName]);
-
-  // Шаг 1: «Мои проекты» берут имя из projectName,
-  // поэтому аккуратно подтягиваем projectName из титульного листа
-  // активного редактора, не смешивая редакторы между собой.
+  // Film: только titlePage → projectName для «Мои проекты» (титул play/film не связаны).
   useEffect(()=>{
     if ((modeRef.current || mode) !== "film") return;
-    const nextName = (titlePage.title || "").trim() || "Без названия";
+    const nextName = (titlePage.title || "").trim() || DEFAULT_PROJECT_NAME;
     setProjectName(prev => prev === nextName ? prev : nextName);
   }, [mode, titlePage.title]);
 
@@ -1036,8 +1074,11 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
       setSaved(false);
       clearTimeout(saveTimer.current);
       saveTimer.current = setTimeout(()=>{
+        const mod = modeRef.current || mode;
+        const name = resolveLiveProjectName(mod);
+        setProjectName(name);
         setSaved(true);
-        saveProject(projectId, projectName, blocksRef.current, modeRef.current || mode);
+        saveProject(projectId, name, blocksRef.current, mod);
       }, 1500);
     }
   };
@@ -2037,10 +2078,25 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
   const switchMode = (m, options = {}) => {
     const { syncRoute = true } = options;
     const currentMode = modeRef.current || mode;
-    const currentBlocks = blocksRef.current;
-    modeBlocksCache.current[currentMode] = currentBlocks;
+    if (currentMode === m) return;
+
+    clearTimeout(saveTimer.current);
+    saveProject(projectId, projectName, blocksRef.current, currentMode);
+
+    modeBlocksCache.current[currentMode] = blocksRef.current;
     modeSceneCardMetaCache.current[currentMode] = cloneSceneCardMetaMap(sceneCardMetaRef.current || {});
-    ensureModeHistory(currentMode, currentBlocks);
+    ensureModeHistory(currentMode, blocksRef.current);
+
+    const saved = readLastProjectForMode(m);
+    if (saved) {
+      loadProject(saved);
+      if (syncRoute && onModeRouteChange) {
+        skipNextRouteSyncRef.current = true;
+        onModeRouteChange(m);
+      }
+      return;
+    }
+
     const cached = modeBlocksCache.current[m];
     const nextBlocks = cached ? [...cached] : (INIT[m]||INIT.film).map(b=>({...b}));
     const nextSceneCardMeta = cloneSceneCardMetaMap(modeSceneCardMetaCache.current[m] || {});
@@ -2048,6 +2104,14 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
     updateSceneCardMeta(nextSceneCardMeta, { autosave:false });
     setBlocks(nextBlocks);
     setMode(m);
+
+    if (m === "play" && !cached) {
+      const nid = "proj_"+Date.now();
+      setProjectId(nid);
+      setProjectName("Без названия");
+      persistActiveProjectId(nid, "play");
+    }
+
     setFocId(null);
     setToolbarBlockId(null);
     setActiveSceneId(null);
@@ -2117,16 +2181,36 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
     setSaved(false);
   };
 
-  const saveProject = (id, name, blks, mod) => {
+  const resolveLiveProjectName = (mod = modeRef.current || mode, name = projectName) => resolveProjectName({
+    mode: mod || "film",
+    name,
+    titlePage: titlePageRef.current,
+    playHeader: playHeaderRef.current,
+  });
+
+  const saveProject = (id, name, blks, mod, snapshot = {}) => {
     try {
-      const nt = noteTextRef.current;
-      const meta = { id, name, mode: mod, updatedAt: Date.now(), blocksCount: blks.filter(b=>b.type==="scene").length };
-      const data = { ...meta, blocks: blks, playHeader, mediaHeader, contentHeader, contentLogo, docFont, sceneAlign, noteText: nt, sceneCardMeta: sceneCardMetaRef.current, markerHighlights, layout: { leftW, rightW, aiW, leftPanelOpen, rightPanelOpen, aiOpen, sceneCardsOpen, sceneCardsMiniMode, sceneCardsRect }, titlePage: titlePageRef.current };
+      const resolvedMod = mod || modeRef.current || mode || "film";
+      const nt = snapshot.noteText !== undefined ? snapshot.noteText : noteTextRef.current;
+      const ph = snapshot.playHeader !== undefined ? snapshot.playHeader : playHeaderRef.current;
+      const tp = snapshot.titlePage !== undefined ? snapshot.titlePage : titlePageRef.current;
+      const mh = snapshot.mediaHeader !== undefined ? snapshot.mediaHeader : mediaHeader;
+      const ch = snapshot.contentHeader !== undefined ? snapshot.contentHeader : contentHeader;
+      const cl = snapshot.contentLogo !== undefined ? snapshot.contentLogo : contentLogo;
+      const scm = snapshot.sceneCardMeta !== undefined ? snapshot.sceneCardMeta : sceneCardMetaRef.current;
+      const resolvedName = resolveProjectName({
+        mode: resolvedMod,
+        name,
+        titlePage: tp,
+        playHeader: ph,
+      });
+      const meta = { id, name: resolvedName, mode: resolvedMod, updatedAt: Date.now(), blocksCount: blks.filter(b=>b.type==="scene").length };
+      const data = { ...meta, blocks: blks, playHeader: ph, mediaHeader: mh, contentHeader: ch, contentLogo: cl, docFont, sceneAlign, noteText: nt, sceneCardMeta: scm, markerHighlights, layout: { leftW, rightW, aiW, leftPanelOpen, rightPanelOpen, aiOpen, sceneCardsOpen, sceneCardsMiniMode, sceneCardsRect }, titlePage: tp };
       localStorage.setItem("ow_proj_"+id, JSON.stringify(data));
       const index = JSON.parse(localStorage.getItem("ow_index")||"[]");
       const next = [meta, ...index.filter(p=>p.id!==id)];
       localStorage.setItem("ow_index", JSON.stringify(next));
-      persistActiveProjectId(id);
+      persistActiveProjectId(id, resolvedMod);
     } catch(e) {}
   };
 
@@ -2164,11 +2248,15 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
   };
 
   const scheduleProjectAutosave = () => {
+    if (skipTitlePagePersistRef.current) return;
     setSaved(false);
     clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(()=>{
+      const mod = modeRef.current || mode;
+      const name = resolveLiveProjectName(mod);
+      setProjectName(name);
       setSaved(true);
-      saveProject(projectId, projectName, blocksRef.current, modeRef.current || mode);
+      saveProject(projectId, name, blocksRef.current, mod);
     }, 1500);
   };
 
@@ -2223,14 +2311,21 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
   };
 
   const loadProject = (proj) => {
-    const nextMode = proj.mode||"film";
-    const nextBlocks = proj.blocks.map(b=>({...b}));
-    registerOpenedProject({ ...proj, mode: nextMode, blocks: nextBlocks });
+    skipTitlePagePersistRef.current = true;
+    const nextMode = getStoredProjectMode(proj) || proj.mode || "film";
+    const nextBlocks = Array.isArray(proj.blocks) ? proj.blocks.map(b=>({...b})) : [];
+    const resolvedName = resolveProjectName({
+      mode: nextMode,
+      name: proj.name,
+      titlePage: proj.titlePage,
+      playHeader: proj.playHeader,
+    });
+    registerOpenedProject({ ...proj, mode: nextMode, name: resolvedName, blocks: nextBlocks });
     modeBlocksCache.current = {};
     modeSceneCardMetaCache.current = {};
     resetModeHistories(nextMode, nextBlocks);
     setProjectId(proj.id);
-    setProjectName(proj.name);
+    setProjectName(resolvedName);
     setMode(nextMode);
     setBlocks(nextBlocks);
     updateSceneCardMeta({}, { autosave:false });
@@ -2245,8 +2340,9 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
       if (proj.noteText !== undefined) { setNoteText(proj.noteText); noteTextRef.current = proj.noteText; }
     if (proj.docFont)    setDocFont(proj.docFont);
     if (proj.sceneAlign) setSceneAlign(proj.sceneAlign);
-    if ((proj.mode || "film") === "film") {
-      setTitlePage(normalizeTitlePage(proj.titlePage, proj.name));
+    if (nextMode === "film") {
+      const tp = normalizeTitlePage(proj.titlePage, resolvedName);
+      patchTitlePage(() => tp);
     }
     if (proj.markerHighlights) setMarkerHighlights(proj.markerHighlights);
     if (proj.layout) {
@@ -2266,19 +2362,24 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
     setSaved(true);
     setProjectsOpen(false);
     setMenuOpen(false);
-    persistActiveProjectId(proj.id);
+    persistActiveProjectId(proj.id, nextMode);
+    queueMicrotask(() => {
+      skipTitlePagePersistRef.current = false;
+    });
   };
 
   const flushProjectSave = () => {
     clearTimeout(saveTimer.current);
-    saveProject(projectId, projectName, blocksRef.current, modeRef.current || mode);
+    const mod = modeRef.current || mode;
+    const name = resolveLiveProjectName(mod);
+    saveProject(projectId, name, blocksRef.current, mod);
   };
 
   useEffect(() => {
     const startMode = routeMode || profile?.mode || "film";
     const saved = readLastProjectForMode(startMode);
     if (saved) loadProject(saved);
-    skipTitlePagePersistRef.current = false;
+    else skipTitlePagePersistRef.current = false;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -2286,6 +2387,11 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
     if (skipTitlePagePersistRef.current || (modeRef.current || mode) !== "film") return;
     scheduleProjectAutosave();
   }, [titlePage]);
+
+  useEffect(() => {
+    if (skipTitlePagePersistRef.current || (modeRef.current || mode) !== "play") return;
+    scheduleProjectAutosave();
+  }, [playHeader]);
 
   useEffect(() => {
     const onPageExit = () => flushProjectSave();
@@ -2303,8 +2409,13 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
     const year = new Date().getFullYear()+"";
     const nextBlocks = (INIT[nextMode] || []).map(b=>({...b}));
 
-    modeBlocksCache.current = {};
-    modeSceneCardMetaCache.current = {};
+    if (nextMode === "play") {
+      delete modeBlocksCache.current.play;
+      delete modeSceneCardMetaCache.current.play;
+    } else {
+      modeBlocksCache.current = {};
+      modeSceneCardMetaCache.current = {};
+    }
     resetModeHistories(nextMode, nextBlocks);
     setProjectId(nid);
     setProjectName("Без названия");
@@ -2314,15 +2425,20 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
     setFocId(null);
     setToolbarBlockId(null);
     lastFocId.current = null;
-    setNewProjectOverlay(true);
-    persistActiveProjectId(nid);
+    if (nextMode !== "play") setNewProjectOverlay(true);
+    persistActiveProjectId(nid, nextMode);
 
     if (nextMode === "film") {
-      setTitlePage({ title:"", genre:"", author:"", phone:"", email:"", year });
+      const emptyTitlePage = { title:"", genre:"", author:"", phone:"", email:"", year };
+      patchTitlePage(emptyTitlePage);
       setTitlePageOpen("pdf");
+      saveProject(nid, DEFAULT_PROJECT_NAME, nextBlocks, "film", { titlePage: emptyTitlePage });
     } else if (nextMode === "play") {
-      setPlayHeader(prev => prev.map(h => ({ ...h, text:"" })));
-      setTitlePageOpen("pdf");
+      const nextPlayHeader = playHeader.map(h => ({ ...h, text:"" }));
+      setPlayHeader(nextPlayHeader);
+      setNewProjectOverlay(false);
+      setTitlePageOpen(false);
+      saveProject(nid, "Без названия", nextBlocks, "play", { playHeader: nextPlayHeader });
     } else if (nextMode === "short" || nextMode === "media") {
       if (nextMode === "short") {
         setContentHeader(prev => prev.map(h => ({ ...h, text:"" })));
@@ -2341,113 +2457,265 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
     setMenuOpen(false);
   };
 
+  const persistFilmProjectSnapshot = () => {
+    if ((modeRef.current || mode) !== "film") return;
+    clearTimeout(saveTimer.current);
+    const tp = titlePageRef.current;
+    const name = resolveProjectName({ mode: "film", name: projectName, titlePage: tp });
+    setProjectName(name);
+    saveProject(projectId, name, blocksRef.current, "film", { titlePage: tp });
+    setSaved(true);
+  };
+
   const finishNewProjectOverlay = () => {
+    persistFilmProjectSnapshot();
     setNewProjectOverlay(false);
     setTitlePageOpen(false);
     setMenuOpen(false);
   };
 
+  const closeTitlePage = () => {
+    persistFilmProjectSnapshot();
+    setNewProjectOverlay(false);
+    setTitlePageOpen(false);
+  };
+
   const buildWhaleExport = () => {
-    const data = JSON.stringify({ name: projectName, mode, blocks, playHeader, mediaHeader, contentHeader, contentLogo, docFont, sceneAlign, noteText, sceneCardMeta: sceneCardMetaRef.current, markerHighlights, layout: { leftW, rightW, aiW, leftPanelOpen, rightPanelOpen, aiOpen, sceneCardsOpen, sceneCardsMiniMode, sceneCardsRect }, titlePage: titlePageRef.current, version: 1 }, null, 2);
-    const name = (projectName || "project") + ".whale";
-    return { name, blob: new Blob([data], { type: "application/octet-stream" }) };
+    const mod = modeRef.current || mode;
+    const name = resolveLiveProjectName(mod);
+    return buildWhaleExportPayload({
+      resolvedName: name,
+      mod,
+      blks: blocksRef.current,
+    });
+  };
+
+  const buildWhaleExportPayload = ({ resolvedName, mod, blks, snapshot = {} }) => {
+    const ph = snapshot.playHeader !== undefined ? snapshot.playHeader : playHeaderRef.current;
+    const tp = snapshot.titlePage !== undefined ? snapshot.titlePage : titlePageRef.current;
+    const mh = snapshot.mediaHeader !== undefined ? snapshot.mediaHeader : mediaHeader;
+    const ch = snapshot.contentHeader !== undefined ? snapshot.contentHeader : contentHeader;
+    const cl = snapshot.contentLogo !== undefined ? snapshot.contentLogo : contentLogo;
+    const nt = snapshot.noteText !== undefined ? snapshot.noteText : noteTextRef.current;
+    const scm = snapshot.sceneCardMeta !== undefined ? snapshot.sceneCardMeta : sceneCardMetaRef.current;
+    const displayName = resolveProjectName({ mode: mod, name: resolvedName, titlePage: tp, playHeader: ph });
+    const safeBase = (displayName || "project").replace(/[\\/:*?"<>|]/g, "_").trim() || "project";
+    const data = JSON.stringify({
+      name: displayName,
+      mode: mod,
+      blocks: blks,
+      playHeader: ph,
+      mediaHeader: mh,
+      contentHeader: ch,
+      contentLogo: cl,
+      docFont,
+      sceneAlign,
+      noteText: nt,
+      sceneCardMeta: scm,
+      markerHighlights,
+      layout: { leftW, rightW, aiW, leftPanelOpen, rightPanelOpen, aiOpen, sceneCardsOpen, sceneCardsMiniMode, sceneCardsRect },
+      titlePage: tp,
+      version: 1,
+    }, null, 2);
+    const fileName = safeBase + ".whale";
+    return { fileName, blob: new Blob([data], { type: "application/octet-stream" }), data };
+  };
+
+  const WHALE_FILE_TYPES = [{ description: "Old Whale", accept: { "application/octet-stream": [".whale"] } }];
+
+  const saveAsSuggestedFileName = (name = "") => {
+    const trimmed = (name || "").trim();
+    const base = (trimmed || "project").replace(/[\\/:*?"<>|]/g, "_").trim() || "project";
+    return base + ".whale";
+  };
+
+  const writeBlobToFileHandle = async (handle, blob) => {
+    const writable = await handle.createWritable();
+    await writable.write(blob);
+    await writable.close();
+  };
+
+  const downloadBlobAsFile = (blob, fileName) => {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = fileName;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  };
+
+  const pickWhaleSaveHandle = async (suggestedName, { startIn = "documents" } = {}) => {
+    if (!window.showSaveFilePicker) return null;
+    return window.showSaveFilePicker({ suggestedName, startIn, types: WHALE_FILE_TYPES });
+  };
+
+  const buildEditorSnapshotForSave = (mod, displayName = "") => {
+    const trimmed = (displayName || "").trim();
+    const snapshot = { noteText: noteTextRef.current, sceneCardMeta: cloneSceneCardMetaMap(sceneCardMetaRef.current || {}) };
+    if (mod === "film") {
+      const tp = { ...titlePageRef.current };
+      if (trimmed) tp.title = trimmed;
+      snapshot.titlePage = tp;
+    } else if (mod === "play") {
+      snapshot.playHeader = playHeaderRef.current.map(h =>
+        h.key === "title" && trimmed ? { ...h, text: trimmed } : { ...h },
+      );
+    } else if (mod === "short") {
+      snapshot.contentHeader = contentHeader.map(h =>
+        h.key === "title" && trimmed ? { ...h, text: trimmed } : { ...h },
+      );
+      snapshot.contentLogo = contentLogo;
+    } else if (mod === "media") {
+      snapshot.mediaHeader = mediaHeader.map(h =>
+        h.key === "show" && trimmed ? { ...h, text: trimmed } : { ...h },
+      );
+    }
+    return snapshot;
+  };
+
+  const applyEditorSnapshotToState = (mod, snapshot) => {
+    if (mod === "film" && snapshot.titlePage) patchTitlePage(() => snapshot.titlePage);
+    if (mod === "play" && snapshot.playHeader) setPlayHeader(snapshot.playHeader);
+    if (mod === "short") {
+      if (snapshot.contentHeader) setContentHeader(snapshot.contentHeader);
+      if (snapshot.contentLogo !== undefined) setContentLogo(snapshot.contentLogo);
+    }
+    if (mod === "media" && snapshot.mediaHeader) setMediaHeader(snapshot.mediaHeader);
+    if (snapshot.sceneCardMeta) updateSceneCardMeta(snapshot.sceneCardMeta, { autosave: false });
   };
 
   const saveNow = async () => {
     clearTimeout(saveTimer.current);
-    const { name, blob } = buildWhaleExport();
+    const mod = modeRef.current || mode;
+    const name = resolveLiveProjectName(mod);
+    setProjectName(name);
+    saveProject(projectId, name, blocksRef.current, mod);
+    setSaved(true);
+    setMenuOpen(false);
 
     if (window.showSaveFilePicker && whaleFileHandleRef.current) {
       try {
+        const { blob } = buildWhaleExport();
         const writable = await whaleFileHandleRef.current.createWritable();
         await writable.write(blob);
         await writable.close();
-        saveProject(projectId, projectName, blocksRef.current, modeRef.current);
-        setSaved(true);
-        setMenuOpen(false);
-        return;
-      } catch(e) {
+      } catch (e) {
         if (e.name === "AbortError") return;
       }
     }
-
-    await saveAs();
   };
 
-  const saveAs = async () => {
-    const { name, blob } = buildWhaleExport();
+  const openSaveAsDialog = () => {
+    clearTimeout(saveTimer.current);
+    const mod = modeRef.current || mode;
+    flushProjectSave();
+    const currentName = resolveLiveProjectName(mod);
+    const draftName = currentName === DEFAULT_PROJECT_NAME ? "" : currentName;
+    saveAsFileHandleRef.current = null;
+    setSaveAsPathLabel(
+      window.showSaveFilePicker ? "Документы" : saveAsSuggestedFileName(draftName),
+    );
+    setSaveAsName(draftName);
+    setSaveAsOpen(true);
+    setMenuOpen(false);
+  };
 
+  const pickSaveAsFileLocation = async () => {
+    const suggested = saveAsPathLabel.trim() || saveAsSuggestedFileName(saveAsName);
     if (window.showSaveFilePicker) {
       try {
-        const ext = name.split(".").pop().toLowerCase();
-        const types = [{
-          description: name,
-          accept: { "application/octet-stream": ["."+ext] },
-        }];
-        const fh = await window.showSaveFilePicker({ suggestedName: name, types });
-        whaleFileHandleRef.current = fh;
-        const writable = await fh.createWritable();
-        await writable.write(blob);
-        await writable.close();
-        saveProject(projectId, projectName, blocksRef.current, modeRef.current);
-        setSaved(true);
-        setMenuOpen(false);
-        return;
-      } catch(e) {
+        const fh = await pickWhaleSaveHandle(suggested, { startIn: "documents" });
+        saveAsFileHandleRef.current = fh;
+        setSaveAsPathLabel(fh.name || suggested);
+      } catch (e) {
+        if (e.name !== "AbortError") {}
+      }
+      return;
+    }
+    setSaveAsPathLabel(saveAsSuggestedFileName(saveAsName));
+  };
+
+  const resolveSaveAsDownloadName = (projectName, fallbackFileName) => {
+    const fromPath = (saveAsPathLabel || "").trim();
+    if (fromPath && fromPath !== "Документы") {
+      return saveAsSuggestedFileName(fromPath.replace(/\.whale$/i, ""));
+    }
+    return fallbackFileName || saveAsSuggestedFileName(projectName);
+  };
+
+  const confirmSaveAs = async (name) => {
+    const mod = modeRef.current || mode;
+    const trimmed = (name || "").trim();
+    const finalName = trimmed || DEFAULT_PROJECT_NAME;
+    const blks = blocksRef.current.map(b => ({ ...b }));
+    const snapshot = buildEditorSnapshotForSave(mod, trimmed);
+    const resolvedName = resolveProjectName({
+      mode: mod,
+      name: finalName,
+      titlePage: snapshot.titlePage,
+      playHeader: snapshot.playHeader,
+    });
+    const { fileName, blob } = buildWhaleExportPayload({ resolvedName, mod, blks, snapshot });
+    const downloadName = resolveSaveAsDownloadName(finalName, fileName);
+
+    let fh = saveAsFileHandleRef.current;
+    if (!fh && window.showSaveFilePicker) {
+      try {
+        fh = await pickWhaleSaveHandle(downloadName, { startIn: "documents" });
+      } catch (e) {
         if (e.name === "AbortError") return;
       }
     }
 
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = name;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-    saveProject(projectId, projectName, blocksRef.current, modeRef.current);
+    const nid = "proj_" + Date.now();
+    saveProject(nid, finalName, blks, mod, snapshot);
+    resetModeHistories(mod, blks);
+    setProjectId(nid);
+    setProjectName(resolvedName);
+    setBlocks(blks);
+    applyEditorSnapshotToState(mod, snapshot);
+
+    if (fh) {
+      try {
+        await writeBlobToFileHandle(fh, blob);
+        whaleFileHandleRef.current = fh;
+        setSaveAsPathLabel(fh.name || downloadName);
+      } catch (e) {
+        if (e.name !== "AbortError") downloadBlobAsFile(blob, downloadName);
+      }
+    } else {
+      downloadBlobAsFile(blob, downloadName);
+    }
+
+    saveAsFileHandleRef.current = null;
+    persistActiveProjectId(nid, mod);
     setSaved(true);
+    setSaveAsOpen(false);
     setMenuOpen(false);
   };
 
   useEffect(()=>{ saveNowRef.current = saveNow; }, [saveNow]);
 
-  const confirmSaveAs = (name) => {
-    const finalName = name.trim() || "Без названия";
-    setProjectName(finalName);
-    saveProject(projectId, finalName, blocks, mode);
-    setSaved(true);
-    setSaveAsOpen(false);
-  };
-
-  const openProjectsList = () => {
+  const openProjectsForMode = (view = "list") => {
     try {
+      const currentMode = modeRef.current || mode;
       const index = JSON.parse(localStorage.getItem("ow_index")||"[]");
-      setProjectsList(index);
+      setProjectsList(index.filter(p => getStoredProjectMode(p) === currentMode));
     } catch(e) { setProjectsList([]); }
-    setProjectsView("list");
+    setProjectsView(view);
     setProjectsOpen(true);
     setMenuOpen(false);
   };
 
   const openMyProjectsList = () => {
-    try {
-      const currentMode = modeRef.current || mode;
-      const index = JSON.parse(localStorage.getItem("ow_index")||"[]");
-      setProjectsList(index.filter(p => (p.mode || "film") === currentMode));
-    } catch(e) { setProjectsList([]); }
-    setProjectsView("list");
-    setProjectsOpen(true);
-    setMenuOpen(false);
+    openProjectsForMode("list");
   };
 
   const openMyProjectsCards = () => {
-    try {
-      const currentMode = modeRef.current || mode;
-      const index = JSON.parse(localStorage.getItem("ow_index")||"[]");
-      setProjectsList(index.filter(p => (p.mode || "film") === currentMode));
-    } catch(e) { setProjectsList([]); }
-    setProjectsView("cards");
-    setProjectsOpen(true);
-    setMenuOpen(false);
+    openProjectsForMode("cards");
+  };
+
+  const openEditorHistory = () => {
+    openMyProjectsList();
   };
 
   const clampSceneCardsRect = useCallback((rect) => {
@@ -3060,11 +3328,24 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
           /* ─── .whale JSON-импорт (без изменений) ─── */
           const data = JSON.parse(ev.target.result);
           if (!data.blocks) return;
+          const fileBaseName = file.name.replace(/\.whale$/i, "");
+          const importedMode = data.mode || "film";
+          const importedName = resolveProjectName({
+            mode: importedMode,
+            name: data.name,
+            titlePage: data.titlePage,
+            playHeader: data.playHeader,
+            fileBaseName,
+          });
+          const importedBlocks = data.blocks.map(b=>({...b}));
+          const importedTitlePage = importedMode === "film"
+            ? normalizeTitlePage(data.titlePage, importedName)
+            : data.titlePage;
           const nid = "proj_" + Date.now();
           setProjectId(nid);
-          setProjectName(data.name || file.name.replace(".whale",""));
-          setMode(data.mode || "film");
-          setBlocks(data.blocks.map(b=>({...b})));
+          setProjectName(importedName);
+          setMode(importedMode);
+          setBlocks(importedBlocks);
           setFocId(null);
           setToolbarBlockId(null);
           lastFocId.current = null;
@@ -3075,8 +3356,8 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
             if (data.noteText !== undefined) { setNoteText(data.noteText); noteTextRef.current = data.noteText; }
           if (data.docFont)    setDocFont(data.docFont);
           if (data.sceneAlign) setSceneAlign(data.sceneAlign);
-          if ((data.mode || "film") === "film") {
-            setTitlePage(normalizeTitlePage(data.titlePage, data.name || file.name.replace(/\.whale$/i, "")));
+          if (importedMode === "film") {
+            patchTitlePage(() => importedTitlePage);
           }
           if (data.markerHighlights) setMarkerHighlights(data.markerHighlights);
           if (data.layout) {
@@ -3094,6 +3375,24 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
           updateSceneCardMeta(cloneSceneCardMetaMap(data.sceneCardMeta || {}), { autosave:false });
           setSceneCardMenu(null);
           modeSceneCardMetaCache.current = {};
+          registerOpenedProject({
+            id: nid,
+            name: importedName,
+            mode: importedMode,
+            blocks: importedBlocks,
+            playHeader: data.playHeader,
+            mediaHeader: data.mediaHeader,
+            contentHeader: data.contentHeader,
+            contentLogo: data.contentLogo,
+            docFont: data.docFont,
+            sceneAlign: data.sceneAlign,
+            noteText: data.noteText,
+            sceneCardMeta: data.sceneCardMeta,
+            markerHighlights: data.markerHighlights,
+            layout: data.layout,
+            titlePage: importedTitlePage,
+          });
+          persistActiveProjectId(nid, importedMode);
           setSaved(true);
           setMenuOpen(false);
         }
@@ -6687,6 +6986,67 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
   // ══════════════════════════════════════════════
   // MOBILE LAYOUT
   // ══════════════════════════════════════════════
+  const renderSaveAsModal = () => {
+    if (!saveAsOpen) return null;
+    const mod = modeRef.current || mode;
+    const modeLabel = MODES.find(m => m.id === mod)?.label || mod;
+    const canPickPath = Boolean(window.showSaveFilePicker);
+    return (
+      <div onClick={()=>setSaveAsOpen(false)} style={{position:"fixed",inset:0,zIndex:400,background:"rgba(0,0,0,0.6)",display:"flex",alignItems:"center",justifyContent:"center",padding:"24px"}}>
+        <div onClick={e=>e.stopPropagation()} style={{background:SURF,borderRadius:"20px",padding:"24px",width:"100%",maxWidth:"380px",boxShadow:"0 16px 48px rgba(0,0,0,0.5)"}}>
+          <div style={{color:T1,fontSize:"11px",letterSpacing:"3px",marginBottom:"6px"}}>СОХРАНИТЬ КАК</div>
+          <div style={{color:T3,fontSize:"10px",letterSpacing:"1px",marginBottom:"16px"}}>Копия в «Мои проекты» · {modeLabel}</div>
+          <div style={{color:T3,fontSize:"9px",letterSpacing:"2px",marginBottom:"6px"}}>НАЗВАНИЕ</div>
+          <input
+            autoFocus
+            value={saveAsName}
+            onChange={e=>setSaveAsName(e.target.value)}
+            onKeyDown={e=>{if(e.key==="Enter")confirmSaveAs(saveAsName);if(e.key==="Escape")setSaveAsOpen(false);}}
+            placeholder="Название проекта"
+            style={{
+              width:"100%",background:BG,border:`1px solid ${T3}44`,borderRadius:"10px",
+              padding:"12px 14px",color:T1,fontSize:"14px",fontFamily:"inherit",
+              outline:"none",boxSizing:"border-box",marginBottom:"14px",
+            }}
+          />
+          <div style={{color:T3,fontSize:"9px",letterSpacing:"2px",marginBottom:"6px"}}>
+            {canPickPath ? "ПУТЬ К ФАЙЛУ .whale" : "ФАЙЛ .whale"}
+          </div>
+          <div style={{display:"flex",gap:"8px",marginBottom:"16px"}}>
+            <input
+              readOnly={canPickPath}
+              value={saveAsPathLabel}
+              onChange={e=>setSaveAsPathLabel(e.target.value)}
+              onClick={canPickPath ? pickSaveAsFileLocation : undefined}
+              onKeyDown={e=>{if(e.key==="Enter")confirmSaveAs(saveAsName);}}
+              placeholder={canPickPath ? "Документы — нажмите «Обзор…»" : "имя_файла.whale"}
+              style={{
+                flex:1,minWidth:0,background:BG,border:`1px solid ${T3}44`,borderRadius:"10px",
+                padding:"12px 14px",color:T1,fontSize:"13px",fontFamily:"inherit",
+                outline:"none",boxSizing:"border-box",cursor:canPickPath?"pointer":"text",
+              }}
+            />
+            <button type="button" onClick={pickSaveAsFileLocation} style={{
+              flexShrink:0,padding:"12px 14px",background:BG,border:`1px solid ${T3}44`,
+              borderRadius:"10px",color:T1,fontSize:"11px",cursor:"pointer",
+              fontFamily:"inherit",letterSpacing:"1px",whiteSpace:"nowrap",
+            }}>{canPickPath ? "Обзор…" : "Имя…"}</button>
+          </div>
+          <div style={{display:"flex",gap:"8px"}}>
+            <button onClick={()=>setSaveAsOpen(false)} style={{
+              flex:1,padding:"11px",background:BG,border:"none",borderRadius:"10px",
+              color:T2,fontSize:"12px",cursor:"pointer",fontFamily:"inherit",boxShadow:SH_SM,
+            }}>Отмена</button>
+            <button onClick={()=>confirmSaveAs(saveAsName)} style={{
+              flex:2,padding:"11px",background:SURF,border:`1px solid ${mc}55`,borderRadius:"10px",
+              color:"#fff",fontSize:"12px",cursor:"pointer",fontFamily:"inherit",letterSpacing:"1px",
+            }}>СОХРАНИТЬ</button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   if (isMobile) {
     return (
       <div style={{display:"flex",flexDirection:"column",height:`${viewportH}px`,background:BG,fontFamily:"'Courier New',monospace",color:T1,overflow:"hidden"}}>
@@ -6803,10 +7163,10 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
             onClose={() => setMenuOpen(false)}
             onNewProject={newProject}
             onSave={saveNow}
-            onSaveAs={saveAs}
-            onOpenHistory={openProjectsList}
+            onSaveAs={openSaveAsDialog}
+            onOpenHistory={openEditorHistory}
             onOpenMyProjects={() => {
-              openProjectsList();
+              openMyProjectsList();
               setMenuOpen(false);
             }}
             onExportPdf={() => {
@@ -6851,7 +7211,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
         {titlePageOpen && (
           <div style={{position:"absolute",inset:0,zIndex:300,background:BG,display:"flex",flexDirection:"column"}}>
             <div style={{padding:"16px 20px",display:"flex",alignItems:"center",borderBottom:`1px solid ${T3}22`,flexShrink:0}}>
-              <button onClick={()=>{ setNewProjectOverlay(false); setTitlePageOpen(false); }} style={{background:"transparent",border:"none",color:T2,fontSize:"20px",cursor:"pointer",padding:"0",lineHeight:1}}>←</button>
+              <button onClick={closeTitlePage} style={{background:"transparent",border:"none",color:T2,fontSize:"20px",cursor:"pointer",padding:"0",lineHeight:1}}>←</button>
               <span style={{color:T1,fontSize:"11px",letterSpacing:"3px"}}>{mode==="note" ? "ЭКСПОРТ" : "ТИТУЛЬНЫЙ ЛИСТ"}</span>
             </div>
             <div style={{flex:1,overflow:"auto",padding:"20px"}}>
@@ -6881,15 +7241,15 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
                 {key:"author",  label:"АВТОР",     ph:"Имя Фамилия",  val: playHeader.find(h=>h.key==="author")?.text||"", set: v=>setPlayHeader(p=>p.map(h=>h.key==="author"?{...h,text:v}:h))},
                 {key:"remark",  label:"ПРИМЕЧАНИЕ",ph:"Ремарка",      val: playHeader.find(h=>h.key==="remark")?.text||"", set: v=>setPlayHeader(p=>p.map(h=>h.key==="remark"?{...h,text:v}:h))},
               ] : isGuest ? [
-                {key:"title",   label:"НАЗВАНИЕ",  ph:"Название", val:titlePage.title,  set:v=>setTitlePage(p=>({...p,title:v}))},
-                {key:"author",  label:"ИНИЦИАЛЫ",  ph:"И. Фамилия", val:titlePage.author, set:v=>setTitlePage(p=>({...p,author:v}))},
+                {key:"title",   label:"НАЗВАНИЕ",  ph:"Название", val:titlePage.title,  set:v=>patchTitlePage(p=>({...p,title:v}))},
+                {key:"author",  label:"ИНИЦИАЛЫ",  ph:"И. Фамилия", val:titlePage.author, set:v=>patchTitlePage(p=>({...p,author:v}))},
               ] : [
-                {key:"title",   label:"НАЗВАНИЕ",  ph:"Название сценария", val:titlePage.title,  set:v=>setTitlePage(p=>({...p,title:v}))},
-                {key:"genre",   label:"ЖАНР",      ph:"драма, фантастика...",val:titlePage.genre, set:v=>setTitlePage(p=>({...p,genre:v}))},
-                {key:"author",  label:"АВТОР",     ph:"Имя Фамилия",       val:titlePage.author, set:v=>setTitlePage(p=>({...p,author:v}))},
-                {key:"phone",   label:"ТЕЛЕФОН",   ph:"+7 000 000 00 00",  val:titlePage.phone,  set:v=>setTitlePage(p=>({...p,phone:v}))},
-                {key:"email",   label:"EMAIL",     ph:"email@example.com", val:titlePage.email,  set:v=>setTitlePage(p=>({...p,email:v}))},
-                {key:"year",    label:"ГОД",       ph:new Date().getFullYear()+"",val:titlePage.year,set:v=>setTitlePage(p=>({...p,year:v}))},
+                {key:"title",   label:"НАЗВАНИЕ",  ph:"Название сценария", val:titlePage.title,  set:v=>patchTitlePage(p=>({...p,title:v}))},
+                {key:"genre",   label:"ЖАНР",      ph:"драма, фантастика...",val:titlePage.genre, set:v=>patchTitlePage(p=>({...p,genre:v}))},
+                {key:"author",  label:"АВТОР",     ph:"Имя Фамилия",       val:titlePage.author, set:v=>patchTitlePage(p=>({...p,author:v}))},
+                {key:"phone",   label:"ТЕЛЕФОН",   ph:"+7 000 000 00 00",  val:titlePage.phone,  set:v=>patchTitlePage(p=>({...p,phone:v}))},
+                {key:"email",   label:"EMAIL",     ph:"email@example.com", val:titlePage.email,  set:v=>patchTitlePage(p=>({...p,email:v}))},
+                {key:"year",    label:"ГОД",       ph:new Date().getFullYear()+"",val:titlePage.year,set:v=>patchTitlePage(p=>({...p,year:v}))},
               ]).map(({key,label,ph,val,set})=>(
                 <div key={key} style={{marginBottom:"16px"}}>
                   <div style={{color:T3,fontSize:"9px",letterSpacing:"3px",marginBottom:"6px"}}>{label}</div>
@@ -7043,36 +7403,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
           </div>
         )}
 
-        {/* Модальное окно: Сохранить как */}
-        {saveAsOpen && (
-          <div onClick={()=>setSaveAsOpen(false)} style={{position:"absolute",inset:0,zIndex:300,background:"rgba(0,0,0,0.6)",display:"flex",alignItems:"center",justifyContent:"center",padding:"24px"}}>
-            <div onClick={e=>e.stopPropagation()} style={{background:SURF,borderRadius:"20px",padding:"24px",width:"100%",maxWidth:"340px",boxShadow:"0 16px 48px rgba(0,0,0,0.5)"}}>
-              <div style={{color:T1,fontSize:"11px",letterSpacing:"3px",marginBottom:"16px"}}>СОХРАНИТЬ КАК</div>
-              <input
-                autoFocus
-                value={saveAsName}
-                onChange={e=>setSaveAsName(e.target.value)}
-                onKeyDown={e=>{if(e.key==="Enter")confirmSaveAs(saveAsName);if(e.key==="Escape")setSaveAsOpen(false);}}
-                placeholder="Название проекта"
-                style={{
-                  width:"100%",background:BG,border:`1px solid ${T3}44`,borderRadius:"10px",
-                  padding:"12px 14px",color:T1,fontSize:"14px",fontFamily:"inherit",
-                  outline:"none",boxSizing:"border-box",marginBottom:"16px",
-                }}
-              />
-              <div style={{display:"flex"}}>
-                <button onClick={()=>setSaveAsOpen(false)} style={{
-                  flex:1,padding:"11px",background:BG,border:"none",borderRadius:"10px",
-                  color:T2,fontSize:"12px",cursor:"pointer",fontFamily:"inherit",boxShadow:SH_SM,
-                }}>Отмена</button>
-                <button onClick={()=>confirmSaveAs(saveAsName)} style={{
-                  flex:2,padding:"11px",background:SURF,border:`1px solid ${mc}55`,borderRadius:"10px",
-                  color:"#fff",fontSize:"12px",cursor:"pointer",fontFamily:"inherit",letterSpacing:"1px",
-                }}>СОХРАНИТЬ</button>
-              </div>
-            </div>
-          </div>
-        )}
+        {renderSaveAsModal()}
 
         {/* Модальное окно: список проектов */}
         {projectsOpen && (
@@ -7656,6 +7987,8 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
       position:"relative",
     }}>
 
+      {renderSaveAsModal()}
+
       {/* ══ DESKTOP: menuOpen ══ */}
 
       {/* ══ DESKTOP: projectsOpen ══ */}
@@ -7760,9 +8093,9 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
             setMenuOpen(false);
           }}
           onSave={saveNow}
-          onSaveAs={saveAs}
+          onSaveAs={openSaveAsDialog}
           onOpenHistory={() => {
-            openProjectsList();
+            openEditorHistory();
             setMenuOpen(false);
           }}
           onExportPdf={() => {
@@ -7803,7 +8136,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
       {titlePageOpen && (
         <div style={{position:"fixed",inset:0,zIndex:300,background:BG,display:"flex",flexDirection:"column"}}>
           <div style={{padding:"16px 20px",display:"flex",alignItems:"center",borderBottom:`1px solid ${T3}22`,flexShrink:0}}>
-            <button onClick={()=>{ setNewProjectOverlay(false); setTitlePageOpen(false); }} style={{background:"transparent",border:"none",color:T2,fontSize:"20px",cursor:"pointer",padding:"0",lineHeight:1}}>←</button>
+            <button onClick={closeTitlePage} style={{background:"transparent",border:"none",color:T2,fontSize:"20px",cursor:"pointer",padding:"0",lineHeight:1}}>←</button>
             <span style={{color:T1,fontSize:"11px",letterSpacing:"3px"}}>ТИТУЛЬНЫЙ ЛИСТ</span>
           </div>
           <div style={{flex:1,overflow:"auto",padding:"20px 20px 0"}}>
@@ -7834,15 +8167,15 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
                 {key:"author", label:"АВТОР",     ph:"Имя Фамилия", val:playHeader.find(h=>h.key==="author")?.text||"", set:v=>setPlayHeader(p=>p.map(h=>h.key==="author"?{...h,text:v}:h))},
                 {key:"remark", label:"ПРИМЕЧАНИЕ",ph:"Ремарка",     val:playHeader.find(h=>h.key==="remark")?.text||"", set:v=>setPlayHeader(p=>p.map(h=>h.key==="remark"?{...h,text:v}:h))},
               ] : isGuest ? [
-                {key:"title",  label:"НАЗВАНИЕ", ph:"Название",    val:titlePage.title,  set:v=>setTitlePage(p=>({...p,title:v}))},
-                {key:"author", label:"ИНИЦИАЛЫ", ph:"И. Фамилия",  val:titlePage.author, set:v=>setTitlePage(p=>({...p,author:v}))},
+                {key:"title",  label:"НАЗВАНИЕ", ph:"Название",    val:titlePage.title,  set:v=>patchTitlePage(p=>({...p,title:v}))},
+                {key:"author", label:"ИНИЦИАЛЫ", ph:"И. Фамилия",  val:titlePage.author, set:v=>patchTitlePage(p=>({...p,author:v}))},
               ] : [
-                {key:"title",  label:"НАЗВАНИЕ", ph:"Название сценария",   val:titlePage.title,  set:v=>setTitlePage(p=>({...p,title:v}))},
-                {key:"genre",  label:"ЖАНР",     ph:"драма, фантастика...",val:titlePage.genre,  set:v=>setTitlePage(p=>({...p,genre:v}))},
-                {key:"author", label:"АВТОР",    ph:"Имя Фамилия",         val:titlePage.author, set:v=>setTitlePage(p=>({...p,author:v}))},
-                {key:"phone",  label:"ТЕЛЕФОН",  ph:"+7 000 000 00 00",    val:titlePage.phone,  set:v=>setTitlePage(p=>({...p,phone:v}))},
-                {key:"email",  label:"EMAIL",    ph:"email@example.com",   val:titlePage.email,  set:v=>setTitlePage(p=>({...p,email:v}))},
-                {key:"year",   label:"ГОД",      ph:new Date().getFullYear()+"", val:titlePage.year, set:v=>setTitlePage(p=>({...p,year:v}))},
+                {key:"title",  label:"НАЗВАНИЕ", ph:"Название сценария",   val:titlePage.title,  set:v=>patchTitlePage(p=>({...p,title:v}))},
+                {key:"genre",  label:"ЖАНР",     ph:"драма, фантастика...",val:titlePage.genre,  set:v=>patchTitlePage(p=>({...p,genre:v}))},
+                {key:"author", label:"АВТОР",    ph:"Имя Фамилия",         val:titlePage.author, set:v=>patchTitlePage(p=>({...p,author:v}))},
+                {key:"phone",  label:"ТЕЛЕФОН",  ph:"+7 000 000 00 00",    val:titlePage.phone,  set:v=>patchTitlePage(p=>({...p,phone:v}))},
+                {key:"email",  label:"EMAIL",    ph:"email@example.com",   val:titlePage.email,  set:v=>patchTitlePage(p=>({...p,email:v}))},
+                {key:"year",   label:"ГОД",      ph:new Date().getFullYear()+"", val:titlePage.year, set:v=>patchTitlePage(p=>({...p,year:v}))},
               ]).map(({key,label,ph,val,set})=>(
                 <div key={key} style={{marginBottom:"16px"}}>
                   <div style={{color:T3,fontSize:"9px",letterSpacing:"3px",marginBottom:"6px"}}>{label}</div>

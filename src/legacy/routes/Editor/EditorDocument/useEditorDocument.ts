@@ -5,6 +5,12 @@ import {
   buildScreenplayCssVars,
   buildFilmBlockCssVars,
 } from "../../../domain/screenplayFormat";
+import { buildPlayDocumentPages } from "./play/playPagination";
+import {
+  PLAY_TYPO,
+  PLAY_BODY_FONT_PX,
+  PLAY_BODY_LINE_HEIGHT,
+} from "../../../domain/blocks";
 
 export function cx(...values: Array<string | false | null | undefined>) {
   return values.filter(Boolean).join(" ");
@@ -67,7 +73,6 @@ const PAGE_TEXT_W = SCREENPLAY_FORMAT.TEXT_W;  // 576 — 6.0" inside 1.5"/1.0" 
  * multiple pages — without this the second page just overflows past the bottom.
  */
 const FILM_PAGE_SPLIT_TYPES = ["action", "paren", "note", "dialogue"];
-const PLAY_PAGE_SPLIT_TYPES = ["stage", "line", "note", "cast"];
 /** Hollywood (ДАЛЬШЕ) / (ПРОД.) — one line in the fixed page budget. */
 const FILM_DIALOGUE_META_H = SCREENPLAY_FORMAT.LINE_PX;
 
@@ -113,83 +118,6 @@ function ensureMeasureTextarea(id: string) {
   }
 
   return el;
-}
-
-function ensurePlayLineMeasure() {
-  if (typeof document === "undefined") return null;
-
-  let root = document.getElementById("ow-play-line-measure");
-  if (!root) {
-    root = document.createElement("div");
-    root.id = "ow-play-line-measure";
-    root.setAttribute("aria-hidden", "true");
-    Object.assign(root.style, {
-      position: "absolute",
-      left: "-99999px",
-      top: "0",
-      width: `${PAGE_TEXT_W}px`,
-      visibility: "hidden",
-      pointerEvents: "none",
-      boxSizing: "border-box",
-      margin: "0",
-      background: "transparent",
-      zIndex: "-1",
-    });
-
-    const row = document.createElement("div");
-    row.className = "ow-play-line-measure-row";
-    Object.assign(row.style, {
-      display: "flex",
-      alignItems: "flex-start",
-      width: "100%",
-      boxSizing: "border-box",
-      fontFamily: "'Times New Roman',Times,serif",
-      fontSize: "15px",
-      lineHeight: "1.7",
-    });
-
-    const name = document.createElement("span");
-    name.className = "ow-play-line-measure-name";
-    Object.assign(name.style, {
-      fontWeight: "700",
-      flexShrink: "0",
-      padding: "0",
-      margin: "0",
-      minWidth: "30px",
-      whiteSpace: "pre",
-    });
-
-    const dot = document.createElement("span");
-    dot.className = "ow-play-line-measure-dot";
-    dot.textContent = ".";
-    Object.assign(dot.style, {
-      fontWeight: "700",
-      marginRight: "7px",
-      flexShrink: "0",
-      whiteSpace: "pre",
-    });
-
-    const body = document.createElement("div");
-    body.className = "ow-play-line-measure-body";
-    Object.assign(body.style, {
-      flex: "1 1 auto",
-      minWidth: "0",
-      whiteSpace: "pre-wrap",
-      overflowWrap: "break-word",
-      wordBreak: "normal",
-      padding: "0",
-      margin: "0",
-      boxSizing: "border-box",
-    });
-
-    row.appendChild(name);
-    row.appendChild(dot);
-    row.appendChild(body);
-    root.appendChild(row);
-    document.body.appendChild(root);
-  }
-
-  return root;
 }
 
 /**
@@ -238,10 +166,10 @@ function getBlockMetrics({ defs, mode }, block, text, continued = false) {
   const isFilm = mode === "film";
   const fs = isFilm
     ? SCREENPLAY_FORMAT.FONT_SIZE
-    : parseFloat(def.st?.fontSize) || (mode === "play" ? 15 : 14);
+    : parseFloat(def.st?.fontSize) || (mode === "play" ? PLAY_BODY_FONT_PX : 14);
   const lh = isFilm
     ? SCREENPLAY_FORMAT.LINE_HEIGHT
-    : parseFloat(def.st?.lineHeight) || (mode === "play" ? 1.7 : 1.85);
+    : parseFloat(def.st?.lineHeight) || (mode === "play" ? PLAY_BODY_LINE_HEIGHT : 1.85);
   const pt = isFilm
     ? getFilmBlockPaddingTop(block.type, continued)
     : (continued ? 0 : (parseInt(def.st?.paddingTop) || 0));
@@ -282,76 +210,6 @@ function getBlockMetrics({ defs, mode }, block, text, continued = false) {
       el.style.borderBottom = "none";
       el.style.height = "0px";
       return { def, pt, pb, fs, lh, colW, charsPerLine, lineH, blockH: el.scrollHeight };
-    }
-  }
-
-  if (mode === "play") {
-    if (block.type === "line") {
-      const root = ensurePlayLineMeasure();
-      if (root) {
-        const row = root.firstChild;
-        const nameEl = row?.childNodes?.[0] ?? null;
-        const dotEl = row?.childNodes?.[1] ?? null;
-        const bodyEl = row?.childNodes?.[2] ?? null;
-
-        root.style.width = `${PAGE_TEXT_W}px`;
-        root.style.paddingTop = `${pt}px`;
-        root.style.paddingBottom = `${pb}px`;
-
-        if (row) {
-          row.style.paddingTop = "0px";
-          row.style.paddingBottom = "0px";
-          row.style.fontSize = `${fs}px`;
-          row.style.lineHeight = String(lh);
-        }
-        if (nameEl) {
-          nameEl.textContent = block.name || "";
-          nameEl.style.fontSize = `${fs}px`;
-          nameEl.style.lineHeight = String(lh);
-          nameEl.style.fontStyle = block.italic ? "italic" : "normal";
-        }
-        if (dotEl) {
-          dotEl.style.fontSize = `${fs}px`;
-          dotEl.style.lineHeight = String(lh);
-          dotEl.style.fontStyle = block.italic ? "italic" : "normal";
-        }
-        if (bodyEl) {
-          bodyEl.textContent = safeText;
-          bodyEl.style.fontSize = `${fs}px`;
-          bodyEl.style.lineHeight = String(lh);
-          bodyEl.style.fontStyle = block.italic ? "italic" : "normal";
-          bodyEl.style.fontWeight = block.bold ? "bold" : block.semibold ? "600" : "400";
-        }
-
-        return { def, pt, pb, fs, lh, colW, charsPerLine, lineH, blockH: root.scrollHeight + 10 };
-      }
-    }
-
-    const el = ensureMeasureTextarea("ow-play-measure");
-    if (el) {
-      const padL = parseInt(def.st?.paddingLeft) || 0;
-      const padR = parseInt(def.st?.paddingRight) || 0;
-      el.value = safeText;
-      el.rows = 1;
-      el.style.width = `${PAGE_TEXT_W}px`;
-      el.style.fontFamily = "'Times New Roman',Times,serif";
-      el.style.fontSize = `${fs}px`;
-      el.style.lineHeight = String(lh);
-      el.style.paddingTop = `${pt}px`;
-      el.style.paddingBottom = `${pb}px`;
-      el.style.paddingLeft = `${padL}px`;
-      el.style.paddingRight = `${padR}px`;
-      el.style.fontStyle = block.italic ? "italic" : (def.st?.fontStyle || "normal");
-      el.style.fontWeight = block.bold ? "bold" : block.semibold ? "600" : (def.st?.fontWeight || "400");
-      el.style.textTransform = def.st?.textTransform || "none";
-      el.style.textAlign = def.st?.textAlign || "left";
-      el.style.letterSpacing = def.st?.letterSpacing || "normal";
-      el.style.borderLeft = def.st?.borderLeft || "none";
-      el.style.borderRight = "none";
-      el.style.borderTop = "none";
-      el.style.borderBottom = "none";
-      el.style.height = "0px";
-      return { def, pt, pb, fs, lh, colW, charsPerLine, lineH, blockH: el.scrollHeight + 10 };
     }
   }
 
@@ -406,6 +264,10 @@ export function buildDocumentPages({
     return { pages: [], pagePadMode: "film" };
   }
 
+  if (mode === "play") {
+    return buildPlayDocumentPages({ defs, blocks });
+  }
+
   const config = { defs, mode };
   // Film: paginate inside margins (~54 lines). Other modes keep full page height.
   const pageBudgetH = mode === "film" ? PAGE_TEXT_H : PAGE_H;
@@ -431,7 +293,7 @@ export function buildDocumentPages({
   const desktopTitleEditorH = estimateDesktopTitleEditorH();
   let runH = desktopTitleEditorH;
 
-  // Film uses a single measure pass (864 px budget). Pass 1 is for play/other only.
+  // Film uses a single measure pass (864 px budget). Pass 1 is for short/media only.
   if (mode !== "film") {
     blocks.forEach((block, bi) => {
       if (mode === "film" && block.type === "act") return;
@@ -556,52 +418,6 @@ export function buildDocumentPages({
       return;
     }
 
-    if (mode === "play" && PLAY_PAGE_SPLIT_TYPES.includes(block.type)) {
-      const fullText = block.text || "";
-      const firstMetrics = getBlockMetrics(config, block, fullText, false);
-
-      if (firstMetrics.blockH <= pageRemaining()) {
-        curPage.push({ bi, part: "full", split: -1 });
-        runH += firstMetrics.blockH;
-        return;
-      }
-
-      let rest = fullText;
-      let start = 0;
-      let continued = false;
-      let sliceIx = 0;
-
-      while (true) {
-        const metrics = getBlockMetrics(config, block, rest, continued);
-        const remaining = pageRemaining();
-
-        if (metrics.blockH <= remaining) {
-          curPage.push({ bi, part: "playSlice", start, end: fullText.length, continued, editable: true, sliceIx });
-          runH += metrics.blockH;
-          break;
-        }
-
-        const splitLocal = findSplitByMeasure(config, block, rest, remaining, continued);
-        if (splitLocal <= 0 || splitLocal >= rest.length) {
-          pushPage();
-          continued = start > 0;
-          continue;
-        }
-
-        curPage.push({ bi, part: "playSlice", start, end: start + splitLocal, continued, editable: true, sliceIx });
-        runH += getBlockMetrics(config, block, rest.substring(0, splitLocal), continued).blockH;
-        pushPage();
-
-        const rawRest = rest.substring(splitLocal);
-        rest = rawRest.replace(/^\s+/, "");
-        start = fullText.length - rest.length;
-        continued = true;
-        sliceIx += 1;
-      }
-
-      return;
-    }
-
     if (pageBreaks.has(bi) && curPage.length > 0) {
       const split = pageBreaks.get(bi);
       if (split > 0) {
@@ -648,8 +464,8 @@ export function getGutterTopPx({ def, mode, continued, block }) {
   else if (def.st?.padding !== undefined) pt = parseInt(def.st.padding) || 0;
 
   const mt = parseInt(def.st?.marginTop) || 0;
-  const fs = parseFloat(def.st?.fontSize) || (mode === "play" ? 15 : 14);
-  const lh = parseFloat(def.st?.lineHeight) || (mode === "play" ? 1.7 : 1.85);
+  const fs = parseFloat(def.st?.fontSize) || (mode === "play" ? PLAY_BODY_FONT_PX : 14);
+  const lh = parseFloat(def.st?.lineHeight) || (mode === "play" ? PLAY_BODY_LINE_HEIGHT : 1.85);
 
   return mt + pt + Math.round((fs * lh) / 2);
 }
@@ -694,8 +510,8 @@ export function buildStandardBlockOverlayStyle({ mode, def, block, continued }) 
 
   return {
     boxSizing: "border-box",
-    fontSize: mode === "play" ? "15px" : "14px",
-    lineHeight: mode === "play" ? "1.7" : "1.85",
+    fontSize: mode === "play" ? PLAY_TYPO.bodyFontSize : "14px",
+    lineHeight: mode === "play" ? PLAY_TYPO.bodyLineHeight : "1.85",
     fontFamily: mode === "play" ? "'Times New Roman',Times,serif" : "'Courier New',Courier,monospace",
     ...def.st,
     ...(continued ? { paddingTop: "0" } : {}),
@@ -712,8 +528,8 @@ export function buildPlayLineOverlayStyle() {
     padding: "0",
     margin: "0",
     fontFamily: "'Times New Roman',Times,serif",
-    fontSize: "15px",
-    lineHeight: "1.7",
+    fontSize: PLAY_TYPO.bodyFontSize,
+    lineHeight: PLAY_TYPO.bodyLineHeight,
   };
 }
 

@@ -323,8 +323,8 @@
     padding-top: 4px;
     padding-bottom: 0;
     font-family: var(--ed-doc-font), serif;
-    font-size: 15px;
-    line-height: 1.7;
+    font-size: 14px;
+    line-height: 1.35;
   }
 
   &__play-name {
@@ -335,8 +335,8 @@
     font-weight: 700;
     color: var(--ed-current-color, var(--ed-t1));
     font-family: var(--ed-doc-font), serif;
-    font-size: 15px;
-    line-height: 1.7;
+    font-size: 14px;
+    line-height: 1.35;
   }
 
   &__play-dot {
@@ -344,8 +344,8 @@
     color: var(--ed-current-color, var(--ed-t1));
     font-weight: 700;
     font-family: var(--ed-doc-font), serif;
-    font-size: 15px;
-    line-height: 1.7;
+    font-size: 14px;
+    line-height: 1.35;
   }
 
   &__content {
@@ -366,8 +366,8 @@
     }
 
     &--play {
-      font-size: 15px;
-      line-height: 1.7;
+      font-size: 14px;
+      line-height: 1.35;
       font-family: "Times New Roman", Times, serif;
     }
 
@@ -376,8 +376,8 @@
       margin: 0;
       color: var(--ed-current-color, var(--ed-t1));
       font-family: "Times New Roman", Times, serif;
-      font-size: 15px;
-      line-height: 1.7;
+      font-size: 14px;
+      line-height: 1.35;
     }
 
     &--continued {
@@ -506,9 +506,9 @@
       padding-top: 48px;
       padding-bottom: 8px;
       color: #f0ece0;
-      font-size: 15px;
+      font-size: 14px;
       font-weight: 700;
-      line-height: 1.6;
+      line-height: 1.35;
       text-align: center;
       text-transform: uppercase;
       letter-spacing: 3px;
@@ -518,9 +518,9 @@
       padding-top: 24px;
       padding-bottom: 0;
       color: #c8c4e0;
-      font-size: 14px;
+      font-size: 13px;
       font-weight: 700;
-      line-height: 1.6;
+      line-height: 1.35;
     }
 
     .editor-document__textarea--cast {
@@ -528,7 +528,7 @@
       padding-bottom: 0;
       color: #8886aa;
       font-style: italic;
-      line-height: 1.6;
+      line-height: 1.35;
     }
 
     .editor-document__textarea--stage {
@@ -536,7 +536,7 @@
       padding-bottom: 4px;
       color: #7a789a;
       font-style: italic;
-      line-height: 1.7;
+      line-height: 1.35;
     }
 
     .editor-document__textarea--note {

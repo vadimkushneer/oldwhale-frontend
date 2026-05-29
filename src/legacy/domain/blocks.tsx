@@ -18,6 +18,17 @@ import { T2 } from "../ui/tokens";
 
 export { AIM, AIR } from "./ai";
 
+/** Play editor typography — sync with playPagination.ts + EditorDocument.scss. */
+export const PLAY_TYPO = {
+  bodyFontSize: "14px",
+  bodyLineHeight: "1.35",
+  headingLineHeight: "1.35",
+  actFontSize: "14px",
+  sceneFontSize: "13px",
+};
+export const PLAY_BODY_FONT_PX = 14;
+export const PLAY_BODY_LINE_HEIGHT = 1.35;
+
 export const BLOCK_DEFS = {
   film: [
     { type:"scene",    label:"Место и время",     hotkey:"0", spell:false, ph:"ИНТ. ЛОКАЦИЯ. ДЕНЬ.",
@@ -59,20 +70,20 @@ export const BLOCK_DEFS = {
       next:"scene",
       st:{ textTransform:"uppercase", fontWeight:"bold", color:"#f0ece0",
            textAlign:"center", paddingTop:"48px", paddingBottom:"8px",
-           lineHeight:"1.6", fontSize:"15px", letterSpacing:"3px" } },
+           lineHeight:PLAY_TYPO.headingLineHeight, fontSize:PLAY_TYPO.actFontSize, letterSpacing:"3px" } },
     { type:"scene",    label:"Сцена",             hotkey:"1", spell:false, ph:"",
       next:"cast",
       st:{ fontWeight:"bold", color:"#c8c4e0", paddingTop:"24px", paddingBottom:"0",
-           lineHeight:"1.6", fontSize:"14px" } },
+           lineHeight:PLAY_TYPO.headingLineHeight, fontSize:PLAY_TYPO.sceneFontSize } },
     { type:"cast",     label:"Действующие лица", hotkey:"2", spell:false, ph:"Действующие лица сцены...",
       next:"stage",
-      st:{ color:"#8886aa", paddingTop:"0", paddingBottom:"0", lineHeight:"1.6", fontStyle:"italic" } },
+      st:{ color:"#8886aa", paddingTop:"0", paddingBottom:"0", lineHeight:PLAY_TYPO.headingLineHeight, fontStyle:"italic" } },
     { type:"stage",    label:"Ремарка",          hotkey:"3", spell:true,  ph:"Описание места, обстановки...",
       next:"line",
-      st:{ fontStyle:"italic", color:"#7a789a", paddingTop:"16px", paddingBottom:"4px", lineHeight:"1.7" } },
+      st:{ fontStyle:"italic", color:"#7a789a", paddingTop:"16px", paddingBottom:"4px", lineHeight:PLAY_TYPO.bodyLineHeight } },
     { type:"line",     label:"Реплика",          hotkey:"4", spell:true,  ph:"текст реплики...",
       next:"line",
-      st:{ paddingTop:"4px", paddingBottom:"0", lineHeight:"1.7" } },
+      st:{ paddingTop:"4px", paddingBottom:"0", lineHeight:PLAY_TYPO.bodyLineHeight } },
     { type:"spacer",   label:"Отступ",           hotkey:"6", spell:false, ph:"",
       next:"spacer",
       st:{ paddingTop:"0", paddingBottom:"0" } },

@@ -31,6 +31,7 @@ import {
   INIT,
   uid,
   makeScene,
+  PLAY_TYPO,
 } from "../../domain/blocks";
 import {
   AIM,
@@ -4488,7 +4489,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
       lines.push("=".repeat(60));
       lines.push("","");
     } else {
-      // Film — стандартный (не трогаем)
+      // Film — титул по titlePage
       lines.push("","","","","","","","","","","","","");
       lines.push(center((tp.title||projectName).toUpperCase()));
       if (tp.genre) lines.push(center(tp.genre));
@@ -4577,6 +4578,28 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
         } else if (b.type==="spacer") {
           lines.push("");
         }
+      } else if (mode === "film") {
+        if (b.type === "act") {
+          lines.push("", ""); lines.push(center((b.text || "").toUpperCase())); lines.push("", "");
+        } else if (b.type === "scene") {
+          lines.push(""); lines.push((b.text || "").toUpperCase());
+        } else if (b.type === "cast") {
+          lines.push((b.text || "").toUpperCase()); lines.push("");
+        } else if (b.type === "action") {
+          wrap(b.text || "", 0, 60).forEach(l => lines.push(l)); lines.push("");
+        } else if (b.type === "char") {
+          lines.push(""); lines.push(center((b.text || "").toUpperCase()));
+        } else if (b.type === "dialogue") {
+          wrap(b.text || "", 20, 40).forEach(l => lines.push(l)); lines.push("");
+        } else if (b.type === "paren") {
+          wrap("(" + b.text + ")", 25, 30).forEach(l => lines.push(l));
+        } else if (b.type === "trans") {
+          lines.push(""); lines.push(" ".repeat(42) + (b.text || "").toUpperCase()); lines.push("");
+        } else if (b.type === "note") {
+          wrap(b.text || "", 0, 60).forEach(l => lines.push(l)); lines.push("");
+        } else if (b.type === "spacer") {
+          lines.push("");
+        }
       } else {
         if (b.type==="scene") {
           sceneNum++;
@@ -4593,7 +4616,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
           wrap("("+b.text+")",25,30).forEach(l=>lines.push(l));
         } else if (b.type==="trans") {
           lines.push(""); lines.push(" ".repeat(42)+(b.text||"").toUpperCase()); lines.push("");
-        } else if (b.type==="act" && mode!=="film") {
+        } else if (b.type==="act") {
           lines.push("",""); lines.push(center((b.text||"").toUpperCase())); lines.push("","");
         }
       }
@@ -6088,8 +6111,8 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
             boxSizing:"border-box",
             padding:"16px 0 4px",
             fontFamily:`${docFont||"Times New Roman"},serif`,
-            fontSize:"15px",
-            lineHeight:"1.7",
+            fontSize:PLAY_TYPO.sceneFontSize,
+            lineHeight:PLAY_TYPO.headingLineHeight,
             fontWeight:"bold",
             textAlign:sceneAlign||"left",
           }
@@ -6109,7 +6132,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
             background:"transparent",border:"none",outline:"none",
             resize:"none",overflow:"hidden",
             fontFamily:`${docFont||"Times New Roman"},serif`,
-            fontSize:"15px",lineHeight:"1.7",
+            fontSize:PLAY_TYPO.sceneFontSize,lineHeight:PLAY_TYPO.headingLineHeight,
             fontWeight:"bold",
             textAlign: sceneAlign||"left",
             color:T1,
@@ -6148,7 +6171,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
   };
 
   const renderPlayLine = (block) => (
-    <div style={{display:"flex",alignItems:"flex-start",paddingTop:"4px",fontFamily:`${docFont||'Times New Roman'},serif`,fontSize:"15px",lineHeight:"1.7"}}>
+    <div style={{display:"flex",alignItems:"flex-start",paddingTop:"4px",fontFamily:`${docFont||'Times New Roman'},serif`,fontSize:PLAY_TYPO.bodyFontSize,lineHeight:PLAY_TYPO.bodyLineHeight}}>
       <input
         value={block.name||""}
         onChange={e=>updBlockName(block.id,e.target.value)}
@@ -6157,9 +6180,9 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
         onKeyDown={e=>{if(e.key==="Tab"||e.key==="Enter"){e.preventDefault();blockRefs.current[block.id]?.focus();}}}
         placeholder="Имя" spellCheck={false}
         size={Math.max(3,(block.name||"").length+1)}
-        style={{background:"transparent",border:"none",outline:"none",fontWeight:"bold",color:T1,fontFamily:`${docFont||'Times New Roman'},serif`,fontSize:"15px",flexShrink:0,padding:"0",margin:"0",minWidth:"30px"}}
+        style={{background:"transparent",border:"none",outline:"none",fontWeight:"bold",color:T1,fontFamily:`${docFont||'Times New Roman'},serif`,fontSize:PLAY_TYPO.bodyFontSize,flexShrink:0,padding:"0",margin:"0",minWidth:"30px"}}
       />
-      <span style={{color:T1,fontWeight:"bold",fontSize:"15px",marginRight:"7px",flexShrink:0}}>.</span>
+      <span style={{color:T1,fontWeight:"bold",fontSize:PLAY_TYPO.bodyFontSize,marginRight:"7px",flexShrink:0}}>.</span>
       <div style={{position:"relative", flex:1}}>
         {renderSearchOverlay({
           scope:"block",
@@ -6170,8 +6193,8 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
             padding:"0",
             margin:"0",
             fontFamily:`${docFont||'Times New Roman'},serif`,
-            fontSize:"15px",
-            lineHeight:"1.7",
+            fontSize:PLAY_TYPO.bodyFontSize,
+            lineHeight:PLAY_TYPO.bodyLineHeight,
           }
         })}
         <textarea
@@ -6181,7 +6204,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
           onBlur={()=>setTimeout(()=>setFocId(f=>f===block.id?null:f),500)}
           onKeyDown={e=>onKey(e,block)}
           placeholder="текст реплики..." rows={1}
-          style={{width:"100%",display:"block",position:"relative",zIndex:1,background:"transparent",border:"none",outline:"none",resize:"none",overflow:"hidden",color:T1,fontSize:"15px",lineHeight:"1.7",fontFamily:`${docFont||'Times New Roman'},serif`,boxSizing:"border-box",padding:"0",margin:"0"}}
+          style={{width:"100%",display:"block",position:"relative",zIndex:1,background:"transparent",border:"none",outline:"none",resize:"none",overflow:"hidden",color:T1,fontSize:PLAY_TYPO.bodyFontSize,lineHeight:PLAY_TYPO.bodyLineHeight,fontFamily:`${docFont||'Times New Roman'},serif`,boxSizing:"border-box",padding:"0",margin:"0"}}
         />
       </div>
     </div>
@@ -6197,8 +6220,8 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
     const textareaStyle = {
       width:"100%",background:"transparent",border:"none",outline:"none",
       resize:"none",overflow:"hidden",
-      fontSize:"16px",
-      lineHeight:mode==="play"?"1.7":"1.85",
+      fontSize:mode==="play"?PLAY_TYPO.bodyFontSize:"16px",
+      lineHeight:mode==="play"?PLAY_TYPO.bodyLineHeight:"1.85",
       fontFamily:mode==="play"?`${docFont||'Times New Roman'},serif`:"'Courier New',monospace",
       boxSizing:"border-box",padding:"5px 0",
       position:"relative", zIndex:1, display:"block",

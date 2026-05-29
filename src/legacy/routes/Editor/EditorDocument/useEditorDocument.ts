@@ -68,6 +68,18 @@ const PAGE_TEXT_W = SCREENPLAY_FORMAT.TEXT_W;  // 576 — 6.0" inside 1.5"/1.0" 
  */
 const FILM_PAGE_SPLIT_TYPES = ["action", "paren", "note", "dialogue"];
 const PLAY_PAGE_SPLIT_TYPES = ["stage", "line", "note", "cast"];
+/** Hollywood (ДАЛЬШЕ) / (ПРОД.) — one line in the fixed page budget. */
+const FILM_DIALOGUE_META_H = SCREENPLAY_FORMAT.LINE_PX;
+
+/** Text height available on the current page slice (864 px budget minus dialogue meta). */
+function filmTextBudget(remaining, block, continued, reserveMore) {
+  let budget = remaining;
+  if (block.type === "dialogue") {
+    if (continued) budget -= FILM_DIALOGUE_META_H;
+    if (reserveMore) budget -= FILM_DIALOGUE_META_H;
+  }
+  return Math.max(0, budget);
+}
 
 function ensureMeasureTextarea(id: string) {
   if (typeof document === "undefined") return null;
@@ -419,46 +431,49 @@ export function buildDocumentPages({
   const desktopTitleEditorH = estimateDesktopTitleEditorH();
   let runH = desktopTitleEditorH;
 
-  blocks.forEach((block, bi) => {
-    if (mode === "film" && block.type === "act") return;
+  // Film uses a single measure pass (864 px budget). Pass 1 is for play/other only.
+  if (mode !== "film") {
+    blocks.forEach((block, bi) => {
+      if (mode === "film" && block.type === "act") return;
 
-    const metrics = getBlockMetrics(config, block, block.text || "", false);
-    const text = block.text || " ";
-    const pageStart = Math.floor(runH / pageBudgetH);
-    const pageEnd = Math.floor((runH + metrics.blockH) / pageBudgetH);
+      const metrics = getBlockMetrics(config, block, block.text || "", false);
+      const text = block.text || " ";
+      const pageStart = Math.floor(runH / pageBudgetH);
+      const pageEnd = Math.floor((runH + metrics.blockH) / pageBudgetH);
 
-    if (bi > 0 && pageEnd > pageStart) {
-      const remaining = pageBudgetH * (pageStart + 1) - runH - metrics.pt;
-      const linesFit = Math.floor(remaining / metrics.lineH);
-      if (linesFit <= 0) {
-        pageBreaks.set(bi, -1);
-      } else {
-        let splitAt = linesFit * metrics.charsPerLine;
-        if (splitAt >= text.length) {
+      if (bi > 0 && pageEnd > pageStart) {
+        const remaining = pageBudgetH * (pageStart + 1) - runH - metrics.pt;
+        const linesFit = Math.floor(remaining / metrics.lineH);
+        if (linesFit <= 0) {
           pageBreaks.set(bi, -1);
         } else {
-          if (block.type === "dialogue") {
-            let sentenceEnd = -1;
-            for (let si = splitAt; si > 0; si--) {
-              const current = text[si];
-              const next = text[si + 1];
-              if (".!?".includes(current) && (!next || next === " " || next === "\n")) {
-                sentenceEnd = si + 1;
-                break;
-              }
-            }
-            if (sentenceEnd > 0) splitAt = sentenceEnd;
-            else while (splitAt > 0 && text[splitAt] !== " " && text[splitAt] !== "\n") splitAt--;
+          let splitAt = linesFit * metrics.charsPerLine;
+          if (splitAt >= text.length) {
+            pageBreaks.set(bi, -1);
           } else {
-            while (splitAt > 0 && text[splitAt] !== " " && text[splitAt] !== "\n") splitAt--;
+            if (block.type === "dialogue") {
+              let sentenceEnd = -1;
+              for (let si = splitAt; si > 0; si--) {
+                const current = text[si];
+                const next = text[si + 1];
+                if (".!?".includes(current) && (!next || next === " " || next === "\n")) {
+                  sentenceEnd = si + 1;
+                  break;
+                }
+              }
+              if (sentenceEnd > 0) splitAt = sentenceEnd;
+              else while (splitAt > 0 && text[splitAt] !== " " && text[splitAt] !== "\n") splitAt--;
+            } else {
+              while (splitAt > 0 && text[splitAt] !== " " && text[splitAt] !== "\n") splitAt--;
+            }
+            pageBreaks.set(bi, splitAt > 0 ? splitAt : linesFit * metrics.charsPerLine);
           }
-          pageBreaks.set(bi, splitAt > 0 ? splitAt : linesFit * metrics.charsPerLine);
         }
       }
-    }
 
-    runH += metrics.blockH;
-  });
+      runH += metrics.blockH;
+    });
+  }
 
   const pages = [];
   let curPage = [];
@@ -482,7 +497,7 @@ export function buildDocumentPages({
       const fullText = block.text || "";
       const firstMetrics = getBlockMetrics(config, block, fullText, false);
 
-      if (firstMetrics.blockH <= pageRemaining()) {
+      if (firstMetrics.blockH <= filmTextBudget(pageRemaining(), block, false, false)) {
         curPage.push({ bi, part: "full", split: -1 });
         runH += firstMetrics.blockH;
         return;
@@ -494,24 +509,33 @@ export function buildDocumentPages({
       let sliceIx = 0;
 
       while (true) {
-        const metrics = getBlockMetrics(config, block, rest, continued);
         const remaining = pageRemaining();
+        const metrics = getBlockMetrics(config, block, rest, continued);
 
-        if (metrics.blockH <= remaining) {
+        if (metrics.blockH <= filmTextBudget(remaining, block, continued, false)) {
+          if (block.type === "dialogue" && continued) runH += FILM_DIALOGUE_META_H;
           curPage.push({ bi, part: "filmSlice", start, end: fullText.length, continued, editable: true, sliceIx });
           runH += metrics.blockH;
           break;
         }
 
-        const splitLocal = findSplitByMeasure(config, block, rest, remaining, continued);
+        const splitLocal = findSplitByMeasure(
+          config,
+          block,
+          rest,
+          filmTextBudget(remaining, block, continued, block.type === "dialogue"),
+          continued,
+        );
         if (splitLocal <= 0 || splitLocal >= rest.length) {
           pushPage();
           continued = start > 0;
           continue;
         }
 
+        if (block.type === "dialogue" && continued) runH += FILM_DIALOGUE_META_H;
         curPage.push({ bi, part: "filmSlice", start, end: start + splitLocal, continued, editable: true, sliceIx });
         runH += getBlockMetrics(config, block, rest.substring(0, splitLocal), continued).blockH;
+        if (block.type === "dialogue") runH += FILM_DIALOGUE_META_H;
         pushPage();
 
         const rawRest = rest.substring(splitLocal);
@@ -521,6 +545,14 @@ export function buildDocumentPages({
         sliceIx += 1;
       }
 
+      return;
+    }
+
+    if (mode === "film") {
+      const metrics = getBlockMetrics(config, block, block.text || "", false);
+      if (metrics.blockH > pageRemaining() && curPage.length > 0) pushPage();
+      curPage.push({ bi, part: "full", split: -1 });
+      runH += metrics.blockH;
       return;
     }
 

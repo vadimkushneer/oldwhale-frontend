@@ -103,12 +103,531 @@ import { LeftSidebar } from "./LeftSidebar/LeftSidebar";
 import { MarkerContextMenu } from "./MarkerContextMenu";
 import { EditorDocument } from "./EditorDocument/EditorDocument";
 import { EditorDocumentNote } from "./EditorDocument/EditorDocumentNote/EditorDocumentNote";
-import { buildEditorDocumentCssVars } from "./EditorDocument/useEditorDocument";
-import { normalizeFilmBlockText } from "../../domain/screenplayFormat";
+import { buildDocumentPages, buildEditorDocumentCssVars } from "./EditorDocument/useEditorDocument";
+import { normalizeFilmBlockText, SCREENPLAY_FORMAT } from "../../domain/screenplayFormat";
 import { EditorTopBar } from "./EditorTopBar/EditorTopBar";
 import { EditorSideMenu } from "./EditorSideMenu/EditorSideMenu";
 
 const AI_COMPOSER_H_DEFAULT = 158;
+
+/** Film export/preview — same pages[] as the editor (Hollywood US Letter). Does not touch the screen. */
+function buildFilmScriptExportHTML({ fmt, tp, projectName, blocks, defs, forPDF = false }) {
+  const F = SCREENPLAY_FORMAT;
+  const I = F.INDENT;
+  const S = F.SPACE;
+  const courier = F.FONT_FAMILY_FILM;
+  const fs = F.FONT_SIZE;
+  const lh = F.LINE_HEIGHT;
+
+  const { pages } = buildDocumentPages({
+    mode: "film",
+    defs,
+    blocks,
+    mediaHeader: [],
+    contentHeader: [],
+    mediaHeaderFoc: false,
+    contentHeaderFoc: false,
+  });
+
+  const blockStyle = (type, continued) => {
+    const pt = continued
+      ? 0
+      : ({
+          scene: S.BEFORE_SCENE,
+          action: S.BEFORE_ACTION,
+          char: S.BEFORE_CHAR,
+          note: S.BEFORE_NOTE,
+          trans: S.BEFORE_TRANS,
+        }[type] ?? 0);
+    const base = `margin:0;padding-bottom:0;font-family:${courier};font-size:${fs}px;line-height:${lh};color:#000;white-space:pre-wrap;overflow-wrap:break-word;`;
+    switch (type) {
+      case "scene":
+        return `${base}padding-top:${pt}px;text-transform:uppercase;`;
+      case "cast":
+        return `${base}padding-top:0;text-transform:uppercase;`;
+      case "action":
+        return `${base}padding-top:${pt}px;`;
+      case "char":
+        return `${base}padding-top:${pt}px;padding-left:${I.CHAR_LEFT}px;text-transform:uppercase;`;
+      case "dialogue":
+        return `${base}padding-top:0;padding-left:${I.DIALOGUE_LEFT}px;padding-right:${I.DIALOGUE_RIGHT}px;`;
+      case "paren":
+        return `${base}padding-top:0;padding-left:${I.PAREN_LEFT}px;padding-right:${I.PAREN_RIGHT}px;font-style:italic;`;
+      case "trans":
+        return `${base}padding-top:${pt}px;text-align:right;text-transform:uppercase;`;
+      case "note":
+        return `${base}padding-top:${pt}px;padding-left:${I.NOTE_LEFT}px;font-style:italic;`;
+      default:
+        return `${base}padding-top:${pt}px;`;
+    }
+  };
+
+  const metaStyle = `margin:0;padding:0;padding-left:${I.CHAR_LEFT}px;font-family:${courier};font-size:${fs}px;line-height:${lh};color:#000;`;
+
+  let scriptPagesHtml = "";
+  pages.forEach((pageBlocks, pageIdx) => {
+    let blocksHtml = "";
+    pageBlocks.forEach((entry) => {
+      const { bi, part, split, start = 0, end = null, continued = false } = entry;
+      const block = blocks[bi];
+      if (!block) return;
+      const blockText = block.text || "";
+      const isFilmSlice = part === "filmSlice";
+      const displayText = isFilmSlice
+        ? blockText.substring(start, end ?? blockText.length)
+        : part === "first"
+          ? blockText.substring(0, split)
+          : part === "second"
+            ? blockText.substring(split).replace(/^\s+/, "")
+            : blockText;
+
+      let charName = "";
+      if (block.type === "dialogue") {
+        for (let i = bi - 1; i >= 0; i -= 1) {
+          if (blocks[i].type === "char") {
+            charName = (blocks[i].text || "").toUpperCase();
+            break;
+          }
+          if (blocks[i].type === "scene" || blocks[i].type === "act") break;
+        }
+      }
+
+      const showDialogueContd =
+        block.type === "dialogue" &&
+        ((part === "second" && charName) || (isFilmSlice && continued && charName));
+      const showDialogueMore =
+        block.type === "dialogue" &&
+        (part === "first" || (isFilmSlice && (end ?? blockText.length) < blockText.length));
+
+      if (showDialogueContd) {
+        blocksHtml += `<div style="${metaStyle}text-transform:uppercase;">${charName} (ПРОД.)</div>`;
+      }
+      blocksHtml += `<div style="${blockStyle(block.type, isFilmSlice && continued)}">${fmt(block, displayText)}</div>`;
+      if (showDialogueMore) {
+        blocksHtml += `<div style="${metaStyle}">(ДАЛЬШЕ)</div>`;
+      }
+    });
+
+    const pageNumber = `<div class="page-number">${pageIdx + 1}.</div>`;
+    scriptPagesHtml += `<div class="pdf-export-page script-page">${pageNumber}${blocksHtml}</div>`;
+  });
+
+  const previewScreenCss = forPDF
+    ? ""
+    : `
+  html { background: #888; }
+  body { margin: 0 auto; }
+  .pdf-export-page { box-shadow: 0 4px 24px rgba(0,0,0,0.3); margin-bottom: 32px; }
+  .pdf-export-page:last-child { margin-bottom: 0; }`;
+  const previewScript = forPDF
+    ? "window.__pdfReady = true;"
+    : `function scale(){
+        if (window.matchMedia('print').matches) return;
+        var s = window.innerWidth / ${F.PAGE_W};
+        document.body.style.transform = 'scale(' + s + ')';
+        document.documentElement.style.height = Math.ceil(document.body.scrollHeight * s) + 'px';
+      }
+      window.addEventListener('beforeprint', function(){
+        document.body.style.transform = 'none';
+        document.body.style.width = 'auto';
+      });
+      window.addEventListener('afterprint', function(){ scale(); });
+      document.addEventListener('DOMContentLoaded', scale);
+      window.addEventListener('resize', scale);`;
+
+  return `<!DOCTYPE html><html><head><meta charset="utf-8">
+<meta name="viewport" content="width=${F.PAGE_W}">
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; ${forPDF ? "background: #fff;" : ""} }
+  body { width: ${F.PAGE_W}px; font-family: ${courier}; font-size: ${fs}px; line-height: ${lh}; color: #000; transform-origin: top left; }
+  .pdf-export-page { width: ${F.PAGE_W}px; height: ${F.PAGE_H}px; background: #fff; overflow: hidden; position: relative; margin: 0; }
+  .title-page { height: ${F.PAGE_H}px; padding: ${F.MARGIN_TOP}px ${F.MARGIN_RIGHT}px ${F.MARGIN_BOTTOM}px ${F.MARGIN_LEFT}px; }
+  .title-center { position: absolute; left: ${F.MARGIN_LEFT}px; right: ${F.MARGIN_RIGHT}px; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; align-items: center; text-align: center; }
+  .title-name { font-size: ${fs}px; text-transform: uppercase; margin: 0 0 24px; letter-spacing: 1px; }
+  .title-genre { font-size: ${fs}px; margin: 0 0 12px; }
+  .title-written { font-size: ${fs}px; margin: 0 0 6px; }
+  .title-author { font-size: ${fs}px; margin: 0; }
+  .title-bottom { position: absolute; left: ${F.MARGIN_LEFT}px; right: ${F.MARGIN_RIGHT}px; bottom: ${F.MARGIN_BOTTOM}px; display: flex; justify-content: space-between; align-items: flex-end; font-size: ${fs}px; }
+  .contacts { line-height: 1.8; }
+  .script-page { padding: ${F.MARGIN_TOP}px ${F.MARGIN_RIGHT}px ${F.MARGIN_BOTTOM}px ${F.MARGIN_LEFT}px; }
+  .page-number { position: absolute; right: 24px; top: 24px; font-family: ${courier}; font-size: 14px; color: #000; }
+  ${previewScreenCss}
+</style>
+<script>${previewScript}<\/script>
+</head><body>
+<div class="title-page pdf-export-page">
+  <div class="title-center">
+    <p class="title-name">${tp.title || projectName}</p>
+    <p class="title-genre">${tp.genre || ""}</p>
+    ${tp.author ? `<p class="title-written">Автор</p><p class="title-author">${tp.author}</p>` : ""}
+  </div>
+  <div class="title-bottom">
+    <div class="contacts">${[tp.phone, tp.email].filter(Boolean).join("<br>")}</div>
+    <div class="year">${tp.year || ""}</div>
+  </div>
+</div>
+${scriptPagesHtml}
+</body></html>`;
+}
+
+/** px @ 96dpi → twips (Pages/Word). */
+function filmPxToTwip(px) {
+  return Math.round(px * 15);
+}
+
+/**
+ * Editor/PDF: 12pt Courier, lh 1.0 → 16px/line (240 twips nominal).
+ * Word/Pages render line 240 a bit taller — DOCX-only line height (font stays 12pt).
+ */
+const FILM_DOCX_LINE_TWIP = 228;
+
+/**
+ * Hollywood screenplay styles for DOCX — indents in styles.xml; spacing on each paragraph.
+ * Pagination via pages[] (same as editor/PDF), not flow.
+ */
+function buildFilmDocxExternalStyles() {
+  const F = SCREENPLAY_FORMAT;
+  const I = F.INDENT;
+  const tw = filmPxToTwip;
+  const ln = FILM_DOCX_LINE_TWIP;
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:docDefaults>
+    <w:rPrDefault>
+      <w:rPr>
+        <w:rFonts w:ascii="Courier New" w:eastAsia="Courier New" w:hAnsi="Courier New" w:cs="Courier New"/>
+        <w:sz w:val="24"/>
+        <w:szCs w:val="24"/>
+      </w:rPr>
+    </w:rPrDefault>
+    <w:pPrDefault>
+      <w:pPr>
+        <w:spacing w:before="0" w:after="0" w:line="${ln}" w:lineRule="exact"/>
+      </w:pPr>
+    </w:pPrDefault>
+  </w:docDefaults>
+  <w:style w:type="paragraph" w:default="1" w:styleId="Normal">
+    <w:name w:val="Normal"/>
+    <w:qFormat/>
+    <w:pPr>
+      <w:spacing w:before="0" w:after="0" w:line="${ln}" w:lineRule="exact"/>
+    </w:pPr>
+    <w:rPr>
+      <w:rFonts w:ascii="Courier New" w:eastAsia="Courier New" w:hAnsi="Courier New" w:cs="Courier New"/>
+      <w:sz w:val="24"/>
+      <w:szCs w:val="24"/>
+    </w:rPr>
+  </w:style>
+  <w:style w:type="paragraph" w:styleId="OWTitle">
+    <w:name w:val="Title"/>
+    <w:basedOn w:val="Normal"/>
+    <w:qFormat/>
+    <w:pPr><w:jc w:val="center"/></w:pPr>
+  </w:style>
+  <w:style w:type="paragraph" w:styleId="OWScene">
+    <w:name w:val="Scene Heading"/>
+    <w:basedOn w:val="Normal"/>
+    <w:next w:val="OWAction"/>
+    <w:rPr><w:caps/></w:rPr>
+  </w:style>
+  <w:style w:type="paragraph" w:styleId="OWAction">
+    <w:name w:val="Action"/>
+    <w:basedOn w:val="Normal"/>
+  </w:style>
+  <w:style w:type="paragraph" w:styleId="OWCast">
+    <w:name w:val="Cast List"/>
+    <w:basedOn w:val="Normal"/>
+    <w:rPr><w:caps/></w:rPr>
+  </w:style>
+  <w:style w:type="paragraph" w:styleId="OWChar">
+    <w:name w:val="Character"/>
+    <w:basedOn w:val="Normal"/>
+    <w:next w:val="OWDialogue"/>
+    <w:pPr>
+      <w:ind w:start="${tw(I.CHAR_LEFT)}" w:end="0"/>
+    </w:pPr>
+    <w:rPr><w:caps/></w:rPr>
+  </w:style>
+  <w:style w:type="paragraph" w:styleId="OWDialogue">
+    <w:name w:val="Dialogue"/>
+    <w:basedOn w:val="Normal"/>
+    <w:pPr>
+      <w:ind w:start="${tw(I.DIALOGUE_LEFT)}" w:end="${tw(I.DIALOGUE_RIGHT)}"/>
+    </w:pPr>
+  </w:style>
+  <w:style w:type="paragraph" w:styleId="OWParen">
+    <w:name w:val="Parenthetical"/>
+    <w:basedOn w:val="Normal"/>
+    <w:pPr>
+      <w:ind w:start="${tw(I.PAREN_LEFT)}" w:end="${tw(I.PAREN_RIGHT)}"/>
+    </w:pPr>
+    <w:rPr><w:i/></w:rPr>
+  </w:style>
+  <w:style w:type="paragraph" w:styleId="OWTrans">
+    <w:name w:val="Transition"/>
+    <w:basedOn w:val="Normal"/>
+    <w:pPr><w:jc w:val="right"/></w:pPr>
+    <w:rPr><w:caps/></w:rPr>
+  </w:style>
+  <w:style w:type="paragraph" w:styleId="OWNote">
+    <w:name w:val="Note"/>
+    <w:basedOn w:val="Normal"/>
+    <w:pPr>
+      <w:ind w:start="${tw(I.NOTE_LEFT)}" w:end="0"/>
+    </w:pPr>
+    <w:rPr><w:i/></w:rPr>
+  </w:style>
+  <w:style w:type="paragraph" w:styleId="OWDialogueMeta">
+    <w:name w:val="Dialogue More"/>
+    <w:basedOn w:val="Normal"/>
+    <w:pPr>
+      <w:ind w:start="${tw(I.CHAR_LEFT)}" w:end="0"/>
+    </w:pPr>
+  </w:style>
+  <w:style w:type="paragraph" w:styleId="OWPageNum">
+    <w:name w:val="Page Number"/>
+    <w:basedOn w:val="Normal"/>
+    <w:pPr><w:jc w:val="right"/></w:pPr>
+  </w:style>
+</w:styles>`;
+}
+
+/** DOCX paragraph spacing — font 12pt, line height FILM_DOCX_LINE_TWIP; gaps from SCREENPLAY_FORMAT. */
+function filmDocxLineSpacing(docx, beforePx = 0) {
+  const { LineRuleType } = docx;
+  return { before: filmPxToTwip(beforePx), after: 0, line: FILM_DOCX_LINE_TWIP, lineRule: LineRuleType.EXACT };
+}
+
+function filmDocxBlockSpacing(docx, blockType, continued) {
+  if (continued) return filmDocxLineSpacing(docx, 0);
+  const S = SCREENPLAY_FORMAT.SPACE;
+  const beforePx =
+    { scene: S.BEFORE_SCENE, action: S.BEFORE_ACTION, char: S.BEFORE_CHAR, note: S.BEFORE_NOTE, trans: S.BEFORE_TRANS }[
+      blockType
+    ] ?? 0;
+  return filmDocxLineSpacing(docx, beforePx);
+}
+
+function buildFilmDocxTitleParagraphs(tp, projectName, docx) {
+  const { Paragraph, TextRun, UnderlineType } = docx;
+  const txt = (text, opts = {}) => new TextRun({ text: text || "", font: "Courier New", size: 24, ...opts });
+  return [
+    new Paragraph({
+      style: "OWTitle",
+      children: [txt((tp.title || projectName).toUpperCase(), { underline: { type: UnderlineType.SINGLE } })],
+      spacing: { before: 0, after: 240 },
+    }),
+    new Paragraph({
+      style: "OWTitle",
+      children: [txt(tp.genre || "")],
+      spacing: { before: 0, after: 240 },
+    }),
+    tp.author
+      ? new Paragraph({
+          style: "OWTitle",
+          children: [txt("Автор")],
+          spacing: { before: 240, after: 120 },
+        })
+      : null,
+    tp.author
+      ? new Paragraph({
+          style: "OWTitle",
+          children: [txt(tp.author)],
+          spacing: { before: 0, after: 0 },
+        })
+      : null,
+    new Paragraph({ style: "Normal", children: [txt("")], spacing: { before: 7200, after: 0 } }),
+    ...(tp.phone || tp.email
+      ? [new Paragraph({ style: "Normal", children: [txt([tp.phone, tp.email].filter(Boolean).join("   "))], spacing: { before: 0, after: 0 } })]
+      : []),
+    tp.year
+      ? new Paragraph({ style: "Normal", children: [txt(tp.year)], alignment: docx.AlignmentType.RIGHT, spacing: { before: 0, after: 0 } })
+      : null,
+  ].filter(Boolean);
+}
+
+/** Same slices + (ДАЛЬШЕ)/(ПРОД.) as PDF — one pages[] entry per editor page. */
+function buildFilmDocxPageParagraphs(pageBlocks, blocks, docx, { pageBreakBefore = false } = {}) {
+  const { Paragraph, TextRun } = docx;
+  const txt = (text, opts = {}) => new TextRun({ text: text || "", font: "Courier New", size: 24, ...opts });
+  const metaSpacing = filmDocxLineSpacing(docx, 0);
+
+  const styleForType = (type) => {
+    switch (type) {
+      case "scene":
+        return "OWScene";
+      case "cast":
+        return "OWCast";
+      case "action":
+        return "OWAction";
+      case "char":
+        return "OWChar";
+      case "dialogue":
+        return "OWDialogue";
+      case "paren":
+        return "OWParen";
+      case "trans":
+        return "OWTrans";
+      case "note":
+        return "OWNote";
+      default:
+        return "Normal";
+    }
+  };
+
+  const paras = [];
+  let isFirst = true;
+
+  for (const entry of pageBlocks) {
+    const { bi, part, split, start = 0, end = null, continued = false } = entry;
+    const block = blocks[bi];
+    if (!block) continue;
+    const blockText = block.text || "";
+    const isFilmSlice = part === "filmSlice";
+    const displayText = isFilmSlice
+      ? blockText.substring(start, end ?? blockText.length)
+      : part === "first"
+        ? blockText.substring(0, split)
+        : part === "second"
+          ? blockText.substring(split).replace(/^\s+/, "")
+          : blockText;
+
+    let charName = "";
+    if (block.type === "dialogue") {
+      for (let i = bi - 1; i >= 0; i -= 1) {
+        if (blocks[i].type === "char") {
+          charName = (blocks[i].text || "").toUpperCase();
+          break;
+        }
+        if (blocks[i].type === "scene" || blocks[i].type === "act") break;
+      }
+    }
+
+    const showDialogueContd =
+      block.type === "dialogue" &&
+      ((part === "second" && charName) || (isFilmSlice && continued && charName));
+    const showDialogueMore =
+      block.type === "dialogue" &&
+      (part === "first" || (isFilmSlice && (end ?? blockText.length) < blockText.length));
+    const isContinuedSlice = isFilmSlice && continued;
+
+    if (showDialogueContd) {
+      paras.push(
+        new Paragraph({
+          style: "OWDialogueMeta",
+          children: [txt(`${charName} (ПРОД.)`)],
+          spacing: metaSpacing,
+          ...(isFirst && pageBreakBefore ? { pageBreakBefore: true } : {}),
+        }),
+      );
+      isFirst = false;
+    }
+
+    const upperTypes = new Set(["scene", "cast", "char", "trans"]);
+    const runText =
+      upperTypes.has(block.type) ? (displayText || "").toUpperCase() : displayText || "";
+
+    paras.push(
+      new Paragraph({
+        style: styleForType(block.type),
+        children: [txt(runText, block.type === "paren" || block.type === "note" ? { italics: true } : {})],
+        spacing: filmDocxBlockSpacing(docx, block.type, isContinuedSlice),
+        ...(isFirst && pageBreakBefore ? { pageBreakBefore: true } : {}),
+      }),
+    );
+    isFirst = false;
+
+    if (showDialogueMore) {
+      paras.push(
+        new Paragraph({
+          style: "OWDialogueMeta",
+          children: [txt("(ДАЛЬШЕ)")],
+          spacing: metaSpacing,
+        }),
+      );
+    }
+  }
+
+  return paras;
+}
+
+function buildFilmDocxScriptParagraphs(pages, blocks, docx) {
+  const scriptParas = [];
+  pages.forEach((pageBlocks, pageIdx) => {
+    scriptParas.push(
+      ...buildFilmDocxPageParagraphs(pageBlocks, blocks, docx, { pageBreakBefore: pageIdx > 0 }),
+    );
+  });
+  return scriptParas;
+}
+
+function buildFilmDocxDocument({ blocks, defs, tp, projectName, docx }) {
+  const { Document, Header, Paragraph, TextRun, AlignmentType, PageNumber, LineRuleType, convertInchesToTwip } = docx;
+  const { pages } = buildDocumentPages({
+    mode: "film",
+    defs,
+    blocks,
+    mediaHeader: [],
+    contentHeader: [],
+    mediaHeaderFoc: false,
+    contentHeaderFoc: false,
+  });
+
+  const letterW = convertInchesToTwip(8.5);
+  const letterH = convertInchesToTwip(11);
+  const leftM = convertInchesToTwip(1.5);
+  const rightM = convertInchesToTwip(1);
+  const botM = convertInchesToTwip(1);
+  const pageGrid = { type: "lines", linePitch: FILM_DOCX_LINE_TWIP };
+  const titleSecProps = {
+    page: {
+      size: { width: letterW, height: letterH },
+      margin: { top: convertInchesToTwip(11 / 3), bottom: botM, left: leftM, right: rightM },
+    },
+    grid: pageGrid,
+  };
+  const scriptSecProps = {
+    page: {
+      size: { width: letterW, height: letterH },
+      margin: {
+        top: convertInchesToTwip(1),
+        bottom: botM,
+        left: leftM,
+        right: rightM,
+        header: convertInchesToTwip(0.35),
+        footer: 0,
+      },
+      pageNumbers: { start: 1 },
+    },
+    grid: pageGrid,
+  };
+  const scriptHeader = new Header({
+    children: [
+      new Paragraph({
+        style: "OWPageNum",
+        alignment: AlignmentType.RIGHT,
+        spacing: filmDocxLineSpacing(docx, 0),
+        children: [
+          new TextRun({ children: [PageNumber.CURRENT], font: "Courier New", size: 24 }),
+          new TextRun({ text: ".", font: "Courier New", size: 24 }),
+        ],
+      }),
+    ],
+  });
+
+  return new Document({
+    externalStyles: buildFilmDocxExternalStyles(),
+    sections: [
+      { properties: titleSecProps, children: buildFilmDocxTitleParagraphs(tp, projectName, docx) },
+      {
+        properties: scriptSecProps,
+        headers: { default: scriptHeader },
+        children: buildFilmDocxScriptParagraphs(pages, blocks, docx),
+      },
+    ],
+  });
+}
 
 function normalizeAiComposerHeight(raw, fallback) {
   const vh = typeof window !== "undefined" ? window.innerHeight : 900;
@@ -3023,6 +3542,9 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
       remark: playHeader.find(h=>h.key==="remark")?.text || "",
       phone: "", email: "", year: "",
     } : titlePage;
+    if (mode === "film") {
+      return buildFilmScriptExportHTML({ fmt, tp, projectName, blocks, defs, forPDF });
+    }
     const courier = "'Courier New', Courier, monospace";
     let scriptHtml = "";
     let sceneNum = 0;
@@ -3447,16 +3969,20 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
       }
     }
 
+    const isFilmPdf = mode === "film";
+    const pageWpx = isFilmPdf ? SCREENPLAY_FORMAT.PAGE_W : 794;
+    const pageHpx = isFilmPdf ? SCREENPLAY_FORMAT.PAGE_H : 1123;
+
     const iframe = document.createElement("iframe");
     // Start with a tall iframe so browser renders all content
-    iframe.style.cssText = "position:fixed;left:-9999px;top:0;width:794px;height:16000px;border:none;visibility:hidden;";
+    iframe.style.cssText = `position:fixed;left:-9999px;top:0;width:${pageWpx}px;height:16000px;border:none;visibility:hidden;`;
     document.body.appendChild(iframe);
     iframe.contentDocument.open();
     iframe.contentDocument.write(html);
     iframe.contentDocument.close();
 
     // Wait for fonts, layout and PDF pagination to settle
-    await new Promise(r => setTimeout(r, 900));
+    await new Promise(r => setTimeout(r, isFilmPdf ? 300 : 900));
     for (let i = 0; i < 40; i++) {
       if (iframe.contentWindow && iframe.contentWindow.__pdfReady) break;
       await new Promise(r => setTimeout(r, 100));
@@ -3465,7 +3991,11 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
 
     try {
       const { jsPDF } = window.jspdf;
-      const doc = new jsPDF({ unit:"pt", format:"a4", orientation:"portrait" });
+      const doc = new jsPDF({
+        unit: "pt",
+        format: isFilmPdf ? "letter" : "a4",
+        orientation: "portrait",
+      });
       const pageW = doc.internal.pageSize.getWidth();
       const pageH = doc.internal.pageSize.getHeight();
       const SCALE = 2;
@@ -3476,10 +4006,10 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
           const canvas = await html2canvas(pageNodes[i], {
             scale: SCALE,
             useCORS: true,
-            width: 794,
-            height: 1123,
-            windowWidth: 794,
-            windowHeight: 1123,
+            width: pageWpx,
+            height: pageHpx,
+            windowWidth: pageWpx,
+            windowHeight: pageHpx,
             backgroundColor: '#ffffff',
           });
           const imgData = canvas.toDataURL("image/jpeg", 0.95);
@@ -3702,6 +4232,24 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
         try { await navigator.share({files:[fileMedia],title:fnameMedia}); URL.revokeObjectURL(urlMedia); return; } catch(e){}
       }
       saveFile(blobMedia, fnameMedia, "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+      return;
+    }
+
+    if (mode === "film") {
+      const doc = buildFilmDocxDocument({ blocks, defs, tp: titlePage, projectName, docx });
+      const blob = await Packer.toBlob(doc);
+      const url = URL.createObjectURL(blob);
+      const fname = (titlePage.title || projectName || "screenplay") + ".docx";
+      const file = new File([blob], fname, { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
+      if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({ files: [file], title: fname });
+          URL.revokeObjectURL(url);
+          return;
+        } catch (e) {}
+      }
+      await saveFile(blob, fname, "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+      URL.revokeObjectURL(url);
       return;
     }
 

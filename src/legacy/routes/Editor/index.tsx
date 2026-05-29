@@ -740,6 +740,30 @@ const persistActiveProjectId = (id) => {
   try { localStorage.setItem(OW_ACTIVE_PROJECT_KEY, id); } catch(e) {}
 };
 
+const defaultTitlePage = () => ({
+  title: "",
+  genre: "",
+  author: "",
+  phone: "",
+  email: "",
+  year: new Date().getFullYear() + "",
+});
+
+const normalizeTitlePage = (raw, fallbackTitle = "") => {
+  const d = defaultTitlePage();
+  if (!raw || typeof raw !== "object") {
+    return { ...d, title: fallbackTitle || d.title };
+  }
+  return {
+    title: raw.title ?? fallbackTitle ?? d.title,
+    genre: raw.genre ?? d.genre,
+    author: raw.author ?? d.author,
+    phone: raw.phone ?? d.phone,
+    email: raw.email ?? d.email,
+    year: raw.year ?? d.year,
+  };
+};
+
 function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode, onModeRouteChange, routeAiVariantGuid, onAiVariantRouteStateChange, showAdminLink }) {
   const aiCatalogRevision = useAppSelector((s) => s.aiCatalog.revision);
   const authToken = useAppSelector((s) => s.auth.token);
@@ -919,6 +943,9 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
   const [titlePage, setTitlePage] = useState({
     title: "", genre: "", author: "", phone: "", email: "", year: new Date().getFullYear()+"",
   });
+  const titlePageRef = useRef(titlePage);
+  const skipTitlePagePersistRef = useRef(true);
+  useEffect(() => { titlePageRef.current = titlePage; }, [titlePage]);
   const [editorSearchOpen, setEditorSearchOpen] = useState(false);
   const [editorSearchQuery, setEditorSearchQuery] = useState("");
   const [editorSearchMatches, setEditorSearchMatches] = useState([]);
@@ -2093,7 +2120,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
     try {
       const nt = noteTextRef.current;
       const meta = { id, name, mode: mod, updatedAt: Date.now(), blocksCount: blks.filter(b=>b.type==="scene").length };
-      const data = { ...meta, blocks: blks, playHeader, mediaHeader, contentHeader, contentLogo, docFont, sceneAlign, noteText: nt, sceneCardMeta: sceneCardMetaRef.current, markerHighlights, layout: { leftW, rightW, aiW, leftPanelOpen, rightPanelOpen, aiOpen, sceneCardsOpen, sceneCardsMiniMode, sceneCardsRect } };
+      const data = { ...meta, blocks: blks, playHeader, mediaHeader, contentHeader, contentLogo, docFont, sceneAlign, noteText: nt, sceneCardMeta: sceneCardMetaRef.current, markerHighlights, layout: { leftW, rightW, aiW, leftPanelOpen, rightPanelOpen, aiOpen, sceneCardsOpen, sceneCardsMiniMode, sceneCardsRect }, titlePage: titlePageRef.current };
       localStorage.setItem("ow_proj_"+id, JSON.stringify(data));
       const index = JSON.parse(localStorage.getItem("ow_index")||"[]");
       const next = [meta, ...index.filter(p=>p.id!==id)];
@@ -2126,6 +2153,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
         sceneCardMeta: proj.sceneCardMeta,
         markerHighlights: proj.markerHighlights,
         layout: proj.layout,
+        titlePage: proj.titlePage,
       };
       localStorage.setItem("ow_proj_" + meta.id, JSON.stringify(data));
       const index = JSON.parse(localStorage.getItem("ow_index") || "[]");
@@ -2216,6 +2244,9 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
       if (proj.noteText !== undefined) { setNoteText(proj.noteText); noteTextRef.current = proj.noteText; }
     if (proj.docFont)    setDocFont(proj.docFont);
     if (proj.sceneAlign) setSceneAlign(proj.sceneAlign);
+    if ((proj.mode || "film") === "film") {
+      setTitlePage(normalizeTitlePage(proj.titlePage, proj.name));
+    }
     if (proj.markerHighlights) setMarkerHighlights(proj.markerHighlights);
     if (proj.layout) {
       const l = proj.layout;
@@ -2246,8 +2277,14 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
     const startMode = routeMode || profile?.mode || "film";
     const saved = readLastProjectForMode(startMode);
     if (saved) loadProject(saved);
+    skipTitlePagePersistRef.current = false;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (skipTitlePagePersistRef.current || (modeRef.current || mode) !== "film") return;
+    scheduleProjectAutosave();
+  }, [titlePage]);
 
   useEffect(() => {
     const onPageExit = () => flushProjectSave();
@@ -2310,7 +2347,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
   };
 
   const buildWhaleExport = () => {
-    const data = JSON.stringify({ name: projectName, mode, blocks, playHeader, mediaHeader, contentHeader, contentLogo, docFont, sceneAlign, noteText, sceneCardMeta: sceneCardMetaRef.current, version: 1 }, null, 2);
+    const data = JSON.stringify({ name: projectName, mode, blocks, playHeader, mediaHeader, contentHeader, contentLogo, docFont, sceneAlign, noteText, sceneCardMeta: sceneCardMetaRef.current, titlePage: titlePageRef.current, version: 1 }, null, 2);
     const name = (projectName || "project") + ".whale";
     return { name, blob: new Blob([data], { type: "application/octet-stream" }) };
   };
@@ -2546,7 +2583,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
   };
 
   const shareProject = async () => {
-    const data = JSON.stringify({ name: projectName, mode, blocks, playHeader, mediaHeader, contentHeader, contentLogo, docFont, sceneAlign, noteText, version: 1 }, null, 2);
+    const data = JSON.stringify({ name: projectName, mode, blocks, playHeader, mediaHeader, contentHeader, contentLogo, docFont, sceneAlign, noteText, sceneCardMeta: sceneCardMetaRef.current, titlePage: titlePageRef.current, version: 1 }, null, 2);
     const name = (projectName||"project") + ".whale";
     const file = new File([data], name, {type: "application/octet-stream"});
     if (navigator.share && navigator.canShare && navigator.canShare({files:[file]})) {
@@ -3037,6 +3074,9 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
             if (data.noteText !== undefined) { setNoteText(data.noteText); noteTextRef.current = data.noteText; }
           if (data.docFont)    setDocFont(data.docFont);
           if (data.sceneAlign) setSceneAlign(data.sceneAlign);
+          if ((data.mode || "film") === "film") {
+            setTitlePage(normalizeTitlePage(data.titlePage, data.name || file.name.replace(/\.whale$/i, "")));
+          }
           updateSceneCardMeta(cloneSceneCardMetaMap(data.sceneCardMeta || {}), { autosave:false });
           setSceneCardMenu(null);
           modeSceneCardMetaCache.current = {};

@@ -106,6 +106,7 @@ import { EditorDocument } from "./EditorDocument/EditorDocument";
 import { EditorDocumentNote } from "./EditorDocument/EditorDocumentNote/EditorDocumentNote";
 import { buildDocumentPages, buildEditorDocumentCssVars } from "./EditorDocument/useEditorDocument";
 import { buildPlayScriptExportHTML } from "./EditorDocument/play/playExportHtml";
+import { buildPlayDocxDocument, playDocxFileName } from "./EditorDocument/play/playExportDocx";
 import { normalizeFilmBlockText, SCREENPLAY_FORMAT } from "../../domain/screenplayFormat";
 import { EditorTopBar } from "./EditorTopBar/EditorTopBar";
 import { EditorSideMenu } from "./EditorSideMenu/EditorSideMenu";
@@ -4476,6 +4477,24 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
       const blob = await Packer.toBlob(doc);
       const url = URL.createObjectURL(blob);
       const fname = (titlePage.title || projectName || "screenplay") + ".docx";
+      const file = new File([blob], fname, { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
+      if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({ files: [file], title: fname });
+          URL.revokeObjectURL(url);
+          return;
+        } catch (e) {}
+      }
+      await saveFile(blob, fname, "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+      URL.revokeObjectURL(url);
+      return;
+    }
+
+    if (mode === "play") {
+      const doc = buildPlayDocxDocument({ blocks, playHeader, docFont, titleSepPage, projectName, docx });
+      const blob = await Packer.toBlob(doc);
+      const url = URL.createObjectURL(blob);
+      const fname = playDocxFileName(playHeader, projectName);
       const file = new File([blob], fname, { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
       if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
         try {

@@ -193,6 +193,34 @@ async function readAiChatSseEvent(res) {
   }
 }
 
+const OW_ACTIVE_PROJECT_KEY = "ow_active_project";
+
+const readProjectSnapshot = (id) => {
+  if (!id) return null;
+  try {
+    return JSON.parse(localStorage.getItem("ow_proj_" + id) || "null");
+  } catch(e) {
+    return null;
+  }
+};
+
+const readLastProjectForMode = (mode) => {
+  try {
+    const active = readProjectSnapshot(localStorage.getItem(OW_ACTIVE_PROJECT_KEY));
+    if (active && (active.mode || "film") === mode) return active;
+    const index = JSON.parse(localStorage.getItem("ow_index") || "[]");
+    const meta = index.find(p => (p.mode || "film") === mode);
+    return meta ? readProjectSnapshot(meta.id) : null;
+  } catch(e) {
+    return null;
+  }
+};
+
+const persistActiveProjectId = (id) => {
+  if (!id) return;
+  try { localStorage.setItem(OW_ACTIVE_PROJECT_KEY, id); } catch(e) {}
+};
+
 function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode, onModeRouteChange, routeAiVariantGuid, onAiVariantRouteStateChange, showAdminLink }) {
   const aiCatalogRevision = useAppSelector((s) => s.aiCatalog.revision);
   const authToken = useAppSelector((s) => s.auth.token);
@@ -1551,6 +1579,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
       const index = JSON.parse(localStorage.getItem("ow_index")||"[]");
       const next = [meta, ...index.filter(p=>p.id!==id)];
       localStorage.setItem("ow_index", JSON.stringify(next));
+      persistActiveProjectId(id);
     } catch(e) {}
   };
 
@@ -1686,7 +1715,30 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
     setSaved(true);
     setProjectsOpen(false);
     setMenuOpen(false);
+    persistActiveProjectId(proj.id);
   };
+
+  const flushProjectSave = () => {
+    clearTimeout(saveTimer.current);
+    saveProject(projectId, projectName, blocksRef.current, modeRef.current || mode);
+  };
+
+  useEffect(() => {
+    const startMode = routeMode || profile?.mode || "film";
+    const saved = readLastProjectForMode(startMode);
+    if (saved) loadProject(saved);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const onPageExit = () => flushProjectSave();
+    window.addEventListener("beforeunload", onPageExit);
+    window.addEventListener("pagehide", onPageExit);
+    return () => {
+      window.removeEventListener("beforeunload", onPageExit);
+      window.removeEventListener("pagehide", onPageExit);
+    };
+  }, [projectId, projectName, mode]);
 
   const newProject = () => {
     const nid = "proj_"+Date.now();
@@ -1706,6 +1758,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
     setToolbarBlockId(null);
     lastFocId.current = null;
     setNewProjectOverlay(true);
+    persistActiveProjectId(nid);
 
     if (nextMode === "film") {
       setTitlePage({ title:"", genre:"", author:"", phone:"", email:"", year });

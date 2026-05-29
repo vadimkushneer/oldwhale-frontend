@@ -320,8 +320,8 @@
 
   &__play-line {
     @apply flex flex-1 items-start;
-    padding-top: 4px;
-    padding-bottom: 0;
+    padding-top: 10px;
+    padding-bottom: 6px;
     font-family: var(--ed-doc-font), serif;
     font-size: 14px;
     line-height: 1.35;
@@ -508,7 +508,7 @@
 
     .editor-document__textarea--act {
       padding-top: 48px;
-      padding-bottom: 8px;
+      padding-bottom: 16px;
       color: #f0ece0;
       font-size: 14px;
       font-weight: 700;
@@ -519,8 +519,8 @@
     }
 
     .editor-document__textarea--scene {
-      padding-top: 24px;
-      padding-bottom: 0;
+      padding-top: 28px;
+      padding-bottom: 8px;
       color: #c8c4e0;
       font-size: 13px;
       font-weight: 700;
@@ -533,23 +533,24 @@
     }
 
     .editor-document__textarea--cast {
-      padding-top: 0;
-      padding-bottom: 0;
+      padding-top: 8px;
+      padding-bottom: 8px;
       color: #8886aa;
       font-style: italic;
       line-height: 1.35;
     }
 
     .editor-document__textarea--stage {
-      padding-top: 16px;
-      padding-bottom: 4px;
+      padding-top: 20px;
+      padding-bottom: 12px;
       color: #7a789a;
       font-style: italic;
       line-height: 1.35;
     }
 
     .editor-document__textarea--note {
-      padding-top: 14px;
+      padding-top: 18px;
+      padding-bottom: 8px;
       color: #4a4a6a;
       font-style: italic;
     }

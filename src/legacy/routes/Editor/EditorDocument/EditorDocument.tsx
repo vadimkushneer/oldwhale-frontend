@@ -197,6 +197,7 @@ export function EditorDocument({
     renderMarkerOverlay,
     handleMarkerContextMenu,
     onKey,
+    onPlayLineNameKey,
     autoH,
     updBlock,
     updBlockName,
@@ -677,12 +678,7 @@ export function EditorDocument({
                                       onChange={(e) => updBlockName(block.id, e.target.value)}
                                       onFocus={() => setFocId(block.id)}
                                       onBlur={() => setTimeout(() => setFocId((value) => (value === block.id ? null : value)), 250)}
-                                      onKeyDown={(e) => {
-                                        if (e.key === "Tab" || e.key === "Enter") {
-                                          e.preventDefault();
-                                          blockRefs.current[block.id]?.focus();
-                                        }
-                                      }}
+                                      onKeyDown={(e) => onPlayLineNameKey(e, block)}
                                       placeholder="Имя"
                                       spellCheck={false}
                                       size={Math.max(3, (block.name || "").length + 1)}

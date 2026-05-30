@@ -29,6 +29,7 @@ export type EditorSideMenuProps = {
   onShare?: () => void;
   onGoHome: () => void;
   onLogout: () => void;
+  showProfileLink?: boolean;
   showAdminLink?: boolean;
 };
 

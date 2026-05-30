@@ -128,6 +128,15 @@ function IconShare() {
   );
 }
 
+function IconProfile() {
+  return strokeIcon(
+    <>
+      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+      <circle cx="12" cy="7" r="4" />
+    </>,
+  );
+}
+
 function IconAdmin() {
   return strokeIcon(
     <>
@@ -193,6 +202,7 @@ export function EditorSideMenu(props: EditorSideMenuProps) {
     onGoHome,
     onLogout,
     onShare,
+    showProfileLink,
     showAdminLink,
   } = props;
   const vm = useEditorSideMenu(props);
@@ -305,6 +315,14 @@ export function EditorSideMenu(props: EditorSideMenuProps) {
                 </span>
                 Поделиться
               </button>
+            ) : null}
+            {showProfileLink ? (
+              <Link to="/profile" className="editor-side-menu__simple-row editor-side-menu__simple-row--link">
+                <span className="editor-side-menu__row-icon">
+                  <IconProfile />
+                </span>
+                ПРОФИЛЬ
+              </Link>
             ) : null}
             {showAdminLink ? (
               <Link to="/admin" className="editor-side-menu__simple-row editor-side-menu__simple-row--link">

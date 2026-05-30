@@ -1,0 +1,142 @@
+/* BEM block `profile` — read-only personal account page backed by GET /api/me. */
+.profile {
+  @apply box-border h-[100dvh] overflow-y-auto bg-[#1a1b2e] px-5 pb-10 pt-6 font-mono text-[#e4e1f5];
+}
+
+.profile--blocking {
+  @apply flex w-screen items-center justify-center;
+}
+
+.profile__blocking-title {
+  @apply text-[11px] tracking-[2px] text-[#5a587a];
+}
+
+.profile__inner {
+  @apply mx-auto w-full max-w-[520px];
+}
+
+.profile__offline-banner {
+  @apply mb-4 rounded-xl bg-[#1f2040] px-[14px] py-[10px] text-[11px] tracking-[1px] text-[#f472b6];
+  box-shadow:
+    8px 8px 22px rgba(0, 0, 0, 0.5),
+    -4px -4px 12px rgba(255, 255, 255, 0.038);
+}
+
+.profile__toolbar {
+  @apply mb-5 flex flex-wrap items-center justify-between gap-3;
+}
+
+.profile__title {
+  @apply text-xs tracking-[4px];
+}
+
+.profile__nav {
+  @apply flex items-center gap-4;
+}
+
+.profile__nav-link {
+  @apply border-0 bg-transparent font-[inherit] text-[10px] tracking-[2px] no-underline transition-colors duration-150;
+}
+
+.profile__nav-link--muted {
+  @apply text-[#9896b8] hover:text-[#e4e1f5];
+}
+
+.profile__nav-link--accent {
+  @apply text-[#7c6af7] hover:text-[#978bff];
+}
+
+.profile__card {
+  @apply rounded-2xl bg-[#1f2040] p-6;
+  box-shadow:
+    8px 8px 22px rgba(0, 0, 0, 0.5),
+    -4px -4px 12px rgba(255, 255, 255, 0.038);
+}
+
+.profile__card--message {
+  @apply flex flex-col items-start gap-3;
+}
+
+.profile__message-title {
+  @apply text-[12px] tracking-[2px];
+}
+
+.profile__message-text {
+  @apply text-[11px] leading-relaxed text-[#9896b8];
+}
+
+.profile__identity {
+  @apply flex items-center gap-4;
+}
+
+.profile__avatar {
+  @apply flex h-14 w-14 shrink-0 select-none items-center justify-center rounded-full bg-[#1a1b2e] text-xl text-[#7c6af7];
+  box-shadow:
+    inset 3px 3px 10px rgba(0, 0, 0, 0.5),
+    inset -2px -2px 6px rgba(255, 255, 255, 0.035);
+}
+
+.profile__identity-text {
+  @apply flex min-w-0 flex-col gap-1;
+}
+
+.profile__name {
+  @apply truncate text-base tracking-[1px];
+}
+
+.profile__role {
+  @apply text-[10px] uppercase tracking-[2px] text-[#7c6af7];
+}
+
+.profile__fields {
+  @apply mt-6 flex flex-col;
+}
+
+.profile__field {
+  @apply flex items-center justify-between gap-4 py-3;
+  border-top: 1px solid rgba(90, 88, 122, 0.2);
+}
+
+.profile__field:first-child {
+  border-top: 0;
+}
+
+.profile__field-label {
+  @apply shrink-0 text-[10px] tracking-[2px] text-[#5a587a];
+}
+
+.profile__field-value {
+  @apply min-w-0 truncate text-right text-[12px] text-[#e4e1f5];
+}
+
+.profile__field-value--muted {
+  @apply text-[#9896b8];
+}
+
+.profile__actions {
+  @apply mt-6 flex flex-wrap gap-3;
+}
+
+.profile__button {
+  @apply cursor-pointer rounded-[10px] border-0 px-4 py-2.5 font-[inherit] text-[10px] tracking-[2px] transition-colors duration-150;
+}
+
+.profile__button:focus-visible {
+  @apply outline-none ring-1 ring-[#7c6af7];
+}
+
+.profile__button:disabled {
+  @apply cursor-default opacity-60;
+}
+
+.profile__button--primary {
+  @apply bg-[#7c6af7] text-white hover:bg-[#8a7bff];
+}
+
+.profile__button--ghost {
+  @apply bg-[#232438] text-[#e4e1f5] hover:bg-[#2b2c44];
+}
+
+.profile__button--danger {
+  @apply bg-[#f472b6] text-[#1a1b2e] hover:bg-[#fb7fc1];
+}

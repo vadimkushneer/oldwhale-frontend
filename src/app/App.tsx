@@ -8,6 +8,7 @@ import { apiRequestBase } from "../api/env";
 import { OnboardingPage } from "../pages/OnboardingPage";
 import { LoginPage } from "../pages/LoginPage";
 import { EditorPage } from "../pages/EditorPage";
+import { ProfilePage } from "../pages/ProfilePage";
 import { AdminPage } from "../pages/AdminPage";
 import { AiChatLogsAdminPage } from "../pages/AiChatLogsAdminPage";
 import { AiModelsAdminPage } from "../pages/AiModelsAdminPage";
@@ -101,6 +102,14 @@ export default function App() {
             element={
               <IonicRouteShell>
                 <EditorPage />
+              </IonicRouteShell>
+            }
+          />
+          <Route
+            path="/profile"
+            element={
+              <IonicRouteShell>
+                <ProfilePage />
               </IonicRouteShell>
             }
           />

@@ -155,4 +155,20 @@ describe("EditorSideMenu", () => {
     render(<EditorSideMenu {...makeBaseProps()} />);
     expect(screen.queryByRole("link", { name: "АДМИН" })).not.toBeInTheDocument();
   });
+
+  it("shows profile link when showProfileLink is true", () => {
+    render(
+      <MemoryRouter>
+        <EditorSideMenu {...makeBaseProps({ showProfileLink: true, onShare: undefined, variant: "desktop" })} />
+      </MemoryRouter>,
+    );
+
+    const link = screen.getByRole("link", { name: "ПРОФИЛЬ" });
+    expect(link).toHaveAttribute("href", "/profile");
+  });
+
+  it("does not show profile link when showProfileLink is omitted", () => {
+    render(<EditorSideMenu {...makeBaseProps()} />);
+    expect(screen.queryByRole("link", { name: "ПРОФИЛЬ" })).not.toBeInTheDocument();
+  });
 });

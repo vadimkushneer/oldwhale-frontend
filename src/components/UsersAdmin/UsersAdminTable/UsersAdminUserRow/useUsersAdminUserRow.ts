@@ -37,14 +37,16 @@ export function useUsersAdminUserRow({
 }: UseUsersAdminUserRowArgs) {
   const [role, setRole] = useState<UserRole>(user.role);
   const [disabled, setDisabled] = useState<boolean>(user.disabled);
+  const [credits, setCredits] = useState<number>(user.credits);
 
   useEffect(() => {
     setRole(user.role);
     setDisabled(user.disabled);
-  }, [user.id, user.role, user.disabled]);
+    setCredits(user.credits);
+  }, [user.id, user.role, user.disabled, user.credits]);
 
   const isSelf = user.id === selfId;
-  const isDirty = role !== user.role || disabled !== user.disabled;
+  const isDirty = role !== user.role || disabled !== user.disabled || credits !== user.credits;
   const saveDisabled = isSelf || patchBusy || !isDirty;
   const deleteDisabled = isSelf || deleteBusy;
   const formattedCreatedAt = useMemo(
@@ -57,12 +59,15 @@ export function useUsersAdminUserRow({
     const body: UsersAdminPatchBody = {};
     if (disabled !== user.disabled) body.disabled = disabled;
     if (role !== user.role) body.role = role;
+    if (credits !== user.credits) body.credits = Math.max(0, Math.trunc(credits));
     await onPatchUser(user.id, body);
   }, [
+    credits,
     disabled,
     onPatchUser,
     role,
     saveDisabled,
+    user.credits,
     user.disabled,
     user.id,
     user.role,
@@ -87,6 +92,7 @@ export function useUsersAdminUserRow({
       cellActionsClassName:
         "users-admin-user-row__cell users-admin-user-row__cell--actions",
       roleSelectClassName: "users-admin-user-row__role-select",
+      creditsInputClassName: "users-admin-user-row__credits-input",
       disabledCheckboxClassName: "users-admin-user-row__disabled-checkbox",
       saveButtonClassName:
         "users-admin-user-row__button users-admin-user-row__button--save",
@@ -102,6 +108,8 @@ export function useUsersAdminUserRow({
     setRole,
     disabled,
     setDisabled,
+    credits,
+    setCredits,
     isSelf,
     saveDisabled,
     deleteDisabled,

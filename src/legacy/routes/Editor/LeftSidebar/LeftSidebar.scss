@@ -354,6 +354,11 @@
     }
   }
 
+  &__credits-unit {
+    @apply text-[9px] font-normal tracking-[1px];
+    color: var(--ls-t3);
+  }
+
   &__credits-meter {
     @apply mb-2 h-[3px] w-full overflow-hidden rounded-[3px];
     appearance: none;

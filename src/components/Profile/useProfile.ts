@@ -1,6 +1,7 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { clearAuth, restoreSession } from "../../features/auth/authSlice";
+import { clearAuth, restoreSession, topUpCreditsThunk } from "../../features/auth/authSlice";
+import { CREDITS_TOPUP_PRESETS, formatCredits } from "../../features/credits/credits";
 import { useAppDispatch, useAppSelector } from "../../hooks";
 import { useOnlineStatus } from "../../hooks/useOnlineStatus";
 
@@ -31,6 +32,11 @@ export interface UseProfileResult {
   displayName: string;
   roleLabel: string;
   fields: ProfileField[];
+  creditsText: string;
+  topUpPresets: readonly number[];
+  topUpBusy: boolean;
+  topUpError: string | null;
+  onTopUp: (amount: number) => void;
   onRefresh: () => void;
   onLogout: () => void;
 }
@@ -59,9 +65,27 @@ export function useProfile(): UseProfileResult {
   const restoreStatus = useAppSelector((s) => s.auth.restoreStatus);
   const online = useOnlineStatus();
 
+  const [topUpBusy, setTopUpBusy] = useState(false);
+  const [topUpError, setTopUpError] = useState<string | null>(null);
+
   const onRefresh = useCallback(() => {
     void dispatch(restoreSession());
   }, [dispatch]);
+
+  const onTopUp = useCallback(
+    async (amount: number) => {
+      setTopUpError(null);
+      setTopUpBusy(true);
+      try {
+        await dispatch(topUpCreditsThunk({ amount })).unwrap();
+      } catch (e: unknown) {
+        setTopUpError(typeof e === "string" ? e : "Не удалось пополнить баланс");
+      } finally {
+        setTopUpBusy(false);
+      }
+    },
+    [dispatch],
+  );
 
   const onLogout = useCallback(() => {
     dispatch(clearAuth());
@@ -105,6 +129,11 @@ export function useProfile(): UseProfileResult {
     displayName,
     roleLabel,
     fields,
+    creditsText: formatCredits(user?.credits ?? 0),
+    topUpPresets: CREDITS_TOPUP_PRESETS,
+    topUpBusy,
+    topUpError,
+    onTopUp,
     onRefresh,
     onLogout,
   };

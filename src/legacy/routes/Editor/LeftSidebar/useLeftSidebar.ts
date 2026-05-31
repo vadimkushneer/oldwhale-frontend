@@ -104,6 +104,7 @@ export type LeftSidebarProps = {
   onAddSceneAfterLast: () => void;
   onInsertFilmAct: () => void;
   onInsertPlayAct: () => void;
+  onTopUp?: () => void;
   onLogout: () => void;
 };
 

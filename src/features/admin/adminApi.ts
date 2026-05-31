@@ -44,7 +44,7 @@ export const adminApi = createApi({
     }),
     createUser: build.mutation<
       User,
-      { login: string; email: string; password: string; role?: "user" | "admin" }
+      { login: string; email: string; password: string; role?: "user" | "admin"; credits?: number }
     >({
       query: (body) => ({ url: "/api/admin/users", method: "POST", body }),
       transformResponse: (r: UserWrapResponse) => r.user,
@@ -52,7 +52,7 @@ export const adminApi = createApi({
     }),
     patchUser: build.mutation<
       User,
-      { id: number; disabled?: boolean; role?: "user" | "admin" }
+      { id: number; disabled?: boolean; role?: "user" | "admin"; credits?: number }
     >({
       query: ({ id, ...body }) => ({
         url: `/api/admin/users/${id}`,

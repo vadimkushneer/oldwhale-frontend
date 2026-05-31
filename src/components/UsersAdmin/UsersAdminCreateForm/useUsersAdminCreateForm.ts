@@ -20,6 +20,7 @@ export function useUsersAdminCreateForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<UserRole>("user");
+  const [credits, setCredits] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   const classNames = useMemo(
@@ -43,17 +44,33 @@ export function useUsersAdminCreateForm() {
         return;
       }
 
+      const payload: {
+        login: string;
+        email: string;
+        password: string;
+        role: UserRole;
+        credits?: number;
+      } = { login, email, password, role };
+      const trimmedCredits = credits.trim();
+      if (trimmedCredits !== "") {
+        const parsed = Number(trimmedCredits);
+        if (Number.isFinite(parsed) && parsed >= 0) {
+          payload.credits = Math.trunc(parsed);
+        }
+      }
+
       try {
-        await createUser({ login, email, password, role }).unwrap();
+        await createUser(payload).unwrap();
         setLogin("");
         setEmail("");
         setPassword("");
         setRole("user");
+        setCredits("");
       } catch (err: unknown) {
         setError(getErrorMessage(err));
       }
     },
-    [createUser, email, login, password, role],
+    [createUser, credits, email, login, password, role],
   );
 
   return {
@@ -62,12 +79,14 @@ export function useUsersAdminCreateForm() {
     email,
     password,
     role,
+    credits,
     error,
     busy: createState.isLoading,
     setLogin,
     setEmail,
     setPassword,
     setRole,
+    setCredits,
     onSubmit,
   };
 }

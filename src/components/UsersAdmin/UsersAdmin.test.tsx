@@ -28,6 +28,7 @@ const adminUser: User = {
   email: "admin@example.com",
   role: "admin",
   disabled: false,
+  credits: 300,
   created_at: "",
 };
 

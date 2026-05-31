@@ -38,6 +38,18 @@ export function UsersAdminUserRow(props: UsersAdminUserRowProps) {
           aria-label={`Отключить пользователя ${user.login}`}
         />
       </td>
+      <td className={c.cellClassName}>
+        <input
+          className={c.creditsInputClassName}
+          type="number"
+          min={0}
+          step={1}
+          value={c.credits}
+          disabled={c.isSelf || patchBusy}
+          onChange={(event) => c.setCredits(Math.max(0, Math.trunc(Number(event.target.value) || 0)))}
+          aria-label={`Кредиты (Krill) пользователя ${user.login}`}
+        />
+      </td>
       <td className={c.cellMutedNowrapClassName}>{c.formattedCreatedAt}</td>
       <td className={c.cellActionsClassName}>
         <button

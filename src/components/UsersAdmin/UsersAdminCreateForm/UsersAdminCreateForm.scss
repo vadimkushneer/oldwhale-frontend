@@ -1,7 +1,7 @@
 /* BEM block `users-admin-create-form` — surface for creating a new user. */
 .users-admin-create-form {
   @apply mb-6 grid items-end gap-2.5 rounded-2xl bg-[#1f2040] p-5;
-  grid-template-columns: 1fr 1fr 1fr auto auto;
+  grid-template-columns: 1fr 1fr 1fr auto auto auto;
   box-shadow:
     8px 8px 22px rgba(0, 0, 0, 0.5),
     -4px -4px 12px rgba(255, 255, 255, 0.038);

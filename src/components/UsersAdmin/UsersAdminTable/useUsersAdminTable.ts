@@ -6,6 +6,7 @@ export const USERS_ADMIN_TABLE_COLUMNS = [
   { key: "email", label: "EMAIL" },
   { key: "role", label: "РОЛЬ" },
   { key: "disabled", label: "ОТКЛ." },
+  { key: "credits", label: "КРИЛЬ" },
   { key: "created_at", label: "СОЗДАН" },
   { key: "actions", label: "" },
 ] as const;

@@ -174,10 +174,35 @@ export const completeRegistrationThunk = createAsyncThunk(
   },
 );
 
+export const topUpCreditsThunk = createAsyncThunk(
+  "auth/credits/topup",
+  async ({ amount }: { amount: number }, { getState, rejectWithValue }) => {
+    const token = (getState() as { auth: AuthState }).auth.token;
+    if (!token) return rejectWithValue("Не авторизован");
+    const base = apiRequestBase();
+    if (!base) return rejectWithValue("API base URL unavailable");
+    const res = await fetch(`${base}/api/me/credits/topup`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ amount }),
+    });
+    const data = (await readJsonSafe(res)) as User | { error?: string } | null;
+    if (!res.ok) {
+      const message = data && typeof data === "object" && "error" in data && data.error ? data.error : res.statusText;
+      return rejectWithValue(message);
+    }
+    return data as User;
+  },
+);
+
 export const authSlice = createSlice({
   name: "auth",
   initialState,
   reducers: {
+    /** Replaces just the credit balance (e.g. after a paid AI request debits it). */
+    setUserCredits(state, action: PayloadAction<number>) {
+      if (state.user) state.user.credits = Math.max(0, Math.trunc(action.payload));
+    },
     clearAuth(state) {
       state.token = null;
       state.user = null;
@@ -285,6 +310,9 @@ export const authSlice = createSlice({
       .addCase(completeRegistrationThunk.rejected, (state, action) => {
         state.registerLoading = false;
         state.lastError = String(action.payload || action.error.message || "Ошибка регистрации");
+      })
+      .addCase(topUpCreditsThunk.fulfilled, (state, action) => {
+        state.user = action.payload;
       });
   },
 });
@@ -295,4 +323,5 @@ export const {
   clearFormError,
   markRestoreSkipped,
   acknowledgeSessionExpired,
+  setUserCredits,
 } = authSlice.actions;

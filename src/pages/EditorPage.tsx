@@ -104,6 +104,10 @@ export function EditorPage() {
     navigate("/", { replace: false });
   }, [navigate]);
 
+  const onOpenProfile = useCallback(() => {
+    navigate("/profile");
+  }, [navigate]);
+
   const onLogin = useCallback(() => {
     navigate("/login", {
       replace: false,
@@ -194,6 +198,7 @@ export function EditorPage() {
         onLogout={onLogout}
         onGoHome={onGoHome}
         onLogin={onLogin}
+        onOpenProfile={onOpenProfile}
         routeMode={resolvedMode}
         onModeRouteChange={onModeRouteChange}
         routeAiVariantGuid={locationState?.aiVariantGuid}

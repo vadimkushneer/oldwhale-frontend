@@ -49,6 +49,20 @@ export function UsersAdminCreateForm() {
         </select>
       </UsersAdminCreateFormField>
 
+      <UsersAdminCreateFormField label="КРИЛЬ">
+        <input
+          className={c.inputClassName}
+          value={c.credits}
+          onChange={(event) => c.setCredits(event.target.value)}
+          type="number"
+          min={0}
+          step={1}
+          inputMode="numeric"
+          placeholder="по умолч."
+          aria-label="Начальный баланс (Krill) нового пользователя"
+        />
+      </UsersAdminCreateFormField>
+
       <button type="submit" disabled={c.busy} className={c.submitClassName}>
         {c.busy ? "…" : "СОЗДАТЬ"}
       </button>

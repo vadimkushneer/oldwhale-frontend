@@ -67,6 +67,34 @@ export function Profile() {
               </div>
             </header>
 
+            <section className="profile__balance" aria-label="Баланс кредитов">
+              <div className="profile__balance-head">
+                <span className="profile__balance-label">КРЕДИТЫ · KRILL</span>
+                <span className="profile__balance-value">{vm.creditsText}</span>
+              </div>
+              <div className="profile__topup">
+                <span className="profile__topup-label">ПОПОЛНИТЬ</span>
+                <div className="profile__topup-options">
+                  {vm.topUpPresets.map((amount) => (
+                    <button
+                      key={amount}
+                      type="button"
+                      className="profile__button profile__button--primary profile__topup-button"
+                      onClick={() => vm.onTopUp(amount)}
+                      disabled={vm.topUpBusy || !vm.online}
+                    >
+                      +{amount}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {vm.topUpError ? (
+                <div className="profile__topup-error" role="alert">
+                  {vm.topUpError}
+                </div>
+              ) : null}
+            </section>
+
             <dl className="profile__fields">
               {vm.fields.map((field) => (
                 <div className="profile__field" key={field.key}>

@@ -17,6 +17,7 @@ export type UsersAdminPhase =
 export type UsersAdminPatchBody = {
   disabled?: boolean;
   role?: UserRole;
+  credits?: number;
 };
 
 export type UseUsersAdminResult =

@@ -19,6 +19,7 @@ const mockAdmin: User = {
   email: "admin@e2e.invalid",
   role: "admin",
   disabled: false,
+  credits: 300,
   created_at: fixedCreatedAt,
 };
 
@@ -28,6 +29,7 @@ const mockRegular: User = {
   email: "user@e2e.invalid",
   role: "user",
   disabled: false,
+  credits: 300,
   created_at: fixedCreatedAt,
 };
 

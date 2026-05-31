@@ -1,5 +1,6 @@
 import type { KeyboardEventHandler } from "react";
 import { Whale } from "../../../ui/Whale";
+import { CREDITS_UNIT_NAME, CREDITS_UNIT_SHORT } from "../../../../features/credits/credits";
 import { SceneList } from "../SceneList";
 import { useLeftSidebar, type LeftSidebarAddAction, type LeftSidebarModeTab, type LeftSidebarProps, type LeftSidebarQuickAction, type LeftSidebarQuickActionIconName } from "./useLeftSidebar";
 import "./LeftSidebar.scss";
@@ -334,24 +335,29 @@ function CreditsPanel({
   credits,
   creditsLow,
   creditsValue,
+  onTopUp,
   onLogout,
-}: Pick<LeftSidebarProps, "credits" | "onLogout"> & { creditsLow: boolean; creditsValue: number }) {
+}: Pick<LeftSidebarProps, "credits" | "onTopUp" | "onLogout"> & { creditsLow: boolean; creditsValue: number }) {
   return (
     <div className="left-sidebar__credits">
       <div className="left-sidebar__credits-header">
         <span className="left-sidebar__credits-title">КРЕДИТЫ</span>
         <span className={cx("left-sidebar__credits-value", creditsLow && "left-sidebar__credits-value--low")}>
-          {credits}
+          {credits} <span className="left-sidebar__credits-unit">{CREDITS_UNIT_SHORT}</span>
         </span>
       </div>
       <progress
         className={cx("left-sidebar__credits-meter", creditsLow && "left-sidebar__credits-meter--low")}
         max={500}
         value={creditsValue}
-        aria-label="Кредиты"
+        aria-label={`Кредиты (${CREDITS_UNIT_NAME})`}
       />
       <div className="left-sidebar__credits-actions">
-        <button type="button" className="left-sidebar__credits-button left-sidebar__credits-button--primary">
+        <button
+          type="button"
+          className="left-sidebar__credits-button left-sidebar__credits-button--primary"
+          onClick={onTopUp}
+        >
           ПОПОЛНИТЬ
         </button>
         <button
@@ -411,6 +417,7 @@ export function LeftSidebar(props: LeftSidebarProps) {
     onDupScene,
     onDeleteScene,
     onMoveScene,
+    onTopUp,
     onLogout,
   } = props;
 
@@ -481,7 +488,7 @@ export function LeftSidebar(props: LeftSidebarProps) {
 
       <div className="left-sidebar__footer">
         {addActions.length > 0 ? <AddControls actions={addActions} /> : null}
-        <CreditsPanel credits={props.credits} creditsLow={creditsLow} creditsValue={creditsValue} onLogout={onLogout} />
+        <CreditsPanel credits={props.credits} creditsLow={creditsLow} creditsValue={creditsValue} onTopUp={onTopUp} onLogout={onLogout} />
       </div>
     </div>
   );

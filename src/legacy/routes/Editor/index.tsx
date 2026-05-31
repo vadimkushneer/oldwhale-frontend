@@ -83,7 +83,9 @@ import {
 } from "../../ui/Tooltip";
 import { ActTempoSparkline } from "../../ui/ActTempoSparkline";
 import { useWindowWidth } from "../../hooks/useWindowWidth";
-import { useAppSelector } from "../../../hooks";
+import { useAppDispatch, useAppSelector } from "../../../hooks";
+import { setUserCredits } from "../../../features/auth/authSlice";
+import { CREDITS_PER_PAID_REQUEST } from "../../../features/credits/credits";
 import { apiRequestBase } from "../../../api/env";
 import { useGetPublicCatalogQuery } from "../../../features/ai-catalog/aiCatalogApi";
 import {
@@ -764,9 +766,11 @@ const normalizeTitlePage = (raw, fallbackTitle = "") => {
   };
 };
 
-function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode, onModeRouteChange, routeAiVariantGuid, onAiVariantRouteStateChange, showAdminLink }) {
+function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, onOpenProfile, routeMode, onModeRouteChange, routeAiVariantGuid, onAiVariantRouteStateChange, showAdminLink }) {
+  const dispatch = useAppDispatch();
   const aiCatalogRevision = useAppSelector((s) => s.aiCatalog.revision);
   const authToken = useAppSelector((s) => s.auth.token);
+  const credits = useAppSelector((s) => s.auth.user?.credits ?? 0);
   const aiCatalogQuery = useGetPublicCatalogQuery(undefined, { refetchOnFocus: false });
   const activeProviders = useMemo(() => {
     const groups = aiCatalogQuery.data?.groups;
@@ -820,7 +824,6 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
   const [aiMod, setAiMod]             = useState(()=>aiStoreSeedRef.current.current.model || AI_DEFAULT_MODEL);
   const [aiModelVariant, setAiModelVariant] = useState(()=>normalizeAiModelVariant(aiStoreSeedRef.current.current.model || AI_DEFAULT_MODEL, routeAiVariantGuid || aiStoreSeedRef.current.current.modelVariant));
   const [aiModelMenuOpen, setAiModelMenuOpen] = useState(false);
-  const [credits, setCredits]         = useState(340);
   const [aiIn, setAiIn]               = useState("");
   const [msgs, setMsgs]               = useState(()=>cloneAiMessages(aiStoreSeedRef.current.current.messages));
   const [aiSelectedMessageIds, setAiSelectedMessageIds] = useState(() => new Set());
@@ -5459,7 +5462,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
     const m = getAiProvider(aiMod);
     const queuedFiles = aiPendingFiles.slice();
     const userText = buildAiUserVisibleText(aiIn, queuedFiles);
-    if (!m.free && credits<10) {
+    if (!m.free && credits < CREDITS_PER_PAID_REQUEST) {
       setMsgs((p)=>[
         ...p,
         { id: newAiMessageId(), role: "user", text: userText },
@@ -5555,6 +5558,9 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
         throw new Error("unexpected ai chat status");
       }
       const accepted = await res.json();
+      if (typeof accepted?.credits === "number") {
+        dispatch(setUserCredits(accepted.credits));
+      }
       const requestId =
         (typeof accepted?.request_uid === "string" && accepted.request_uid && accepted.request_uid) ||
         (typeof accepted?.requestId === "string" && accepted.requestId && accepted.requestId) ||
@@ -5653,7 +5659,6 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
           modelVariant: modelVariantAtSend,
         },
       ]);
-      if (!m.free) setCredits(c=>Math.max(0,c-12));
     } catch (e) {
       if (e && e.name === "AbortError") return;
       if (chatIdAtSend !== aiChatIdRef.current) return;
@@ -8901,6 +8906,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
           onAddSceneAfterLast={()=>{ const last=blocks[blocks.length-1]; if(last) addAfter(last.id,"scene"); }}
           onInsertFilmAct={insertFilmAct}
           onInsertPlayAct={insertPlayAct}
+          onTopUp={onOpenProfile}
           onLogout={onLogout}
         />
       ) : (
@@ -9436,7 +9442,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
           onClearMessageSelection={clearAiMessageSelection}
           onDeleteSelectedMessages={deleteSelectedAiMessages}
           accent={mc}
-          creditsLabel={getAiProvider(aiMod).free ? "БЕСПЛАТНО" : "≈ 12 КРЕДИТОВ"}
+          creditsLabel={getAiProvider(aiMod).free ? "БЕСПЛАТНО" : `≈ ${CREDITS_PER_PAID_REQUEST} OWK`}
           composer={
             <AiComposer
               layerRef={aiHistoryLayerRef}

@@ -11,6 +11,7 @@ const baseUser: User = {
   email: "alice@example.com",
   role: "user",
   disabled: false,
+  credits: 250,
   created_at: "2024-01-02T03:04:05.000Z",
 };
 
@@ -102,6 +103,19 @@ describe("UsersAdminUserRow", () => {
 
     await waitFor(() => {
       expect(onPatchUser).toHaveBeenCalledWith(baseUser.id, { disabled: true });
+    });
+  });
+
+  it("includes the credit balance (Krill) when it is changed", async () => {
+    const { onPatchUser } = renderRow();
+
+    fireEvent.change(screen.getByLabelText(`Кредиты (Krill) пользователя ${baseUser.login}`), {
+      target: { value: "500" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "СОХРАНИТЬ" }));
+
+    await waitFor(() => {
+      expect(onPatchUser).toHaveBeenCalledWith(baseUser.id, { credits: 500 });
     });
   });
 

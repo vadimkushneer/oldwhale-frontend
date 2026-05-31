@@ -11,6 +11,8 @@ export interface User {
   email: string;
   role: UserRole;
   disabled: boolean;
+  /** Credit balance, measured in Krill (OWK). */
+  credits: number;
   created_at: string;
 }
 

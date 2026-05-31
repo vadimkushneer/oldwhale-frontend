@@ -127,6 +127,7 @@ test.describe("auth / registration", () => {
       email,
       role: "user",
       disabled: false,
+      credits: 300,
       created_at: "2000-06-15T12:00:00.000Z",
     };
 

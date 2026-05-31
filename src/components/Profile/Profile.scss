@@ -88,6 +88,45 @@
   @apply text-[10px] uppercase tracking-[2px] text-[#7c6af7];
 }
 
+.profile__balance {
+  @apply mt-6 flex flex-col gap-3 rounded-xl bg-[#1a1b2e] p-4;
+  box-shadow:
+    inset 3px 3px 10px rgba(0, 0, 0, 0.5),
+    inset -2px -2px 6px rgba(255, 255, 255, 0.035);
+}
+
+.profile__balance-head {
+  @apply flex items-baseline justify-between gap-3;
+}
+
+.profile__balance-label {
+  @apply text-[10px] tracking-[2px] text-[#5a587a];
+}
+
+.profile__balance-value {
+  @apply text-xl tracking-[1px] text-[#7c6af7];
+}
+
+.profile__topup {
+  @apply flex flex-wrap items-center justify-between gap-2;
+}
+
+.profile__topup-label {
+  @apply text-[10px] tracking-[2px] text-[#5a587a];
+}
+
+.profile__topup-options {
+  @apply flex flex-wrap gap-2;
+}
+
+.profile__topup-button {
+  @apply px-3 py-2 text-[10px];
+}
+
+.profile__topup-error {
+  @apply text-[11px] text-[#f472b6];
+}
+
 .profile__fields {
   @apply mt-6 flex flex-col;
 }

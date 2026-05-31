@@ -31,6 +31,18 @@
   @apply cursor-default opacity-60;
 }
 
+.users-admin-user-row__credits-input {
+  @apply w-16 rounded-md border-0 bg-[#1a1b2e] p-1.5 font-[inherit] text-[#e4e1f5];
+}
+
+.users-admin-user-row__credits-input:focus-visible {
+  @apply outline-none ring-1 ring-[#7c6af7];
+}
+
+.users-admin-user-row__credits-input:disabled {
+  @apply cursor-default opacity-60;
+}
+
 .users-admin-user-row__disabled-checkbox {
   @apply cursor-pointer accent-[#7c6af7];
 }

@@ -11,6 +11,7 @@ const users: User[] = [
     email: "alpha@example.com",
     role: "admin",
     disabled: false,
+    credits: 300,
     created_at: "2024-01-02T00:00:00.000Z",
   },
   {
@@ -19,6 +20,7 @@ const users: User[] = [
     email: "bravo@example.com",
     role: "user",
     disabled: true,
+    credits: 0,
     created_at: "2024-02-03T00:00:00.000Z",
   },
 ];

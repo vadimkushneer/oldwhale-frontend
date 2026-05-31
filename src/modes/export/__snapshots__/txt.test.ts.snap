@@ -1,0 +1,138 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`TXT export builders (carved from the editor) > film: centred upper-case title, upper-case scene, indented dialogue 1`] = `
+"
+
+
+
+
+
+
+
+
+
+
+
+
+                          КОФЕЙНЯ
+                           Драма
+
+                           Автор
+                          А. Автор
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+2026
+
+
+============================================================
+
+
+
+ИНТ. КОФЕЙНЯ. ДЕНЬ.
+Марина печатает.
+
+
+                           МАРИНА
+                    Почему всё начинается с кофейни?
+
+
+                                          ПЕРЕХОД:
+"
+`;
+
+exports[`TXT export builders (carved from the editor) > media: segment upper-case, sync/vtr markers 1`] = `
+"ТОЧКА ЗРЕНИЯ
+============================================================
+
+
+
+
+ОТКРЫТИЕ
+----------------------------------------
+
+Добрый вечер.
+  | Реплика гостя.
+[ВТР] Архив 45 сек."
+`;
+
+exports[`TXT export builders (carved from the editor) > play: title from playHeader, act title centred, speaker prefix on line 1`] = `
+"
+
+
+
+
+
+
+
+
+
+
+
+
+ВЕСНОЙ
+Б. Автор
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+============================================================
+
+
+
+
+                         АКТ ПЕРВЫЙ
+
+
+
+Сцена 1
+(ВЕРНЕР, БАРБАРА)
+
+Кухня. Молчание.
+
+ВЕРНЕР. Этой весной.
+"
+`;
+
+exports[`TXT export builders (carved from the editor) > short: hook/body/cta markers 1`] = `
+"ВИДЕО-ПЛАН
+============================================================
+
+
+
+▶ Зацепка
+  Тело
+
+→ Подпишись"
+`;

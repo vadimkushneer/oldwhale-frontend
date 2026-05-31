@@ -1,7 +1,9 @@
 import { useCallback, useMemo } from "react";
 import { Navigate, useLocation, useNavigate, useParams } from "react-router-dom";
-import { MODES } from "../legacy/domain/blocks";
-import { EditorScreen } from "../legacy/routes/Editor";
+import { EDITOR_MODE_IDS } from "../modes/registry";
+import { getEditorShell } from "../modes/editorShells";
+import { PlayEditorNext } from "../modes/play/PlayEditorNext";
+import type { EditorModeId } from "../modes/EditorMode";
 import { useAppDispatch, useAppSelector } from "../hooks";
 import { clearAuth } from "../features/auth/authSlice";
 import { buildLoginRedirectState } from "../features/auth/loginRedirect";
@@ -12,7 +14,6 @@ type EditorLocationState = { aiVariantGuid?: string; from?: LoginRedirectFrom } 
 
 /** When JWT is valid but onboarding profile was never stored (or was cleared), editor still loads. */
 const FALLBACK_AUTH_PROFILE: Profile = { mode: "film" };
-const EDITOR_MODE_IDS = MODES.map((mode: { id: string }) => mode.id);
 const EDITOR_MODE_SET = new Set<string>(EDITOR_MODE_IDS);
 
 function normalizeEditorMode(value?: string): string | null {
@@ -186,20 +187,27 @@ export function EditorPage() {
     return <RestoringSessionScreen />;
   }
 
+  const EditorModeShell = getEditorShell(resolvedMode as EditorModeId);
+  const usePlayNext = resolvedMode === "play" && new URLSearchParams(location.search).get("next") === "1";
+
   return (
     <div style={{ position: "relative", width: "100%", height: "100%" }}>
-      <EditorScreen
+      {usePlayNext ? (
+        <PlayEditorNext key="play-next" />
+      ) : (
+        <EditorModeShell
+        key={resolvedMode}
         profile={profile}
         isGuest={Boolean(isGuest)}
         onLogout={onLogout}
         onGoHome={onGoHome}
         onLogin={onLogin}
-        routeMode={resolvedMode}
         onModeRouteChange={onModeRouteChange}
         routeAiVariantGuid={locationState?.aiVariantGuid}
         onAiVariantRouteStateChange={onAiVariantRouteStateChange}
         showAdminLink={user?.role === "admin"}
       />
+      )}
     </div>
   );
 }

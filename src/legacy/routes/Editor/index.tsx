@@ -31,7 +31,6 @@ import {
   INIT,
   uid,
   makeScene,
-  PLAY_TYPO,
 } from "../../domain/blocks";
 import {
   AIM,
@@ -95,6 +94,16 @@ import {
   getPlayActTitle,
   getPlayActDisplayText,
 } from "../../util/doc";
+import { buildModeTxt } from "../../../modes/export/txt";
+import { buildProjectData } from "../../../modes/document/serialize";
+import { upsertProjectEntry, removeProjectEntry, findLatestEntryForMode } from "../../../modes/document/projectIndex";
+import { normalizeSearchNeedle, getSearchNeedleVariants, collectSearchOccurrences, computeSearchMatches } from "../../../modes/editor-core/search";
+import { splitBlockText, findPrecedingCharName, insertBlocksAfter, nextEnterType, cycleBlockType, computeMergeJoiner, mergeAdjacentBlocks } from "../../../modes/editor-core/blocks";
+import { moveSceneRange, formatSceneLabel } from "../../../modes/editor-core/scenes";
+import { computeOverlayRanges, buildSearchOverlayHtml as buildSearchOverlayHtmlCore } from "../../../modes/editor-core/searchOverlay";
+import { BlockTextarea } from "../../../modes/editor-core/BlockTextarea";
+import { PlayScene, PlaySpacer, PlayLine } from "../../../modes/play/PlayBlocks";
+import { useEditorCore } from "../../../modes/editor-core/useEditorCore";
 import { PlayHeaderEditor } from "./PlayHeader";
 import { AiComposer } from "./AiComposer";
 import { AiPanel } from "./AiPanel";
@@ -110,7 +119,7 @@ import { buildPlayDocxDocument, playDocxFileName } from "./EditorDocument/play/p
 import { buildPlayFdxExport } from "./EditorDocument/play/playExportFdx";
 import { playExportBaseName } from "./EditorDocument/play/playExportCommon";
 import { buildPlayTxtExport } from "./EditorDocument/play/playExportTxt";
-import { normalizeFilmBlockText, SCREENPLAY_FORMAT, filmBlockPaddingTop } from "../../domain/screenplayFormat";
+import { SCREENPLAY_FORMAT, filmBlockPaddingTop } from "../../domain/screenplayFormat";
 import { EditorTopBar } from "./EditorTopBar/EditorTopBar";
 import { EditorSideMenu } from "./EditorSideMenu/EditorSideMenu";
 
@@ -449,7 +458,7 @@ function buildFilmDocxTitleParagraphs(tp, projectName, docx) {
 }
 
 /** Same slices + (ДАЛЬШЕ)/(ПРОД.) as PDF — one pages[] entry per editor page. */
-function buildFilmDocxPageParagraphs(pageBlocks, blocks, docx, { pageBreakBefore = false, pageIdx = 0 } = {}) {
+function buildFilmDocxPageParagraphs(pageBlocks, blocks, docx, { pageBreakBefore = false } = {}) {
   const { Paragraph, TextRun } = docx;
   const txt = (text, opts = {}) => new TextRun({ text: text || "", font: "Courier New", size: 24, ...opts });
   const metaSpacing = filmDocxLineSpacing(docx, 0);
@@ -480,8 +489,7 @@ function buildFilmDocxPageParagraphs(pageBlocks, blocks, docx, { pageBreakBefore
   const paras = [];
   let isFirst = true;
 
-  for (let entryIdx = 0; entryIdx < pageBlocks.length; entryIdx += 1) {
-    const entry = pageBlocks[entryIdx];
+  for (const entry of pageBlocks) {
     const { bi, part, split, start = 0, end = null, continued = false } = entry;
     const block = blocks[bi];
     if (!block) continue;
@@ -513,8 +521,6 @@ function buildFilmDocxPageParagraphs(pageBlocks, blocks, docx, { pageBreakBefore
       block.type === "dialogue" &&
       (part === "first" || (isFilmSlice && (end ?? blockText.length) < blockText.length));
     const isContinuedSlice = isFilmSlice && continued;
-    const openingScene =
-      pageIdx === 0 && entryIdx === 0 && block.type === "scene" && !isContinuedSlice;
 
     if (showDialogueContd) {
       paras.push(
@@ -536,7 +542,7 @@ function buildFilmDocxPageParagraphs(pageBlocks, blocks, docx, { pageBreakBefore
       new Paragraph({
         style: styleForType(block.type),
         children: [txt(runText, block.type === "paren" || block.type === "note" ? { italics: true } : {})],
-        spacing: filmDocxBlockSpacing(docx, block.type, isContinuedSlice, openingScene),
+        spacing: filmDocxBlockSpacing(docx, block.type, isContinuedSlice),
         ...(isFirst && pageBreakBefore ? { pageBreakBefore: true } : {}),
       }),
     );
@@ -560,7 +566,7 @@ function buildFilmDocxScriptParagraphs(pages, blocks, docx) {
   const scriptParas = [];
   pages.forEach((pageBlocks, pageIdx) => {
     scriptParas.push(
-      ...buildFilmDocxPageParagraphs(pageBlocks, blocks, docx, { pageBreakBefore: pageIdx > 0, pageIdx }),
+      ...buildFilmDocxPageParagraphs(pageBlocks, blocks, docx, { pageBreakBefore: pageIdx > 0 }),
     );
   });
   return scriptParas;
@@ -717,7 +723,6 @@ async function readAiChatSseEvent(res) {
 }
 
 const OW_ACTIVE_PROJECT_KEY = "ow_active_project";
-const OW_ACTIVE_PROJECT_KEY_PLAY = "ow_active_project_play";
 
 const readProjectSnapshot = (id) => {
   if (!id) return null;
@@ -728,38 +733,21 @@ const readProjectSnapshot = (id) => {
   }
 };
 
-/** Index meta may omit mode; prefer explicit mode, then full snapshot. */
-const getStoredProjectMode = (meta) => {
-  if (meta?.mode) return meta.mode;
-  const full = readProjectSnapshot(meta?.id);
-  if (full?.mode) return full.mode;
-  return "film";
-};
-
 const readLastProjectForMode = (mode) => {
   try {
-    const storageKey = mode === "play" ? OW_ACTIVE_PROJECT_KEY_PLAY : OW_ACTIVE_PROJECT_KEY;
-    const active = readProjectSnapshot(localStorage.getItem(storageKey));
-    if (active && getStoredProjectMode(active) === mode) return active;
-    // Play: one-time fallback if last active lived in the legacy film key.
-    if (mode === "play") {
-      const legacy = readProjectSnapshot(localStorage.getItem(OW_ACTIVE_PROJECT_KEY));
-      if (legacy && getStoredProjectMode(legacy) === "play") return legacy;
-    }
+    const active = readProjectSnapshot(localStorage.getItem(OW_ACTIVE_PROJECT_KEY));
+    if (active && (active.mode || "film") === mode) return active;
     const index = JSON.parse(localStorage.getItem("ow_index") || "[]");
-    const meta = index.find(p => getStoredProjectMode(p) === mode);
+    const meta = findLatestEntryForMode(index, mode);
     return meta ? readProjectSnapshot(meta.id) : null;
   } catch(e) {
     return null;
   }
 };
 
-const persistActiveProjectId = (id, mod = "film") => {
+const persistActiveProjectId = (id) => {
   if (!id) return;
-  try {
-    const key = mod === "play" ? OW_ACTIVE_PROJECT_KEY_PLAY : OW_ACTIVE_PROJECT_KEY;
-    localStorage.setItem(key, id);
-  } catch(e) {}
+  try { localStorage.setItem(OW_ACTIVE_PROJECT_KEY, id); } catch(e) {}
 };
 
 const defaultTitlePage = () => ({
@@ -784,26 +772,6 @@ const normalizeTitlePage = (raw, fallbackTitle = "") => {
     email: raw.email ?? d.email,
     year: raw.year ?? d.year,
   };
-};
-
-const DEFAULT_PROJECT_NAME = "Без названия";
-
-/** List / save name: film ← titlePage, play ← playHeader, else file or stored name. */
-const resolveProjectName = ({ mode = "film", name, titlePage, playHeader, fileBaseName = "" } = {}) => {
-  const rawName = (name || "").trim();
-  const trimmedFile = (fileBaseName || "").trim();
-
-  if (mode === "play") {
-    const playTitle = playHeader?.find?.(h => h.key === "title")?.text?.trim();
-    if (playTitle) return playTitle;
-  } else if (mode === "film") {
-    const filmTitle = titlePage?.title?.trim();
-    if (filmTitle) return filmTitle;
-  }
-
-  if (rawName && rawName !== DEFAULT_PROJECT_NAME) return rawName;
-  if (trimmedFile) return trimmedFile;
-  return DEFAULT_PROJECT_NAME;
 };
 
 function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode, onModeRouteChange, routeAiVariantGuid, onAiVariantRouteStateChange, showAdminLink }) {
@@ -842,19 +810,18 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
   const initialMode = routeMode || profile?.mode || "film";
   const [mode, setMode] = useState(initialMode);
   const modeBlocksCache = useRef({});
-  const [blocks, setBlocks]           = useState(() => { const m=initialMode; return (INIT[m]||INIT.film).map(b=>({...b})); });
-  const blocksRef = useRef([]);
-  useEffect(()=>{ blocksRef.current = blocks; }, [blocks]);
+  const getInitialBlocks = () => {
+    const saved = readLastProjectForMode(initialMode);
+    if (saved?.blocks?.length) return saved.blocks.map(b=>({...b}));
+    return (INIT[initialMode]||INIT.film).map(b=>({...b}));
+  };
+  const scheduleAutosaveRef = useRef(()=>{});
   const modeRef = useRef(mode);
   useEffect(()=>{ modeRef.current = mode; }, [mode]);
   const skipNextRouteSyncRef = useRef(false);
   const syncingRouteModeRef = useRef(null);
   const whaleFileHandleRef = useRef(null);
-  const saveAsFileHandleRef = useRef(null);
-  const saveAsExportedRef = useRef(false);
   const saveNowRef = useRef(()=>{});
-  const [focId, setFocId]             = useState(null);
-  const [activeSceneId, setActiveSceneId] = useState(null);
   const sceneJumpLockRef = useRef(null);
   const sceneJumpLockTimer = useRef(null);
   const aiStoreSeedRef = useRef(null);
@@ -875,12 +842,24 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
   const _lay = (() => { try { return JSON.parse(localStorage.getItem('ow_layout')||'{}'); } catch(e) { return {}; } })();
   const [aiOpen, setAiOpen]           = useState(_lay.aiOpen !== undefined ? _lay.aiOpen : true);
   const [saved, setSaved]             = useState(true);
+  const { blocks, setBlocks, blocksRef, blockRefs, lastFocId, focId, setFocId, spellOn, setSpellOn, toolbarBlockId, setToolbarBlockId, activeSceneId, setActiveSceneId, setFoc, getActiveBlockId, ensureModeHistory, resetModeHistories, pushHistory, undo, redo, markDirty, applyBlocks, updBlock, updBlockName } = useEditorCore({ mode, modeRef, setSaved, getInitialBlocks, scheduleAutosaveRef });
+  const savedRef = useRef(true);
+  useEffect(() => { savedRef.current = saved; }, [saved]);
   const [mobileTab, setMobileTab]     = useState("editor");
   const [projectName, setProjectName] = useState("Без названия");
   const [editingName, setEditingName] = useState(false);
   const [nameDraft, setNameDraft]     = useState("Без названия");
   const [menuOpen,    setMenuOpen]    = useState(false);
-  const [projectId,   setProjectId]   = useState(()=>"proj_"+Date.now());
+  const [projectId,   setProjectId]   = useState(() => {
+    const startMode = routeMode || profile?.mode || "film";
+    const saved = readLastProjectForMode(startMode);
+    return saved?.id || "proj_" + Date.now();
+  });
+  const projectIdRef = useRef(projectId);
+  const projectNameRef = useRef(projectName);
+  const projectHydratedRef = useRef(false);
+  useEffect(() => { projectIdRef.current = projectId; }, [projectId]);
+  useEffect(() => { projectNameRef.current = projectName; }, [projectName]);
   const [projectsOpen,setProjectsOpen]= useState(false);
   const [sceneCardsOpen,setSceneCardsOpen]= useState(_lay.sceneCardsOpen || false);
   const [sceneCardsDragId,setSceneCardsDragId]= useState(null);
@@ -898,7 +877,6 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
   const [sceneCardNoteEditor, setSceneCardNoteEditor] = useState(null);
   const [sceneCardNoteDraft, setSceneCardNoteDraft] = useState("");
   const [saveAsOpen,  setSaveAsOpen]  = useState(false);
-  const [saveAsPathLabel, setSaveAsPathLabel] = useState("");
   const [exportUrl,   setExportUrl]   = useState(null);
   const [titlePageOpen, setTitlePageOpen] = useState(false);
   const [newProjectOverlay, setNewProjectOverlay] = useState(false);
@@ -911,8 +889,6 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
     { key:"genre",  label:"Жанр",     text:"", align:"left", font:"Times New Roman", size:13 },
     { key:"remark", label:"Ремарка",  text:"", align:"left", font:"Times New Roman", size:13 },
   ]);
-  const playHeaderRef = useRef(playHeader);
-  useEffect(() => { playHeaderRef.current = playHeader; }, [playHeader]);
   const [playHeaderFoc, setPlayHeaderFoc] = useState(null);
   const [mediaHeader, setMediaHeader] = useState([
     { key:"show",    label:"Программа",  text:"", align:"left", font:"Arial", size:18, bold:true },
@@ -935,7 +911,6 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
   const [titleSepPage, setTitleSepPage] = useState(true);
   const [previewOpen,  setPreviewOpen]  = useState(false);
   const [previewW,     setPreviewW]     = useState(null); // null = треть экрана
-  const [spellOn,      setSpellOn]      = useState(false);
   const [sheetOn,      setSheetOn]      = useState(true);
   const [zoom,         setZoom]         = useState(100);
   const [keyboardH,    setKeyboardH]    = useState(0);
@@ -993,13 +968,6 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
   const titlePageRef = useRef(titlePage);
   const skipTitlePagePersistRef = useRef(true);
   useEffect(() => { titlePageRef.current = titlePage; }, [titlePage]);
-  const patchTitlePage = (updater) => {
-    setTitlePage(prev => {
-      const next = typeof updater === "function" ? updater(prev) : { ...prev, ...updater };
-      titlePageRef.current = next;
-      return next;
-    });
-  };
   const [editorSearchOpen, setEditorSearchOpen] = useState(false);
   const [editorSearchQuery, setEditorSearchQuery] = useState("");
   const [editorSearchMatches, setEditorSearchMatches] = useState([]);
@@ -1015,10 +983,21 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
   const [markerHighlights, setMarkerHighlights] = useState({}); // { blockId: [{id,start,end,color}] }
   const [markerCtxMenu, setMarkerCtxMenu] = useState(null);     // {x,y,blockId,sliceStart,start,end}
 
-  // Film: только titlePage → projectName для «Мои проекты» (титул play/film не связаны).
+  // Синхронизируем название проекта только с film-титульным листом.
+  // Для play титульный лист отдельный и не должен подтягивать название из film.
+  useEffect(()=>{
+    setTitlePage(tp => (!tp.title || tp.title === tp._syncedName)
+      ? { ...tp, title: projectName, _syncedName: projectName }
+      : tp
+    );
+  }, [projectName]);
+
+  // Шаг 1: «Мои проекты» берут имя из projectName,
+  // поэтому аккуратно подтягиваем projectName из титульного листа
+  // активного редактора, не смешивая редакторы между собой.
   useEffect(()=>{
     if ((modeRef.current || mode) !== "film") return;
-    const nextName = (titlePage.title || "").trim() || DEFAULT_PROJECT_NAME;
+    const nextName = (titlePage.title || "").trim() || "Без названия";
     setProjectName(prev => prev === nextName ? prev : nextName);
   }, [mode, titlePage.title]);
 
@@ -1078,11 +1057,8 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
       setSaved(false);
       clearTimeout(saveTimer.current);
       saveTimer.current = setTimeout(()=>{
-        const mod = modeRef.current || mode;
-        const name = resolveLiveProjectName(mod);
-        setProjectName(name);
         setSaved(true);
-        saveProject(projectId, name, blocksRef.current, mod);
+        saveProject(projectId, projectName, blocksRef.current, modeRef.current || mode);
       }, 1500);
     }
   };
@@ -1318,14 +1294,9 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
   const dragStartY    = useRef(0);
   const sceneCardRefs = useRef({});
   const sceneListRef  = useRef(null);
-  const [toolbarBlockId, setToolbarBlockId] = useState(null); // отдельный state для тулбара
   const [typeMenu, setTypeMenu] = useState(null);
 
-  const historyByMode = useRef({});
-  const histIdxByMode = useRef({});
   const histTimer   = useRef(null);
-  const BLOCK_HISTORY_LIMIT = 100;
-  const blockRefs  = useRef({});
   const sceneRefs  = useRef({});
   const scrollRef  = useRef(null);
   const saveTimer  = useRef(null);
@@ -1334,7 +1305,6 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
   const sceneCardMenuRef = useRef(null);
   const sceneCardNoteInputRef = useRef(null);
   const msgEnd     = useRef(null);
-  const lastFocId  = useRef(null);
   const filmEditStateRef = useRef(null);
   const noteEditorRef   = useRef(null);
   const noteTextRef     = useRef(noteText);
@@ -1345,37 +1315,8 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
   const NOTE_HISTORY_LIMIT = 30;
   const NOTE_HISTORY_DELAY = 600;
 
-  const normalizeSearchNeedle = (value) => String(value || "").replace(/\s+/g, " ").trim().toLocaleLowerCase();
-  const getSearchNeedleVariants = (value) => {
-    const base = normalizeSearchNeedle(value);
-    if (!base) return [];
-    const next = [base];
-    if (base.startsWith("#") && base.length > 1) next.push(base.slice(1));
-    return [...new Set(next.filter(Boolean))];
-  };
-  const collectSearchOccurrences = (text, query) => {
-    const raw = String(text || "");
-    const lower = raw.toLocaleLowerCase();
-    const variants = getSearchNeedleVariants(query);
-    if (!lower || !variants.length) return [];
-    const found = [];
-    variants.forEach((variant) => {
-      let from = 0;
-      while (from <= lower.length) {
-        const idx = lower.indexOf(variant, from);
-        if (idx === -1) break;
-        found.push({ start: idx, end: idx + variant.length });
-        from = idx + Math.max(1, variant.length);
-      }
-    });
-    return found
-      .sort((a,b)=>a.start-b.start || (b.end - b.start) - (a.end - a.start) || a.end-b.end)
-      .reduce((acc, item) => {
-        const prev = acc[acc.length - 1];
-        if (!prev || item.start >= prev.end) acc.push(item);
-        return acc;
-      }, []);
-  };
+  /* search primitives (normalizeSearchNeedle / getSearchNeedleVariants /
+     collectSearchOccurrences) are imported from modes/editor-core/search */
   const noteHtmlToPlainText = (html) => {
     if (!html) return "";
     const tmp = document.createElement("div");
@@ -1391,46 +1332,14 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
   };
   const buildEditorSearchMatches = (query) => {
     const currentMode = modeRef.current || mode;
-    const clean = normalizeSearchNeedle(query);
-    if (!clean) return [];
-
-    if (currentMode === "note") {
-      const plain = noteHtmlToPlainText(noteTextRef.current);
-      return collectSearchOccurrences(plain, clean).map((pos, idx)=>(
-        { key:`note_${idx}_${pos.start}`, scope:"note", start:pos.start, end:pos.end }
-      ));
-    }
-
-    const matches = [];
-    const currentBlocks = Array.isArray(blocksRef.current) ? blocksRef.current : [];
-    currentBlocks.forEach((block) => {
-      collectSearchOccurrences(block?.text, clean).forEach((pos, idx) => {
-        matches.push({
-          key:`block_${block.id}_${pos.start}_${idx}`,
-          scope:"block",
-          blockId:block.id,
-          start:pos.start,
-          end:pos.end,
-        });
-      });
+    const header = getActiveSearchHeaderItems();
+    return computeSearchMatches(query, {
+      mode: currentMode,
+      blocks: Array.isArray(blocksRef.current) ? blocksRef.current : [],
+      notePlainText: currentMode === "note" ? noteHtmlToPlainText(noteTextRef.current) : "",
+      headerItems: header.items,
+      headerScope: header.scope,
     });
-
-    const headerData = getActiveSearchHeaderItems();
-    headerData.items.forEach((item, idx) => {
-      collectSearchOccurrences(item?.text, clean).forEach((pos, occIdx) => {
-        matches.push({
-          key:`header_${headerData.scope}_${item.key}_${pos.start}_${occIdx}`,
-          scope:"header",
-          headerScope:headerData.scope,
-          headerKey:item.key,
-          headerIndex:idx,
-          start:pos.start,
-          end:pos.end,
-        });
-      });
-    });
-
-    return matches;
   };
   const escapeAttrSelector = (value) => {
     const raw = String(value ?? "");
@@ -1447,41 +1356,9 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
   const getSearchOverlayRanges = useCallback((config) => {
     const raw = String(config?.text ?? "");
     if (!editorSearchOpen || !normalizeSearchNeedle(editorSearchQuery) || !raw) return [];
-    const sliceStart = Number.isFinite(Number(config?.sliceStart)) ? Number(config.sliceStart) : 0;
-    return (Array.isArray(editorSearchMatches) ? editorSearchMatches : [])
-      .filter((match) => {
-        if (config?.scope === "block") return match.scope === "block" && match.blockId === config.blockId;
-        if (config?.scope === "header") return match.scope === "header" && match.headerScope === config.headerScope && match.headerKey === config.headerKey;
-        return false;
-      })
-      .map((match) => {
-        const localStart = Math.max(0, match.start - sliceStart);
-        const localEnd = Math.min(raw.length, Math.max(localStart, match.end - sliceStart));
-        if (localEnd <= localStart) return null;
-        return { start: localStart, end: localEnd, active: match.key === activeEditorSearchKey };
-      })
-      .filter(Boolean)
-      .sort((a,b)=>a.start-b.start || a.end-b.end);
+    return computeOverlayRanges(editorSearchMatches, config, activeEditorSearchKey);
   }, [activeEditorSearchKey, editorSearchMatches, editorSearchOpen, editorSearchQuery]);
-  const buildSearchOverlayHtml = useCallback((text, ranges) => {
-    const raw = String(text ?? "");
-    if (!raw || !Array.isArray(ranges) || !ranges.length) return "";
-    let html = "";
-    let cursor = 0;
-    ranges.forEach((range) => {
-      const start = Math.max(cursor, Math.min(raw.length, range.start));
-      const end = Math.max(start, Math.min(raw.length, range.end));
-      if (start > cursor) html += escapeSearchOverlayHtml(raw.slice(cursor, start));
-      if (end > start) {
-        const bg = range.active ? "rgba(250, 204, 21, 0.44)" : "rgba(250, 204, 21, 0.24)";
-        const stroke = range.active ? "rgba(255, 241, 173, 0.34)" : "rgba(255, 241, 173, 0.18)";
-        html += `<mark style="background:${bg};color:transparent;padding:0;border-radius:2px;box-shadow:inset 0 0 0 1px ${stroke};">${escapeSearchOverlayHtml(raw.slice(start, end))}</mark>`;
-      }
-      cursor = end;
-    });
-    if (cursor < raw.length) html += escapeSearchOverlayHtml(raw.slice(cursor));
-    return html;
-  }, []);
+  const buildSearchOverlayHtml = useCallback((text, ranges) => buildSearchOverlayHtmlCore(text, ranges), []);
   const renderSearchOverlay = useCallback((config) => {
     const raw = String(config?.text ?? "");
     const ranges = getSearchOverlayRanges(config);
@@ -1907,8 +1784,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
         const cur = blocksRef.current.find(b=>b.id===id);
         if (!cur) return;
         const copy = {...cur, id:Date.now()+Math.random()};
-        setBlocks(bs=>{ const i=bs.findIndex(b=>b.id===id); const a=[...bs]; a.splice(i+1,0,copy); return a; });
-        markDirty();
+        { const i=blocksRef.current.findIndex(b=>b.id===id); const a=[...blocksRef.current]; a.splice(i+1,0,copy); applyBlocks(a); }
       }
       // Cmd+Backspace — удалить текущий блок
       if (mod && e.key==="Backspace") {
@@ -2037,19 +1913,6 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
   };
 
   // ── Helpers ──────────────────────────────────
-  const setFoc = (id) => {
-    setFocId(id);
-    if (id) {
-      lastFocId.current = id;
-      setToolbarBlockId(id);
-      // Обновляем активную сцену по фокусу
-      const idx = blocks.findIndex(b=>b.id===id);
-      for (let j=idx; j>=0; j--) {
-        if (blocks[j].type==="scene") { setActiveSceneId(blocks[j].id); break; }
-      }
-    }
-  };
-  const getActiveBlockId = () => toolbarBlockId || focId || lastFocId.current || null;
 
   const getFormatConfig = (m) => ({
     film:  { bold:true,  italic:false, underline:false },
@@ -2059,48 +1922,13 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
     note:  { bold:false, italic:false, underline:false },
   }[m] || { bold:false, italic:false, underline:false });
 
-  const ensureModeHistory = (m, blks) => {
-    const snapshots = historyByMode.current;
-    const indices = histIdxByMode.current;
-    const snapshot = JSON.stringify(blks || []);
-    if (!Array.isArray(snapshots[m]) || snapshots[m].length === 0) {
-      snapshots[m] = [snapshot];
-      indices[m] = 0;
-      return;
-    }
-    if (typeof indices[m] !== "number" || indices[m] < 0 || indices[m] >= snapshots[m].length) {
-      indices[m] = snapshots[m].length - 1;
-    }
-  };
-
-  const resetModeHistories = (initialMode, initialBlocks) => {
-    historyByMode.current = {};
-    histIdxByMode.current = {};
-    ensureModeHistory(initialMode, initialBlocks);
-  };
-
   const switchMode = (m, options = {}) => {
     const { syncRoute = true } = options;
     const currentMode = modeRef.current || mode;
-    if (currentMode === m) return;
-
-    clearTimeout(saveTimer.current);
-    saveProject(projectId, projectName, blocksRef.current, currentMode);
-
-    modeBlocksCache.current[currentMode] = blocksRef.current;
+    const currentBlocks = blocksRef.current;
+    modeBlocksCache.current[currentMode] = currentBlocks;
     modeSceneCardMetaCache.current[currentMode] = cloneSceneCardMetaMap(sceneCardMetaRef.current || {});
-    ensureModeHistory(currentMode, blocksRef.current);
-
-    const saved = readLastProjectForMode(m);
-    if (saved) {
-      loadProject(saved);
-      if (syncRoute && onModeRouteChange) {
-        skipNextRouteSyncRef.current = true;
-        onModeRouteChange(m);
-      }
-      return;
-    }
-
+    ensureModeHistory(currentMode, currentBlocks);
     const cached = modeBlocksCache.current[m];
     const nextBlocks = cached ? [...cached] : (INIT[m]||INIT.film).map(b=>({...b}));
     const nextSceneCardMeta = cloneSceneCardMetaMap(modeSceneCardMetaCache.current[m] || {});
@@ -2108,14 +1936,6 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
     updateSceneCardMeta(nextSceneCardMeta, { autosave:false });
     setBlocks(nextBlocks);
     setMode(m);
-
-    if (m === "play" && !cached) {
-      const nid = "proj_"+Date.now();
-      setProjectId(nid);
-      setProjectName("Без названия");
-      persistActiveProjectId(nid, "play");
-    }
-
     setFocId(null);
     setToolbarBlockId(null);
     setActiveSceneId(null);
@@ -2147,74 +1967,16 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
     onModeRouteChange(mode);
   }, [mode, routeMode, onModeRouteChange]);
 
-  const pushHistory = (blks) => {
-    const currentMode = modeRef.current || mode;
-    const snapshots = historyByMode.current;
-    const indices = histIdxByMode.current;
-    ensureModeHistory(currentMode, blks);
-    const snapshot = JSON.stringify(blks || []);
-    const list = Array.isArray(snapshots[currentMode]) ? snapshots[currentMode] : [];
-    const idx = typeof indices[currentMode] === "number" ? indices[currentMode] : (list.length - 1);
-    if (list[idx] === snapshot) return;
-    const next = list.slice(0, idx + 1);
-    next.push(snapshot);
-    if (next.length > BLOCK_HISTORY_LIMIT) next.shift();
-    snapshots[currentMode] = next;
-    indices[currentMode] = next.length - 1;
-  };
-
-  const undo = () => {
-    const currentMode = modeRef.current || mode;
-    const list = historyByMode.current[currentMode] || [];
-    const idx = histIdxByMode.current[currentMode];
-    if (idx <= 0 || list.length === 0) return;
-    histIdxByMode.current[currentMode] = idx - 1;
-    const blks = JSON.parse(list[idx - 1]);
-    setBlocks(blks);
-    setSaved(false);
-  };
-
-  const redo = () => {
-    const currentMode = modeRef.current || mode;
-    const list = historyByMode.current[currentMode] || [];
-    const idx = histIdxByMode.current[currentMode];
-    if (typeof idx !== "number" || idx >= list.length - 1) return;
-    histIdxByMode.current[currentMode] = idx + 1;
-    const blks = JSON.parse(list[idx + 1]);
-    setBlocks(blks);
-    setSaved(false);
-  };
-
-  const resolveLiveProjectName = (mod = modeRef.current || mode, name = projectName) => resolveProjectName({
-    mode: mod || "film",
-    name,
-    titlePage: titlePageRef.current,
-    playHeader: playHeaderRef.current,
-  });
-
-  const saveProject = (id, name, blks, mod, snapshot = {}) => {
+  const saveProject = (id, name, blks, mod) => {
     try {
-      const resolvedMod = mod || modeRef.current || mode || "film";
-      const nt = snapshot.noteText !== undefined ? snapshot.noteText : noteTextRef.current;
-      const ph = snapshot.playHeader !== undefined ? snapshot.playHeader : playHeaderRef.current;
-      const tp = snapshot.titlePage !== undefined ? snapshot.titlePage : titlePageRef.current;
-      const mh = snapshot.mediaHeader !== undefined ? snapshot.mediaHeader : mediaHeader;
-      const ch = snapshot.contentHeader !== undefined ? snapshot.contentHeader : contentHeader;
-      const cl = snapshot.contentLogo !== undefined ? snapshot.contentLogo : contentLogo;
-      const scm = snapshot.sceneCardMeta !== undefined ? snapshot.sceneCardMeta : sceneCardMetaRef.current;
-      const resolvedName = resolveProjectName({
-        mode: resolvedMod,
-        name,
-        titlePage: tp,
-        playHeader: ph,
-      });
-      const meta = { id, name: resolvedName, mode: resolvedMod, updatedAt: Date.now(), blocksCount: blks.filter(b=>b.type==="scene").length };
-      const data = { ...meta, blocks: blks, playHeader: ph, mediaHeader: mh, contentHeader: ch, contentLogo: cl, docFont, sceneAlign, noteText: nt, sceneCardMeta: scm, markerHighlights, layout: { leftW, rightW, aiW, leftPanelOpen, rightPanelOpen, aiOpen, sceneCardsOpen, sceneCardsMiniMode, sceneCardsRect }, titlePage: tp };
+      const nt = noteTextRef.current;
+      const meta = { id, name, mode: mod, updatedAt: Date.now(), blocksCount: blks.filter(b=>b.type==="scene").length };
+      const data = buildProjectData(meta, { blocks: blks, playHeader, mediaHeader, contentHeader, contentLogo, docFont, sceneAlign, noteText: nt, sceneCardMeta: sceneCardMetaRef.current, markerHighlights, layout: { leftW, rightW, aiW, leftPanelOpen, rightPanelOpen, aiOpen, sceneCardsOpen, sceneCardsMiniMode, sceneCardsRect }, titlePage: titlePageRef.current });
       localStorage.setItem("ow_proj_"+id, JSON.stringify(data));
       const index = JSON.parse(localStorage.getItem("ow_index")||"[]");
-      const next = [meta, ...index.filter(p=>p.id!==id)];
+      const next = upsertProjectEntry(index, meta);
       localStorage.setItem("ow_index", JSON.stringify(next));
-      persistActiveProjectId(id, resolvedMod);
+      persistActiveProjectId(id);
     } catch(e) {}
   };
 
@@ -2229,8 +1991,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
         updatedAt: Date.now(),
         blocksCount: nextBlocks.filter(b=>b.type==="scene").length,
       };
-      const data = {
-        ...meta,
+      const data = buildProjectData(meta, {
         blocks: nextBlocks,
         playHeader: proj.playHeader,
         mediaHeader: proj.mediaHeader,
@@ -2243,39 +2004,25 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
         markerHighlights: proj.markerHighlights,
         layout: proj.layout,
         titlePage: proj.titlePage,
-      };
+      });
       localStorage.setItem("ow_proj_" + meta.id, JSON.stringify(data));
       const index = JSON.parse(localStorage.getItem("ow_index") || "[]");
-      const next = [meta, ...index.filter(p => p.id !== meta.id)];
+      const next = upsertProjectEntry(index, meta);
       localStorage.setItem("ow_index", JSON.stringify(next));
     } catch(e) {}
   };
 
   const scheduleProjectAutosave = () => {
-    if (skipTitlePagePersistRef.current) return;
+    savedRef.current = false;
     setSaved(false);
     clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(()=>{
-      const mod = modeRef.current || mode;
-      const name = resolveLiveProjectName(mod);
-      setProjectName(name);
+      savedRef.current = true;
       setSaved(true);
-      saveProject(projectId, name, blocksRef.current, mod);
+      saveProject(projectId, projectName, blocksRef.current, modeRef.current || mode);
     }, 1500);
   };
-
-  const markDirty = (newBlocks) => {
-    const blks = newBlocks || blocksRef.current;
-    scheduleProjectAutosave();
-    pushHistory(blks);
-  };
-
-  const markDirtyPlay = (nextBlocks) => {
-    if ((modeRef.current || mode) !== "play") return;
-    blocksRef.current = nextBlocks;
-    scheduleProjectAutosave();
-    pushHistory(nextBlocks);
-  };
+  scheduleAutosaveRef.current = scheduleProjectAutosave;
 
   useEffect(()=>{
     ensureModeHistory(mode, blocks);
@@ -2322,21 +2069,15 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
   };
 
   const loadProject = (proj) => {
-    skipTitlePagePersistRef.current = true;
-    const nextMode = getStoredProjectMode(proj) || proj.mode || "film";
-    const nextBlocks = Array.isArray(proj.blocks) ? proj.blocks.map(b=>({...b})) : [];
-    const resolvedName = resolveProjectName({
-      mode: nextMode,
-      name: proj.name,
-      titlePage: proj.titlePage,
-      playHeader: proj.playHeader,
-    });
-    registerOpenedProject({ ...proj, mode: nextMode, name: resolvedName, blocks: nextBlocks });
+    const nextMode = proj.mode||"film";
+    const nextBlocks = proj.blocks.map(b=>({...b}));
+    blocksRef.current = nextBlocks;
+    registerOpenedProject({ ...proj, mode: nextMode, blocks: nextBlocks });
     modeBlocksCache.current = {};
     modeSceneCardMetaCache.current = {};
     resetModeHistories(nextMode, nextBlocks);
     setProjectId(proj.id);
-    setProjectName(resolvedName);
+    setProjectName(proj.name);
     setMode(nextMode);
     setBlocks(nextBlocks);
     updateSceneCardMeta({}, { autosave:false });
@@ -2351,9 +2092,8 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
       if (proj.noteText !== undefined) { setNoteText(proj.noteText); noteTextRef.current = proj.noteText; }
     if (proj.docFont)    setDocFont(proj.docFont);
     if (proj.sceneAlign) setSceneAlign(proj.sceneAlign);
-    if (nextMode === "film") {
-      const tp = normalizeTitlePage(proj.titlePage, resolvedName);
-      patchTitlePage(() => tp);
+    if ((proj.mode || "film") === "film") {
+      setTitlePage(normalizeTitlePage(proj.titlePage, proj.name));
     }
     if (proj.markerHighlights) setMarkerHighlights(proj.markerHighlights);
     if (proj.layout) {
@@ -2371,26 +2111,34 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
     updateSceneCardMeta(cloneSceneCardMetaMap(proj.sceneCardMeta || {}), { autosave:false });
     setSceneCardMenu(null);
     setSaved(true);
+    savedRef.current = true;
     setProjectsOpen(false);
     setMenuOpen(false);
-    persistActiveProjectId(proj.id, nextMode);
-    queueMicrotask(() => {
-      skipTitlePagePersistRef.current = false;
-    });
+    persistActiveProjectId(proj.id);
+    projectHydratedRef.current = true;
   };
 
   const flushProjectSave = () => {
+    if (!projectHydratedRef.current) return;
+    if (savedRef.current) return;
     clearTimeout(saveTimer.current);
-    const mod = modeRef.current || mode;
-    const name = resolveLiveProjectName(mod);
-    saveProject(projectId, name, blocksRef.current, mod);
+    saveProject(
+      projectIdRef.current,
+      projectNameRef.current,
+      blocksRef.current,
+      modeRef.current || mode,
+    );
   };
 
   useEffect(() => {
     const startMode = routeMode || profile?.mode || "film";
     const saved = readLastProjectForMode(startMode);
     if (saved) loadProject(saved);
-    else skipTitlePagePersistRef.current = false;
+    else {
+      projectHydratedRef.current = true;
+      savedRef.current = true;
+    }
+    queueMicrotask(() => { skipTitlePagePersistRef.current = false; });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -2400,19 +2148,17 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
   }, [titlePage]);
 
   useEffect(() => {
-    if (skipTitlePagePersistRef.current || (modeRef.current || mode) !== "play") return;
-    scheduleProjectAutosave();
-  }, [playHeader]);
-
-  useEffect(() => {
     const onPageExit = () => flushProjectSave();
     window.addEventListener("beforeunload", onPageExit);
     window.addEventListener("pagehide", onPageExit);
     return () => {
       window.removeEventListener("beforeunload", onPageExit);
       window.removeEventListener("pagehide", onPageExit);
+      flushProjectSave();
     };
-  }, [projectId, projectName, mode]);
+  // Flush only on true unmount — not when projectId changes after loadProject.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const newProject = () => {
     const nid = "proj_"+Date.now();
@@ -2420,13 +2166,8 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
     const year = new Date().getFullYear()+"";
     const nextBlocks = (INIT[nextMode] || []).map(b=>({...b}));
 
-    if (nextMode === "play") {
-      delete modeBlocksCache.current.play;
-      delete modeSceneCardMetaCache.current.play;
-    } else {
-      modeBlocksCache.current = {};
-      modeSceneCardMetaCache.current = {};
-    }
+    modeBlocksCache.current = {};
+    modeSceneCardMetaCache.current = {};
     resetModeHistories(nextMode, nextBlocks);
     setProjectId(nid);
     setProjectName("Без названия");
@@ -2436,20 +2177,15 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
     setFocId(null);
     setToolbarBlockId(null);
     lastFocId.current = null;
-    if (nextMode !== "play") setNewProjectOverlay(true);
-    persistActiveProjectId(nid, nextMode);
+    setNewProjectOverlay(true);
+    persistActiveProjectId(nid);
 
     if (nextMode === "film") {
-      const emptyTitlePage = { title:"", genre:"", author:"", phone:"", email:"", year };
-      patchTitlePage(emptyTitlePage);
+      setTitlePage({ title:"", genre:"", author:"", phone:"", email:"", year });
       setTitlePageOpen("pdf");
-      saveProject(nid, DEFAULT_PROJECT_NAME, nextBlocks, "film", { titlePage: emptyTitlePage });
     } else if (nextMode === "play") {
-      const nextPlayHeader = playHeader.map(h => ({ ...h, text:"" }));
-      setPlayHeader(nextPlayHeader);
-      setNewProjectOverlay(false);
-      setTitlePageOpen(false);
-      saveProject(nid, "Без названия", nextBlocks, "play", { playHeader: nextPlayHeader });
+      setPlayHeader(prev => prev.map(h => ({ ...h, text:"" })));
+      setTitlePageOpen("pdf");
     } else if (nextMode === "short" || nextMode === "media") {
       if (nextMode === "short") {
         setContentHeader(prev => prev.map(h => ({ ...h, text:"" })));
@@ -2468,318 +2204,113 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
     setMenuOpen(false);
   };
 
-  const persistFilmProjectSnapshot = () => {
-    if ((modeRef.current || mode) !== "film") return;
-    clearTimeout(saveTimer.current);
-    const tp = titlePageRef.current;
-    const name = resolveProjectName({ mode: "film", name: projectName, titlePage: tp });
-    setProjectName(name);
-    saveProject(projectId, name, blocksRef.current, "film", { titlePage: tp });
-    setSaved(true);
-  };
-
   const finishNewProjectOverlay = () => {
-    persistFilmProjectSnapshot();
     setNewProjectOverlay(false);
     setTitlePageOpen(false);
     setMenuOpen(false);
   };
 
-  const closeTitlePage = () => {
-    persistFilmProjectSnapshot();
-    setNewProjectOverlay(false);
-    setTitlePageOpen(false);
-  };
-
   const buildWhaleExport = () => {
-    const mod = modeRef.current || mode;
-    const name = resolveLiveProjectName(mod);
-    return buildWhaleExportPayload({
-      resolvedName: name,
-      mod,
-      blks: blocksRef.current,
-    });
-  };
-
-  const buildWhaleExportPayload = ({ resolvedName, mod, blks, snapshot = {} }) => {
-    const ph = snapshot.playHeader !== undefined ? snapshot.playHeader : playHeaderRef.current;
-    const tp = snapshot.titlePage !== undefined ? snapshot.titlePage : titlePageRef.current;
-    const mh = snapshot.mediaHeader !== undefined ? snapshot.mediaHeader : mediaHeader;
-    const ch = snapshot.contentHeader !== undefined ? snapshot.contentHeader : contentHeader;
-    const cl = snapshot.contentLogo !== undefined ? snapshot.contentLogo : contentLogo;
-    const nt = snapshot.noteText !== undefined ? snapshot.noteText : noteTextRef.current;
-    const scm = snapshot.sceneCardMeta !== undefined ? snapshot.sceneCardMeta : sceneCardMetaRef.current;
-    const displayName = resolveProjectName({ mode: mod, name: resolvedName, titlePage: tp, playHeader: ph });
-    const safeBase = (displayName || "project").replace(/[\\/:*?"<>|]/g, "_").trim() || "project";
-    const data = JSON.stringify({
-      name: displayName,
-      mode: mod,
-      blocks: blks,
-      playHeader: ph,
-      mediaHeader: mh,
-      contentHeader: ch,
-      contentLogo: cl,
-      docFont,
-      sceneAlign,
-      noteText: nt,
-      sceneCardMeta: scm,
-      markerHighlights,
-      layout: { leftW, rightW, aiW, leftPanelOpen, rightPanelOpen, aiOpen, sceneCardsOpen, sceneCardsMiniMode, sceneCardsRect },
-      titlePage: tp,
-      version: 1,
-    }, null, 2);
-    const fileName = safeBase + ".whale";
-    return { fileName, blob: new Blob([data], { type: "application/octet-stream" }), data };
-  };
-
-  const WHALE_FILE_TYPES = [{ description: "Old Whale", accept: { "application/octet-stream": [".whale"] } }];
-
-  const saveAsSuggestedFileName = (name = "") => {
-    const trimmed = (name || "").trim();
-    const base = (trimmed || "project").replace(/[\\/:*?"<>|]/g, "_").trim() || "project";
-    return base + ".whale";
-  };
-
-  const writeBlobToFileHandle = async (handle, blob) => {
-    const writable = await handle.createWritable();
-    await writable.write(blob);
-    await writable.close();
-  };
-
-  const downloadBlobAsFile = (blob, fileName) => {
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = fileName;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-  };
-
-  const shareBlobAsFile = async (blob, fileName) => {
-    const file = new File([blob], fileName, { type: "application/octet-stream" });
-    if (navigator.share && navigator.canShare?.({ files: [file] })) {
-      try {
-        await navigator.share({ files: [file], title: fileName });
-        return "shared";
-      } catch (e) {
-        if (e.name === "AbortError") return "cancelled";
-      }
-    }
-    return "unsupported";
-  };
-
-  const saveWhaleBlobToDisk = async (blob, fileName, fh = null) => {
-    if (fh) {
-      try {
-        await writeBlobToFileHandle(fh, blob);
-        whaleFileHandleRef.current = fh;
-        return "picker";
-      } catch (e) {
-        if (e.name === "AbortError") return "cancelled";
-      }
-    }
-    const shared = await shareBlobAsFile(blob, fileName);
-    if (shared === "shared") return "share";
-    if (shared === "cancelled") return "cancelled";
-    downloadBlobAsFile(blob, fileName);
-    return "download";
-  };
-
-  const buildSaveAsExportDraft = () => {
-    const mod = modeRef.current || mode;
-    const trimmed = (saveAsName || "").trim() || DEFAULT_PROJECT_NAME;
-    const blks = blocksRef.current.map(b => ({ ...b }));
-    const snapshot = buildEditorSnapshotForSave(mod, trimmed);
-    const resolvedName = resolveProjectName({
-      mode: mod,
-      name: trimmed,
-      titlePage: snapshot.titlePage,
-      playHeader: snapshot.playHeader,
-    });
-    const { fileName, blob } = buildWhaleExportPayload({ resolvedName, mod, blks, snapshot });
-    const downloadName = resolveSaveAsDownloadName(trimmed, fileName);
-    return { blob, downloadName };
-  };
-
-  const pickWhaleSaveHandle = async (suggestedName, { startIn = "documents" } = {}) => {
-    if (!window.showSaveFilePicker) return null;
-    return window.showSaveFilePicker({ suggestedName, startIn, types: WHALE_FILE_TYPES });
-  };
-
-  const buildEditorSnapshotForSave = (mod, displayName = "") => {
-    const trimmed = (displayName || "").trim();
-    const snapshot = { noteText: noteTextRef.current, sceneCardMeta: cloneSceneCardMetaMap(sceneCardMetaRef.current || {}) };
-    if (mod === "film") {
-      const tp = { ...titlePageRef.current };
-      if (trimmed) tp.title = trimmed;
-      snapshot.titlePage = tp;
-    } else if (mod === "play") {
-      snapshot.playHeader = playHeaderRef.current.map(h =>
-        h.key === "title" && trimmed ? { ...h, text: trimmed } : { ...h },
-      );
-    } else if (mod === "short") {
-      snapshot.contentHeader = contentHeader.map(h =>
-        h.key === "title" && trimmed ? { ...h, text: trimmed } : { ...h },
-      );
-      snapshot.contentLogo = contentLogo;
-    } else if (mod === "media") {
-      snapshot.mediaHeader = mediaHeader.map(h =>
-        h.key === "show" && trimmed ? { ...h, text: trimmed } : { ...h },
-      );
-    }
-    return snapshot;
-  };
-
-  const applyEditorSnapshotToState = (mod, snapshot) => {
-    if (mod === "film" && snapshot.titlePage) patchTitlePage(() => snapshot.titlePage);
-    if (mod === "play" && snapshot.playHeader) setPlayHeader(snapshot.playHeader);
-    if (mod === "short") {
-      if (snapshot.contentHeader) setContentHeader(snapshot.contentHeader);
-      if (snapshot.contentLogo !== undefined) setContentLogo(snapshot.contentLogo);
-    }
-    if (mod === "media" && snapshot.mediaHeader) setMediaHeader(snapshot.mediaHeader);
-    if (snapshot.sceneCardMeta) updateSceneCardMeta(snapshot.sceneCardMeta, { autosave: false });
+    const data = JSON.stringify({ name: projectName, mode, blocks, playHeader, mediaHeader, contentHeader, contentLogo, docFont, sceneAlign, noteText, sceneCardMeta: sceneCardMetaRef.current, markerHighlights, layout: { leftW, rightW, aiW, leftPanelOpen, rightPanelOpen, aiOpen, sceneCardsOpen, sceneCardsMiniMode, sceneCardsRect }, titlePage: titlePageRef.current, version: 1 }, null, 2);
+    const name = (projectName || "project") + ".whale";
+    return { name, blob: new Blob([data], { type: "application/octet-stream" }) };
   };
 
   const saveNow = async () => {
     clearTimeout(saveTimer.current);
-    const mod = modeRef.current || mode;
-    const name = resolveLiveProjectName(mod);
-    setProjectName(name);
-    saveProject(projectId, name, blocksRef.current, mod);
-    setSaved(true);
-    setMenuOpen(false);
+    const { name, blob } = buildWhaleExport();
 
     if (window.showSaveFilePicker && whaleFileHandleRef.current) {
       try {
-        const { blob } = buildWhaleExport();
         const writable = await whaleFileHandleRef.current.createWritable();
         await writable.write(blob);
         await writable.close();
-      } catch (e) {
+        saveProject(projectId, projectName, blocksRef.current, modeRef.current);
+        setSaved(true);
+        setMenuOpen(false);
+        return;
+      } catch(e) {
         if (e.name === "AbortError") return;
       }
     }
+
+    await saveAs();
   };
 
-  const openSaveAsDialog = () => {
-    clearTimeout(saveTimer.current);
-    const mod = modeRef.current || mode;
-    flushProjectSave();
-    const currentName = resolveLiveProjectName(mod);
-    const draftName = currentName === DEFAULT_PROJECT_NAME ? "" : currentName;
-    saveAsFileHandleRef.current = null;
-    saveAsExportedRef.current = false;
-    setSaveAsPathLabel(window.showSaveFilePicker ? "Документы" : "");
-    setSaveAsName(draftName);
-    setSaveAsOpen(true);
-    setMenuOpen(false);
-  };
+  const saveAs = async () => {
+    const { name, blob } = buildWhaleExport();
 
-  const pickSaveAsFileLocation = async () => {
-    const suggested = saveAsPathLabel.trim() || saveAsSuggestedFileName(saveAsName);
     if (window.showSaveFilePicker) {
       try {
-        const fh = await pickWhaleSaveHandle(suggested, { startIn: "documents" });
-        saveAsFileHandleRef.current = fh;
-        setSaveAsPathLabel(fh.name || suggested);
-      } catch (e) {
-        if (e.name !== "AbortError") {}
-      }
-      return;
-    }
-    const { blob, downloadName } = buildSaveAsExportDraft();
-    const shared = await shareBlobAsFile(blob, downloadName);
-    if (shared === "shared") {
-      saveAsExportedRef.current = true;
-      setSaveAsPathLabel(downloadName);
-    }
-  };
-
-  const resolveSaveAsDownloadName = (projectName, fallbackFileName) => {
-    const fromPath = (saveAsPathLabel || "").trim();
-    if (fromPath && fromPath !== "Документы") {
-      return saveAsSuggestedFileName(fromPath.replace(/\.whale$/i, ""));
-    }
-    return fallbackFileName || saveAsSuggestedFileName(projectName);
-  };
-
-  const confirmSaveAs = async (name) => {
-    const mod = modeRef.current || mode;
-    const trimmed = (name || "").trim();
-    const finalName = trimmed || DEFAULT_PROJECT_NAME;
-    const blks = blocksRef.current.map(b => ({ ...b }));
-    const snapshot = buildEditorSnapshotForSave(mod, trimmed);
-    const resolvedName = resolveProjectName({
-      mode: mod,
-      name: finalName,
-      titlePage: snapshot.titlePage,
-      playHeader: snapshot.playHeader,
-    });
-    const { fileName, blob } = buildWhaleExportPayload({ resolvedName, mod, blks, snapshot });
-    const downloadName = resolveSaveAsDownloadName(finalName, fileName);
-
-    let fh = saveAsFileHandleRef.current;
-    if (!fh && window.showSaveFilePicker) {
-      try {
-        fh = await pickWhaleSaveHandle(downloadName, { startIn: "documents" });
-      } catch (e) {
+        const ext = name.split(".").pop().toLowerCase();
+        const types = [{
+          description: name,
+          accept: { "application/octet-stream": ["."+ext] },
+        }];
+        const fh = await window.showSaveFilePicker({ suggestedName: name, types });
+        whaleFileHandleRef.current = fh;
+        const writable = await fh.createWritable();
+        await writable.write(blob);
+        await writable.close();
+        saveProject(projectId, projectName, blocksRef.current, modeRef.current);
+        setSaved(true);
+        setMenuOpen(false);
+        return;
+      } catch(e) {
         if (e.name === "AbortError") return;
       }
     }
 
-    const nid = "proj_" + Date.now();
-    saveProject(nid, finalName, blks, mod, snapshot);
-    resetModeHistories(mod, blks);
-    setProjectId(nid);
-    setProjectName(resolvedName);
-    setBlocks(blks);
-    applyEditorSnapshotToState(mod, snapshot);
-
-    if (fh) {
-      try {
-        await writeBlobToFileHandle(fh, blob);
-        whaleFileHandleRef.current = fh;
-        setSaveAsPathLabel(fh.name || downloadName);
-      } catch (e) {
-        if (e.name !== "AbortError") await saveWhaleBlobToDisk(blob, downloadName);
-      }
-    } else if (saveAsExportedRef.current) {
-      saveAsExportedRef.current = false;
-    } else {
-      const saved = await saveWhaleBlobToDisk(blob, downloadName);
-      if (saved === "cancelled") return;
-    }
-
-    saveAsFileHandleRef.current = null;
-    persistActiveProjectId(nid, mod);
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    saveProject(projectId, projectName, blocksRef.current, modeRef.current);
     setSaved(true);
-    setSaveAsOpen(false);
     setMenuOpen(false);
   };
 
   useEffect(()=>{ saveNowRef.current = saveNow; }, [saveNow]);
 
-  const openProjectsForMode = (view = "list") => {
+  const confirmSaveAs = (name) => {
+    const finalName = name.trim() || "Без названия";
+    setProjectName(finalName);
+    saveProject(projectId, finalName, blocks, mode);
+    setSaved(true);
+    setSaveAsOpen(false);
+  };
+
+  const openProjectsList = () => {
     try {
-      const currentMode = modeRef.current || mode;
       const index = JSON.parse(localStorage.getItem("ow_index")||"[]");
-      setProjectsList(index.filter(p => getStoredProjectMode(p) === currentMode));
+      setProjectsList(index);
     } catch(e) { setProjectsList([]); }
-    setProjectsView(view);
+    setProjectsView("list");
     setProjectsOpen(true);
     setMenuOpen(false);
   };
 
   const openMyProjectsList = () => {
-    openProjectsForMode("list");
+    try {
+      const currentMode = modeRef.current || mode;
+      const index = JSON.parse(localStorage.getItem("ow_index")||"[]");
+      setProjectsList(index.filter(p => (p.mode || "film") === currentMode));
+    } catch(e) { setProjectsList([]); }
+    setProjectsView("list");
+    setProjectsOpen(true);
+    setMenuOpen(false);
   };
 
   const openMyProjectsCards = () => {
-    openProjectsForMode("cards");
-  };
-
-  const openEditorHistory = () => {
-    openMyProjectsList();
+    try {
+      const currentMode = modeRef.current || mode;
+      const index = JSON.parse(localStorage.getItem("ow_index")||"[]");
+      setProjectsList(index.filter(p => (p.mode || "film") === currentMode));
+    } catch(e) { setProjectsList([]); }
+    setProjectsView("cards");
+    setProjectsOpen(true);
+    setMenuOpen(false);
   };
 
   const clampSceneCardsRect = useCallback((rect) => {
@@ -2910,7 +2441,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
     try {
       localStorage.removeItem("ow_proj_"+id);
       const index = JSON.parse(localStorage.getItem("ow_index")||"[]");
-      localStorage.setItem("ow_index", JSON.stringify(index.filter(p=>p.id!==id)));
+      localStorage.setItem("ow_index", JSON.stringify(removeProjectEntry(index, id)));
       setProjectsList(pl=>pl.filter(p=>p.id!==id));
     } catch(e) {}
   };
@@ -3239,11 +2770,18 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
             });
             if (newBlocks.length === 0) { alert("Не удалось найти содержимое в FDX-файле"); return; }
             const nid = "proj_" + Date.now();
+            const projName = importedTitle || file.name.replace(/\.fdx$/i, "");
+            blocksRef.current = newBlocks;
+            projectIdRef.current = nid;
+            projectNameRef.current = projName;
+            resetModeHistories("film", newBlocks);
             setProjectId(nid);
-            setProjectName(importedTitle || file.name.replace(/\.fdx$/i, ""));
+            setProjectName(projName);
             setMode("film");
             setBlocks(newBlocks);
+            saveProject(nid, projName, newBlocks, "film");
             setFocId(null); setToolbarBlockId(null); lastFocId.current = null;
+            savedRef.current = true;
             setSaved(true); setMenuOpen(false);
           } else if (currentMode === "play") {
             const newBlocks = [];
@@ -3392,24 +2930,11 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
           /* ─── .whale JSON-импорт (без изменений) ─── */
           const data = JSON.parse(ev.target.result);
           if (!data.blocks) return;
-          const fileBaseName = file.name.replace(/\.whale$/i, "");
-          const importedMode = data.mode || "film";
-          const importedName = resolveProjectName({
-            mode: importedMode,
-            name: data.name,
-            titlePage: data.titlePage,
-            playHeader: data.playHeader,
-            fileBaseName,
-          });
-          const importedBlocks = data.blocks.map(b=>({...b}));
-          const importedTitlePage = importedMode === "film"
-            ? normalizeTitlePage(data.titlePage, importedName)
-            : data.titlePage;
           const nid = "proj_" + Date.now();
           setProjectId(nid);
-          setProjectName(importedName);
-          setMode(importedMode);
-          setBlocks(importedBlocks);
+          setProjectName(data.name || file.name.replace(".whale",""));
+          setMode(data.mode || "film");
+          setBlocks(data.blocks.map(b=>({...b})));
           setFocId(null);
           setToolbarBlockId(null);
           lastFocId.current = null;
@@ -3420,8 +2945,8 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
             if (data.noteText !== undefined) { setNoteText(data.noteText); noteTextRef.current = data.noteText; }
           if (data.docFont)    setDocFont(data.docFont);
           if (data.sceneAlign) setSceneAlign(data.sceneAlign);
-          if (importedMode === "film") {
-            patchTitlePage(() => importedTitlePage);
+          if ((data.mode || "film") === "film") {
+            setTitlePage(normalizeTitlePage(data.titlePage, data.name || file.name.replace(/\.whale$/i, "")));
           }
           if (data.markerHighlights) setMarkerHighlights(data.markerHighlights);
           if (data.layout) {
@@ -3439,24 +2964,6 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
           updateSceneCardMeta(cloneSceneCardMetaMap(data.sceneCardMeta || {}), { autosave:false });
           setSceneCardMenu(null);
           modeSceneCardMetaCache.current = {};
-          registerOpenedProject({
-            id: nid,
-            name: importedName,
-            mode: importedMode,
-            blocks: importedBlocks,
-            playHeader: data.playHeader,
-            mediaHeader: data.mediaHeader,
-            contentHeader: data.contentHeader,
-            contentLogo: data.contentLogo,
-            docFont: data.docFont,
-            sceneAlign: data.sceneAlign,
-            noteText: data.noteText,
-            sceneCardMeta: data.sceneCardMeta,
-            markerHighlights: data.markerHighlights,
-            layout: data.layout,
-            titlePage: importedTitlePage,
-          });
-          persistActiveProjectId(nid, importedMode);
           setSaved(true);
           setMenuOpen(false);
         }
@@ -3968,6 +3475,8 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
     }
     const tp = titlePage;
     const courier = "'Courier New', Courier, monospace";
+    const isPlay = false;
+    const playFont = courier;
     let scriptHtml = "";
     let sceneNum = 0;
     {
@@ -3993,7 +3502,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
         }
       }
     }
-    if (forPDF) {
+    if (forPDF && mode !== "play") {
       return `<!DOCTYPE html><html><head><meta charset="utf-8">
       <meta name="viewport" content="width=794">
       <style>
@@ -4127,10 +3636,10 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
     return `<!DOCTYPE html><html><head><meta charset="utf-8">
     <meta name="viewport" content="width=794">
     <style>
-      @page { size: A4; margin: 25.4mm 25.4mm 25.4mm 38.1mm; }
+      @page { size: A4; margin: 25.4mm 25.4mm 25.4mm ${isPlay ? "25.4mm" : "38.1mm"}; }
       * { box-sizing: border-box; }
-      body { font-family: ${courier}; font-size: 12pt; line-height: 1.7; color: #000; background: #fff; margin: 0; }
-      .title-page { page-break-after: always; display: flex; flex-direction: column; position: relative; font-family: ${courier}; }
+      body { font-family: ${isPlay ? playFont : courier}; font-size: 12pt; line-height: 1.7; color: #000; background: #fff; margin: 0; }
+      .title-page { ${isPlay && !titleSepPage ? "" : "page-break-after: always;"} display: flex; flex-direction: column; position: relative; font-family: ${isPlay ? playFont : courier}; }
       .title-center { flex: 1; display: flex; flex-direction: column; align-items: center; text-align: center; padding-top: 22vh; }
       .title-name { font-size: 12pt; text-transform: uppercase; margin-bottom: 24pt; letter-spacing: 1px; text-align: center; }
       .title-genre { font-size: 12pt; margin-bottom: 12pt; text-align: center; }
@@ -4138,22 +3647,167 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
       .title-author { font-size: 12pt; margin-bottom: 0; text-align: center; }
       .title-bottom { display: flex; justify-content: space-between; align-items: flex-end; padding-bottom: 0; font-size: 12pt; }
       .contacts { line-height: 1.8; }
-      .script { font-family: ${courier}; font-size: 12pt; line-height: 1.6; }
+      .script { font-family: ${isPlay ? playFont : courier}; font-size: 12pt; line-height: 1.6; }
+      ${isPlay ? `
+      .script-source {
+        position: absolute;
+        left: -99999px;
+        top: 0;
+        width: 794px;
+        padding: 96px 96px 96px 96px;
+        visibility: hidden;
+        pointer-events: none;
+      }
+      .script-source-inner {
+        font-family: ${playFont};
+        font-size: 12pt;
+        line-height: 1.6;
+      }
+      .script-pages { width: 794px; }
+      .script-page {
+        height: 1123px;
+        padding: 96px 96px 96px 96px;
+        background: #fff;
+        box-shadow: 0 4px 24px rgba(0,0,0,0.3);
+        margin-bottom: 0;
+        break-after: page;
+        page-break-after: always;
+      }
+      .script-page:last-child {
+        break-after: auto;
+        page-break-after: auto;
+      }
+      .script-page-content {
+        height: 931px;
+        overflow: hidden;
+        font-family: ${playFont};
+        font-size: 12pt;
+        line-height: 1.6;
+      }
+      ` : ""}
       @media print {
         body { margin: 0; }
         .title-page { height: 100vh; }
+        ${isPlay ? `
+        .script-source { display: none !important; }
+        .script-page { height: auto; min-height: auto; box-shadow: none; }
+        .script-page-content { height: auto; min-height: auto; }
+        ` : ""}
       }
       @media screen {
         html { background: #888; }
         body { width: 794px; transform-origin: top left; margin: 0; }
-        .title-page { height: 1123px; padding: 96px 96px 96px 144px; background:#fff; box-shadow:0 4px 24px rgba(0,0,0,0.3); margin-bottom:0; display:block; }
-        .title-center { position:absolute; left:144px; right:96px; top:50%; transform:translateY(-50%); padding-top:0; }
-        .title-bottom { position:absolute; left:144px; right:96px; bottom:96px; }
-        .script { min-height: 1123px; padding: 96px 96px 96px 144px; background:#fff; box-shadow:0 4px 24px rgba(0,0,0,0.3); margin-bottom:0; }
+        .title-page { height: 1123px; padding: 96px 96px 96px ${isPlay ? "96px" : "144px"}; background:#fff; box-shadow:0 4px 24px rgba(0,0,0,0.3); margin-bottom:0; }
+        .script { min-height: 1123px; padding: 96px 96px 96px ${isPlay ? "96px" : "144px"}; background:#fff; box-shadow:0 4px 24px rgba(0,0,0,0.3); margin-bottom:0; }
+        ${isPlay ? `
+        .script-pages { width: 794px; }
+        .script-page { height: 1123px; padding: 96px 96px 96px 96px; background:#fff; box-shadow:0 4px 24px rgba(0,0,0,0.3); margin-bottom:0; }
+        ` : `.title-page { display:block; }
+        .title-center { position:absolute; left:${isPlay ? "96px" : "144px"}; right:96px; top:50%; transform:translateY(-50%); padding-top:0; }
+        .title-bottom { position:absolute; left:${isPlay ? "96px" : "144px"}; right:96px; bottom:96px; }`}
       }
     </style>
     <script>
       (function(){
+        ${isPlay ? `
+        function makePlayPage(root){
+          var page = document.createElement('div');
+          page.className = 'script-page';
+          var content = document.createElement('div');
+          content.className = 'script-page-content';
+          page.appendChild(content);
+          root.appendChild(page);
+          return content;
+        }
+        function getPlaySourceText(node){
+          var text = node.textContent || '';
+          var first = node.firstElementChild;
+          if (first && first.tagName === 'STRONG') {
+            var lead = first.textContent || '';
+            if (lead && text.indexOf(lead) === 0) {
+              text = text.slice(lead.length).replace(/^\s+/, '');
+            }
+          }
+          return text;
+        }
+        function setPlayPieceText(piece, node, text){
+          var first = node.firstElementChild;
+          piece.innerHTML = '';
+          if (first && first.tagName === 'STRONG') {
+            piece.appendChild(first.cloneNode(true));
+            if (text) piece.appendChild(document.createTextNode('  ' + text));
+          } else {
+            piece.textContent = text;
+          }
+        }
+        function fillPlaySegment(node, content, tokens, start){
+          var piece = node.cloneNode(false);
+          content.appendChild(piece);
+          var low = 1;
+          var high = tokens.length - start;
+          var best = 0;
+          while (low <= high) {
+            var mid = Math.floor((low + high) / 2);
+            setPlayPieceText(piece, node, tokens.slice(start, start + mid).join(''));
+            if (content.scrollHeight <= content.clientHeight + 1) {
+              best = mid;
+              low = mid + 1;
+            } else {
+              high = mid - 1;
+            }
+          }
+          if (!best) {
+            content.removeChild(piece);
+            return 0;
+          }
+          setPlayPieceText(piece, node, tokens.slice(start, start + best).join('').replace(/^\s+/, ''));
+          return best;
+        }
+        function splitPlayNode(node, content, root){
+          var text = getPlaySourceText(node);
+          var tokens = text.match(/\S+\s*|\s+/g) || [text];
+          var index = 0;
+          var current = content;
+          while (index < tokens.length) {
+            var fitted = fillPlaySegment(node, current, tokens, index);
+            if (!fitted) {
+              current = makePlayPage(root);
+              fitted = fillPlaySegment(node, current, tokens, index);
+              if (!fitted) break;
+            }
+            index += fitted;
+            if (index < tokens.length) current = makePlayPage(root);
+          }
+          return current;
+        }
+        function paginatePlay(){
+          var source = document.querySelector('.script-source');
+          var sourceInner = document.querySelector('.script-source-inner');
+          var root = document.querySelector('.script-pages');
+          if (!source || !sourceInner || !root) return;
+          root.innerHTML = '';
+          var nodes = Array.from(sourceInner.children);
+          var current = makePlayPage(root);
+          nodes.forEach(function(node){
+            var clone = node.cloneNode(true);
+            current.appendChild(clone);
+            if (current.scrollHeight > current.clientHeight + 1) {
+              current.removeChild(clone);
+              if (!current.children.length) {
+                current = splitPlayNode(node, current, root);
+              } else {
+                current = makePlayPage(root);
+                var retry = node.cloneNode(true);
+                current.appendChild(retry);
+                if (current.scrollHeight > current.clientHeight + 1) {
+                  current.removeChild(retry);
+                  current = splitPlayNode(node, current, root);
+                }
+              }
+            }
+          });
+        }
+        ` : ""}
         ${forPDF ? "" : `
         function scale(){
           if(window.matchMedia('print').matches) return;
@@ -4161,20 +3815,31 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
           document.body.style.transform = 'scale('+s+')';
           document.documentElement.style.height = Math.ceil(document.body.scrollHeight * s) + 'px';
         }
-        function ready(){ scale(); }
+        function ready(){
+          ${isPlay ? "paginatePlay();" : ""}
+          scale();
+        }
         if (document.readyState === 'loading') {
           document.addEventListener('DOMContentLoaded', ready);
         } else {
           ready();
         }
-        window.addEventListener('resize', scale);
-        window.addEventListener('beforeprint', function(){ document.body.style.transform='none'; document.body.style.width='auto'; });
-        window.addEventListener('afterprint', scale);
+        window.addEventListener('resize', function(){ ${isPlay ? "paginatePlay(); " : ""}scale(); });
+        window.addEventListener('beforeprint', function(){ document.body.style.transform='none'; document.body.style.width='auto'; ${isPlay ? "paginatePlay();" : ""} });
+        window.addEventListener('afterprint', function(){ ${isPlay ? "paginatePlay(); " : ""}scale(); });
         `}
       })();
     <\/script>
     </head><body>
     <div class="title-page">
+      ${isPlay ? `
+        <div style="display:flex;flex-direction:column;">
+          ${playHeader.map(h => h.type==="spacer"
+            ? `<div style="height:${h.size||24}px"></div>`
+            : `<p style="margin:0 0 4px;font-family:${h.font||"Times New Roman"},serif;font-size:${h.size||14}px;font-weight:${h.bold?"bold":"normal"};font-style:${h.italic?"italic":"normal"};text-decoration:${h.underline?"underline":"none"};text-align:${h.align||"left"};">${h.text||""}</p>`
+          ).join("")}
+        </div>
+      ` : `
       <div class="title-center">
         <p class="title-name">${tp.title||projectName}</p>
         <p class="title-genre">${tp.genre||""}</p>
@@ -4184,8 +3849,11 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
         <div class="contacts">${[tp.phone,tp.email].filter(Boolean).join("<br>")}</div>
         <div class="year">${tp.year||""}</div>
       </div>
+      `}
     </div>
-    <div class="script">${scriptHtml}</div>
+    ${isPlay
+      ? `<div class="script-source"><div class="script-source-inner">${scriptHtml}</div></div><div class="script-pages"></div>`
+      : `<div class="script">${scriptHtml}</div>`}
     </body></html>`;
   };
 
@@ -4222,12 +3890,8 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
     iframe.contentDocument.write(html);
     iframe.contentDocument.close();
 
-    if (isPlayPdf && iframe.contentDocument.fonts) {
-      try { await iframe.contentDocument.fonts.ready; } catch { /* ignore */ }
-    }
-
     // Wait for fonts, layout and PDF pagination to settle
-    await new Promise(r => setTimeout(r, isFilmPdf ? 300 : isPlayPdf ? 500 : 900));
+    await new Promise(r => setTimeout(r, isFilmPdf ? 300 : 900));
     for (let i = 0; i < 40; i++) {
       if (iframe.contentWindow && iframe.contentWindow.__pdfReady) break;
       await new Promise(r => setTimeout(r, 100));
@@ -4238,7 +3902,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
       const { jsPDF } = window.jspdf;
       const doc = new jsPDF({
         unit: "pt",
-        format: isFilmPdf || isPlayPdf ? "letter" : "a4",
+        format: isFilmPdf ? "letter" : "a4",
         orientation: "portrait",
       });
       const pageW = doc.internal.pageSize.getWidth();
@@ -4656,158 +4320,14 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
       setTitlePageOpen(false);
       return;
     }
-    const tp = titlePage;
-    const lines = [];
-    const center = (s, w=60) => { const p=Math.max(0,Math.floor((w-s.length)/2)); return " ".repeat(p)+s; };
-    const wrap = (s, indent=0, width=60) => {
-      const words = s.split(" "); const rows = []; let cur = "";
-      for (const w of words) {
-        if ((cur+" "+w).trim().length > width) { rows.push(" ".repeat(indent)+cur.trim()); cur=w; }
-        else cur=(cur+" "+w).trim();
-      }
-      if(cur) rows.push(" ".repeat(indent)+cur.trim());
-      return rows;
-    };
-
-    // Title page
-    if (mode === "short") {
-      // Видео — из contentHeader
-      const ch = contentHeader.filter(h=>h.type!=="spacer");
-      lines.push("","","","","","","","","","","","","");
-      ch.forEach(h => { if(h.text) lines.push(h.text); });
-      lines.push("","","","","","","","","","","","","","","","","","","");
-      lines.push("=".repeat(60));
-      lines.push("","");
-    } else if (mode === "media") {
-      // Медиа — из mediaHeader
-      const mh = mediaHeader.filter(h=>h.type!=="spacer");
-      lines.push("","","","","","","","","","","","","");
-      mh.forEach(h => { if(h.text) lines.push(h.text); });
-      lines.push("","","","","","","","","","","","","","","","","","","");
-      lines.push("=".repeat(60));
-      lines.push("","");
-    } else {
-      // Film — титул по titlePage
-      lines.push("","","","","","","","","","","","","");
-      lines.push(center((tp.title||projectName).toUpperCase()));
-      if (tp.genre) lines.push(center(tp.genre));
-      lines.push("");
-      if (tp.author) { lines.push(center("Автор")); lines.push(center(tp.author)); }
-      lines.push("","","","","","","","","","","","","","","","","","","");
-      if (tp.phone) lines.push("Тел.: "+tp.phone);
-      if (tp.email) lines.push("Email: "+tp.email);
-      if (tp.year)  lines.push(tp.year);
-      lines.push("","");
-      lines.push("=".repeat(60));
-      lines.push("","");
-    }
-
-    // Media mode TXT
-    if (mode === "short") {
-      const ch = contentHeader;
-      const shortLines = [];
-      ch.filter(h=>h.type!=="spacer" && h.text).forEach(h => shortLines.push(h.text));
-      shortLines.push("=".repeat(60), "", "");
-      for (const b of blocks) {
-        if(b.type==="scene")  { shortLines.push("",""); shortLines.push((b.text||"").toUpperCase()); shortLines.push("-".repeat(40)); }
-        else if(b.type==="hook")   { shortLines.push(""); shortLines.push("▶ "+(b.text||"")); }
-        else if(b.type==="body")   { shortLines.push("  "+(b.text||"")); }
-        else if(b.type==="cta")    { shortLines.push(""); shortLines.push("→ "+(b.text||"")); }
-        else if(b.type==="action") { shortLines.push(b.text||""); }
-        else if(b.type==="spacer") { shortLines.push(""); }
-      }
-      const textShort = shortLines.join("\n");
-      const fnameShort = (projectName||"content")+".txt";
-      const fileShort = new File(["\ufeff"+textShort], fnameShort, {type:"text/plain;charset=utf-8"});
-      if (navigator.share && navigator.canShare && navigator.canShare({files:[fileShort]})) {
-        navigator.share({files:[fileShort],title:fnameShort}).catch(()=>{});
-        setTitlePageOpen(false); return;
-      }
-      saveFile(new Blob(["\ufeff"+textShort],{type:"text/plain;charset=utf-8"}), fnameShort, "text/plain");
-      setTitlePageOpen(false); return;
-    }
-    if (mode === "media") {
-      const mh = mediaHeader;
-      const mediaLines = [];
-      mh.filter(h=>h.type!=="spacer" && h.text).forEach(h => mediaLines.push(h.text));
-      mediaLines.push("=".repeat(60), "", "");
-      for (const b of blocks) {
-        if (b.type==="segment")   { mediaLines.push("",""); mediaLines.push((b.text||"").toUpperCase()); mediaLines.push("-".repeat(40)); }
-        else if (b.type==="anchor")    { mediaLines.push(""); mediaLines.push(b.text||""); }
-        else if (b.type==="sync")      { mediaLines.push("  | "+(b.text||"")); }
-        else if (b.type==="vtr")       { mediaLines.push("[ВТР] "+(b.text||"")); }
-        else if (b.type==="offscreen") { mediaLines.push("[ЗАКАДР] "+(b.text||"")); }
-        else if (b.type==="lower3")    { mediaLines.push("[ПЛАШКА] "+(b.text||"")); }
-        else if (b.type==="question")  { mediaLines.push(""); mediaLines.push("? "+(b.text||"")); }
-        else if (b.type==="note")      { mediaLines.push("  ("+( b.text||"")+")"); }
-        else if (b.type==="spacer")    { mediaLines.push(""); }
-      }
-      const textMedia = mediaLines.join("\n");
-      const fnameMedia = (projectName||"media")+".txt";
-      const fileMedia = new File(["\ufeff"+textMedia], fnameMedia, {type:"text/plain;charset=utf-8"});
-      if (navigator.share && navigator.canShare && navigator.canShare({files:[fileMedia]})) {
-        navigator.share({files:[fileMedia],title:fnameMedia}).catch(()=>{});
-        setTitlePageOpen(false); return;
-      }
-      saveFile(new Blob(["\ufeff"+textMedia],{type:"text/plain;charset=utf-8"}), fnameMedia, "text/plain");
-      setTitlePageOpen(false); return;
-    }
-
-    // Script
-    let sceneNum = 0;
-    for (const b of blocks) {
-      if (mode === "film") {
-        if (b.type === "act") {
-          lines.push("", ""); lines.push(center((b.text || "").toUpperCase())); lines.push("", "");
-        } else if (b.type === "scene") {
-          lines.push(""); lines.push((b.text || "").toUpperCase());
-        } else if (b.type === "cast") {
-          lines.push((b.text || "").toUpperCase()); lines.push("");
-        } else if (b.type === "action") {
-          wrap(b.text || "", 0, 60).forEach(l => lines.push(l)); lines.push("");
-        } else if (b.type === "char") {
-          lines.push(""); lines.push(center((b.text || "").toUpperCase()));
-        } else if (b.type === "dialogue") {
-          wrap(b.text || "", 20, 40).forEach(l => lines.push(l)); lines.push("");
-        } else if (b.type === "paren") {
-          wrap("(" + b.text + ")", 25, 30).forEach(l => lines.push(l));
-        } else if (b.type === "trans") {
-          lines.push(""); lines.push(" ".repeat(42) + (b.text || "").toUpperCase()); lines.push("");
-        } else if (b.type === "note") {
-          wrap(b.text || "", 0, 60).forEach(l => lines.push(l)); lines.push("");
-        } else if (b.type === "spacer") {
-          lines.push("");
-        }
-      } else {
-        if (b.type==="scene") {
-          sceneNum++;
-          lines.push(""); lines.push(`${sceneNum}. ${(b.text||"").toUpperCase()}`);
-        } else if (b.type==="cast") {
-          lines.push(b.text||""); lines.push("");
-        } else if (b.type==="action") {
-          wrap(b.text||"",0,60).forEach(l=>lines.push(l)); lines.push("");
-        } else if (b.type==="char") {
-          lines.push(""); lines.push(center((b.text||"").toUpperCase()));
-        } else if (b.type==="dialogue") {
-          wrap(b.text||"",20,40).forEach(l=>lines.push(l)); lines.push("");
-        } else if (b.type==="paren") {
-          wrap("("+b.text+")",25,30).forEach(l=>lines.push(l));
-        } else if (b.type==="trans") {
-          lines.push(""); lines.push(" ".repeat(42)+(b.text||"").toUpperCase()); lines.push("");
-        } else if (b.type==="act") {
-          lines.push("",""); lines.push(center((b.text||"").toUpperCase())); lines.push("","");
-        }
-      }
-    }
-
-    const text = lines.join("\n");
-    const fname = (tp.title||projectName||"screenplay")+".txt";
-    const file = new File(["\ufeff"+text], fname, {type:"text/plain;charset=utf-8"});
+    const built = buildModeTxt(mode, { projectName, blocks, titlePage, playHeader, contentHeader, mediaHeader });
+    if (!built) { setTitlePageOpen(false); return; }
+    const file = new File(["\ufeff"+built.text], built.filename, {type:"text/plain;charset=utf-8"});
     if (navigator.share && navigator.canShare && navigator.canShare({files:[file]})) {
-      navigator.share({files:[file],title:fname}).catch(()=>{});
-      return;
+      navigator.share({files:[file],title:built.filename}).catch(()=>{});
+      setTitlePageOpen(false); return;
     }
-    saveFile(new Blob(["\ufeff"+text],{type:"text/plain;charset=utf-8"}), fname, "text/plain");
+    saveFile(new Blob(["\ufeff"+built.text],{type:"text/plain;charset=utf-8"}), built.filename, "text/plain");
     setTitlePageOpen(false);
   };
 
@@ -4823,10 +4343,18 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
     xml += `<FinalDraft DocumentType="Script" Template="No" Version="3">\n`;
     xml += `<Content>\n`;
 
-    let sceneNum = 0;
+    let sceneNum = 0; let actNum = 0; let sceneInAct = 0;
+    const isPlayFDX = mode === "play";
     for (const b of blocks) {
       let type = ""; let text = b.text||"";
-      if (mode === "film") {
+      if (isPlayFDX) {
+        if (b.type==="act")      { actNum++; sceneInAct=0; type="Scene Heading"; text=getPlayActDisplayText(text, actNum).toUpperCase(); }
+        else if (b.type==="scene")    { sceneInAct++; type="Scene Heading"; text=text||(actNum+"."+sceneInAct); }
+        else if (b.type==="cast")     { type="Action"; text="("+text+")"; }
+        else if (b.type==="stage")    { type="Action"; }
+        else if (b.type==="line")     { type="Action"; text=(b.name?b.name.toUpperCase()+".  ":"")+text; }
+        else if (b.type==="note")     { type="Action"; text="["+text+"]"; }
+      } else if (mode === "film") {
         if (b.type === "act") { type = "New Act"; text = text.toUpperCase(); }
         else if (b.type === "scene") { type = "Scene Heading"; text = text.toUpperCase(); }
         else if (b.type === "cast") { type = "Cast List"; text = text.toUpperCase(); }
@@ -4869,20 +4397,6 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
     setPlayHeader(ph => ph.map(item => item.key===key ? {...item,[field]:value} : item));
   };
 
-  const updBlock     = (id, text) => { setBlocks(bs=>{
-    const next = bs.map(b=>{
-      if (b.id !== id) return b;
-      const nextText = mode === "film" ? normalizeFilmBlockText(b.type, text) : text;
-      return {...b, text: nextText};
-    });
-    markDirtyPlay(next);
-    return next;
-  }); if ((modeRef.current || mode) !== "play") markDirty(); };
-  const updBlockName = (id, name) => { setBlocks(bs=>{
-    const next = bs.map(b=>b.id===id?{...b,name}:b);
-    markDirtyPlay(next);
-    return next;
-  }); if ((modeRef.current || mode) !== "play") markDirty(); };
   const buildFilmTypeChangedBlock = (block, type, textOverride) => {
     const next = {
       id: block.id,
@@ -4986,21 +4500,14 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
       : type==="line"
       ? [{id:nid,type:"line",name:"",text:""}]
       : [{id:nid,type,text:""}];
-    setBlocks(bs=>{ const i=bs.findIndex(b=>b.id===id); const a=[...bs]; a.splice(i+1,0,...toAdd); if (mode === "play") markDirtyPlay(a); return a; });
+    const cur = blocksRef.current || [];
+    const i = cur.findIndex(b=>b.id===id);
+    const next = [...cur]; next.splice(i+1,0,...toAdd);
+    blocksRef.current = next;
+    setBlocks(next);
     if (type==="scene" || type==="act") setActiveSceneId(nid);
-    if (mode !== "play") markDirty();
-    setFoc(nid);
-    if (mode === "play") {
-      filmEditStateRef.current = {
-        blockId: nid,
-        absStart: 0,
-        absEnd: 0,
-        scrollTop: scrollRef.current ? scrollRef.current.scrollTop : null,
-        sliceStart: null,
-      };
-    } else {
-      setTimeout(()=>{ blockRefs.current[nid]?.focus(); setFoc(nid); }, 60);
-    }
+    markDirty(next);
+    setTimeout(()=>{ blockRefs.current[nid]?.focus(); setFoc(nid); }, 60);
   }, [mode]);
 
   const addBefore = useCallback((id, type) => {
@@ -5010,9 +4517,13 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
       : type==="line"
       ? [{id:nid,type:"line",name:"",text:""}]
       : [{id:nid,type,text:""}];
-    setBlocks(bs=>{ const i=bs.findIndex(b=>b.id===id); if (i < 0) return bs; const a=[...bs]; a.splice(i,0,...toAdd); return a; });
+    const cur = blocksRef.current || [];
+    const i = cur.findIndex(b=>b.id===id);
+    const next = [...cur]; if (i >= 0) next.splice(i,0,...toAdd);
+    blocksRef.current = next;
+    setBlocks(next);
     if (type==="scene" || type==="act") setActiveSceneId(nid);
-    markDirty();
+    markDirty(next);
     setTimeout(()=>{ blockRefs.current[nid]?.focus?.(); setFoc(nid); }, 60);
   }, [mode]);
 
@@ -5054,23 +4565,22 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
       const targetIndex = cur.findIndex(b => b.id === target.id);
       const actNumber = cur.slice(0, targetIndex).filter(b => b.type === "act").length + 1;
       const title = getPlayActTitle(actNumber);
-      setBlocks(bs => {
-        const i = bs.findIndex(b => b.id === target.id);
-        if (i < 0) return bs;
-        const a = [...bs];
-        a.splice(i, 0, { id: nid, type: "act", text: title });
-        return a;
-      });
+      {
+        const i = blocksRef.current.findIndex(b => b.id === target.id);
+        if (i >= 0) {
+          const a = [...blocksRef.current];
+          a.splice(i, 0, { id: nid, type: "act", text: title });
+          applyBlocks(a);
+        }
+      }
       setActiveSceneId(nid);
-      markDirty();
       setTimeout(()=>{ blockRefs.current[nid]?.focus?.(); setFoc(nid); }, 60);
       return;
     }
 
     const title = getPlayActTitle(cur.filter(b => b.type === "act").length + 1);
-    setBlocks(bs => [...bs, { id: nid, type: "act", text: title }]);
+    applyBlocks([...blocksRef.current, { id: nid, type: "act", text: title }]);
     setActiveSceneId(nid);
-    markDirty();
     setTimeout(()=>{ blockRefs.current[nid]?.focus?.(); setFoc(nid); }, 60);
   }, [activeSceneId, focId]);
 
@@ -5080,9 +4590,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
     const b = blocks[i];
 
     const nb = blocks.filter(x=>x.id!==id);
-    setBlocks(nb);
-    if ((modeRef.current || mode) === "play") markDirtyPlay(nb);
-    else markDirty();
+    applyBlocks(nb);
     const prev = nb[Math.max(0,i-1)];
     if (prev) {
       setTimeout(()=>{
@@ -5102,7 +4610,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
       if (blocks[j].type==="scene"||blocks[j].type==="act") { end=j; break; }
     }
     const nb = [...blocks.slice(0,end), ...newBlocks, ...blocks.slice(end)];
-    setBlocks(nb); markDirty();
+    applyBlocks(nb);
   };
 
   const delScene = (sceneId) => {
@@ -5139,26 +4647,8 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
   };
 
   const moveScene = (fromId, toId) => {
-    if (fromId===toId) return;
-    const cur = blocksRef.current;
-    const i = cur.findIndex(b=>b.id===fromId);
-    if (i===-1) return;
-    const currentMode = modeRef.current || mode;
-    // В film/play action — это содержимое сцены, а не её граница.
-    // Иначе при переносе сцена обрывается перед первым action.
-    const SCENE_TYPES = (currentMode==="film" || currentMode==="play")
-      ? ["scene","act"]
-      : ["scene","act","segment","video","anchor","sync","vtr","offscreen","lower3","question","hook","body","cta","action"];
-    let end = cur.length;
-    for (let j=i+1; j<cur.length; j++) {
-      if (SCENE_TYPES.includes(cur[j].type)) { end=j; break; }
-    }
-    const fromBlocks = cur.slice(i, end);
-    const nb = cur.filter(b=>!fromBlocks.includes(b));
-    const insertAt = nb.findIndex(b=>b.id===toId);
-    if (insertAt===-1) return;
-    nb.splice(insertAt, 0, ...fromBlocks);
-    const moved = [...nb]; setBlocks(moved); markDirty(moved);
+    const moved = moveSceneRange(blocksRef.current, fromId, toId, { mode: modeRef.current || mode, insertAfter: false });
+    if (moved) { setBlocks(moved); markDirty(moved); }
   };
 
   const getSceneCardsDropSide = (e, isAct=false) => {
@@ -5184,108 +4674,9 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
   };
 
   const moveSceneDirectional = (fromId, toId, side) => {
-    if (fromId===toId) return;
-    const cur = blocksRef.current;
-    const i = cur.findIndex(b=>b.id===fromId);
-    if (i===-1) return;
-    const currentMode = modeRef.current || mode;
-    const SCENE_TYPES = (currentMode==="film" || currentMode==="play")
-      ? ["scene","act"]
-      : ["scene","act","segment","video","anchor","sync","vtr","offscreen","lower3","question","hook","body","cta","action"];
-    let end = cur.length;
-    for (let j=i+1; j<cur.length; j++) {
-      if (SCENE_TYPES.includes(cur[j].type)) { end=j; break; }
-    }
-    const fromBlocks = cur.slice(i, end);
-    const nb = cur.filter(b=>!fromBlocks.includes(b));
-    const targetIndex = nb.findIndex(b=>b.id===toId);
-    if (targetIndex===-1) return;
     const insertAfter = side === "right" || side === "bottom";
-    const insertAt = insertAfter ? targetIndex + 1 : targetIndex;
-    nb.splice(insertAt, 0, ...fromBlocks);
-    const moved = [...nb];
-    setBlocks(moved);
-    markDirty(moved);
-  };
-
-  /** Play `line`: Backspace at start of name field — merge/delete like film block start. */
-  const playLineBackspaceMergeWithPrev = (block) => {
-    if (mode !== "play" || block.type !== "line") return;
-    const currentBlocks = blocksRef.current || blocks;
-    const bi = currentBlocks.findIndex((b) => b.id === block.id);
-    if (bi <= 0) return;
-    const prev = currentBlocks[bi - 1];
-    if (!prev || prev.type === "act") return;
-    const isBlankLine = !(block.name || "").trim() && !(block.text || "").trim();
-    if (isBlankLine) {
-      filmEditStateRef.current = {
-        blockId: prev.id,
-        absStart: (prev.text || "").length,
-        absEnd: (prev.text || "").length,
-        scrollTop: scrollRef.current ? scrollRef.current.scrollTop : null,
-        sliceStart: null,
-      };
-      delBlock(block.id);
-      return;
-    }
-    if (prev.type !== block.type) {
-      filmEditStateRef.current = {
-        blockId: block.id,
-        absStart: 0,
-        absEnd: 0,
-        scrollTop: scrollRef.current ? scrollRef.current.scrollTop : null,
-        sliceStart: null,
-      };
-      chType(block.id, prev.type);
-      return;
-    }
-    const prevText = prev.text || "";
-    const curText = block.text || "";
-    const needsSpace = !!prevText && !!curText && !/\s$/.test(prevText) && !/^\s/.test(curText);
-    const joiner = needsSpace ? " " : "";
-    const caretPos = prevText.length + joiner.length;
-    const mergedName = (prev.name || "").trim() ? (prev.name || "") : (block.name || "");
-    filmEditStateRef.current = {
-      blockId: prev.id,
-      absStart: caretPos,
-      absEnd: caretPos,
-      scrollTop: scrollRef.current ? scrollRef.current.scrollTop : null,
-      sliceStart: null,
-    };
-    setBlocks((bs) => {
-      const prevIdx = bs.findIndex((b) => b.id === prev.id);
-      const curIdx = bs.findIndex((b) => b.id === block.id);
-      if (prevIdx < 0 || curIdx < 0 || prevIdx >= curIdx) return bs;
-      const mergedPrev = {
-        ...bs[prevIdx],
-        name: mergedName,
-        text: (bs[prevIdx].text || "") + joiner + curText,
-      };
-      const next = [...bs];
-      next[prevIdx] = mergedPrev;
-      next.splice(curIdx, 1);
-      markDirtyPlay(next);
-      return next;
-    });
-  };
-
-  const onPlayLineNameKey = (e, block) => {
-    if (mode !== "play" || block.type !== "line") return;
-    if (e.key === "Tab" || e.key === "Enter") {
-      e.preventDefault();
-      blockRefs.current[block.id]?.focus();
-      return;
-    }
-    if (e.key !== "Backspace" || e.shiftKey || e.altKey || e.ctrlKey || e.metaKey) return;
-    const input = e.target;
-    if (!input || input.selectionStart !== 0 || input.selectionEnd !== 0) return;
-    const currentBlocks = blocksRef.current || blocks;
-    const bi = currentBlocks.findIndex((b) => b.id === block.id);
-    if (bi <= 0) return;
-    const prev = currentBlocks[bi - 1];
-    if (!prev || prev.type === "act") return;
-    e.preventDefault();
-    playLineBackspaceMergeWithPrev(block);
+    const moved = moveSceneRange(blocksRef.current, fromId, toId, { mode: modeRef.current || mode, insertAfter });
+    if (moved) { setBlocks(moved); markDirty(moved); }
   };
 
   const onKey = (e, block, ctx={}) => {
@@ -5311,29 +4702,16 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
       }
       if (el && absCursor > 0 && absCursor < block.text.length && block.type === "dialogue") {
         // Разделяем диалог: часть1 + новый char(то же имя) + новый dialogue(остаток)
-        const before = block.text.substring(0, absCursor);
-        const after = block.text.substring(absCursor).trimStart();
+        const { before, after } = splitBlockText(block.text, absCursor);
         // Ищем имя персонажа назад
-        let charText = "";
-        const currentBlocks = blocks;
-        const bi = currentBlocks.findIndex(b => b.id === block.id);
-        for (let i = bi - 1; i >= 0; i--) {
-          if (currentBlocks[i].type === "char") { charText = currentBlocks[i].text || ""; break; }
-          if (currentBlocks[i].type === "scene" || currentBlocks[i].type === "act") break;
-        }
+        const charText = findPrecedingCharName(blocks, block.id);
         updBlock(block.id, before);
         const charId = uid();
         const dialId = uid();
-        setBlocks(bs => {
-          const i = bs.findIndex(b => b.id === block.id);
-          const a = [...bs];
-          a.splice(i + 1, 0,
-            { id: charId, type: "char", text: charText },
-            { id: dialId, type: "dialogue", text: after }
-          );
-          return a;
-        });
-        markDirty();
+        applyBlocks(insertBlocksAfter(blocksRef.current, block.id, [
+          { id: charId, type: "char", text: charText },
+          { id: dialId, type: "dialogue", text: after },
+        ]));
         filmEditStateRef.current = {
           blockId: dialId,
           absStart: 0,
@@ -5343,21 +4721,10 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
         };
         setFoc(dialId);
       } else if (el && absCursor > 0 && absCursor < block.text.length && !["scene", "act", "spacer"].includes(block.type)) {
-        const before = block.text.substring(0, absCursor);
-        const after = block.text.substring(absCursor).trimStart();
+        const { before, after } = splitBlockText(block.text, absCursor);
         updBlock(block.id, before);
         const newId = uid();
-        const newBlock = mode === "play" && block.type === "line"
-          ? { id: newId, type: block.type, name: block.name || "", text: after }
-          : { id: newId, type: block.type, text: after };
-        setBlocks(bs => {
-          const i = bs.findIndex(b => b.id === block.id);
-          const a = [...bs];
-          a.splice(i + 1, 0, newBlock);
-          if (mode === "play") markDirtyPlay(a);
-          return a;
-        });
-        if (mode !== "play") markDirty();
+        applyBlocks(insertBlocksAfter(blocksRef.current, block.id, [{ id: newId, type: block.type, text: after }]));
         filmEditStateRef.current = {
           blockId: newId,
           absStart: 0,
@@ -5367,16 +4734,14 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
         };
         setFoc(newId);
       } else {
-        addAfter(block.id, def.next||defs[0].type);
+        addAfter(block.id, nextEnterType(def, defs));
       }
       return;
     }
     if (e.key==="Tab") {
       e.preventDefault();
-      const PROT = ["scene","line","act"];
-      if (!PROT.includes(block.type)) {
-        const i = defs.findIndex(d=>d.type===block.type);
-        const nextType = defs[(i+1)%defs.length].type;
+      const nextType = cycleBlockType(defs, block.type, ["scene","line","act"]);
+      if (nextType) {
         if (mode === "film" && changeFilmBlockTypeFromActiveLine(block.id, nextType)) return;
         chType(block.id, nextType);
       }
@@ -5390,8 +4755,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
       if (selStart === 0 && selEnd === 0) {
         const currentSliceStart = (ctx && typeof ctx.sliceStartAbs === "number") ? ctx.sliceStartAbs : 0;
         const isContinuedVisualSlice = (ctx && ctx.isFilmSlice && ctx.continued) || (ctx && ctx.part === "second");
-        const isPlayContinuedSlice = mode === "play" && ctx && ctx.part === "playSlice" && currentSliceStart > 0;
-        if ((mode === "film" && isContinuedVisualSlice || isPlayContinuedSlice) && el) {
+        if (mode === "film" && isContinuedVisualSlice && el) {
           e.preventDefault();
           const root = scrollRef.current || document;
           const nodes = Array.from(root.querySelectorAll('textarea[data-block-id]'));
@@ -5403,9 +4767,6 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
             const absPos = prevEntry.sliceStart + prevEntry.node.value.length;
             restoreFilmTextareaFocus(prevEntry.node, { absStart: absPos, absEnd: absPos });
           }
-          return;
-        }
-        if (mode === "play" && block.type === "line" && currentSliceStart === 0) {
           return;
         }
         const currentBlocks = blocksRef.current || blocks;
@@ -5436,11 +4797,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
               chType(block.id, prev.type);
               return;
             }
-            const prevText = prev.text || "";
-            const curText = block.text || "";
-            const needsSpace = !!prevText && !!curText && !/\s$/.test(prevText) && !/^\s/.test(curText);
-            const joiner = needsSpace ? " " : "";
-            const caretPos = prevText.length + joiner.length;
+            const { joiner, caretPos } = computeMergeJoiner(prev.text, block.text);
             filmEditStateRef.current = {
               blockId: prev.id,
               absStart: caretPos,
@@ -5448,69 +4805,54 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
               scrollTop: scrollRef.current ? scrollRef.current.scrollTop : null,
               sliceStart: null,
             };
-            setBlocks(bs => {
-              const prevIdx = bs.findIndex(b => b.id === prev.id);
-              const curIdx = bs.findIndex(b => b.id === block.id);
-              if (prevIdx < 0 || curIdx < 0 || prevIdx >= curIdx) return bs;
-              const mergedPrev = { ...bs[prevIdx], text: (bs[prevIdx].text || "") + joiner + curText };
-              const next = [...bs];
-              next[prevIdx] = mergedPrev;
-              next.splice(curIdx, 1);
-              return next;
-            });
-            markDirty();
+            applyBlocks(mergeAdjacentBlocks(blocksRef.current, prev.id, block.id, joiner));
             return;
           }
         }
-        if (mode === "play" && bi > 0 && block.type !== "act" && block.type !== "line") {
+        if (mode === "play" && bi > 0 && block.type !== "act") {
+          if (block.type === "line") {
+            const nameText = block.name || "";
+            const rowEl = el && el.parentElement ? el.parentElement : null;
+            const nameInput = rowEl ? rowEl.querySelector('input') : null;
+            e.preventDefault();
+            if (nameText.length > 0) {
+              updBlockName(block.id, nameText.slice(0, -1));
+            }
+            setTimeout(() => {
+              if (!nameInput) return;
+              try { nameInput.focus({ preventScroll: true }); } catch(err) { nameInput.focus(); }
+              const pos = Math.max(0, nameText.length - 1);
+              try { nameInput.setSelectionRange(pos, pos); } catch(err) {}
+            }, 0);
+            return;
+          }
           const prev = currentBlocks[bi - 1];
           if (prev && prev.type && prev.type !== "act") {
             e.preventDefault();
             if (isBlankBlock) {
-              filmEditStateRef.current = {
-                blockId: prev.id,
-                absStart: (prev.text || "").length,
-                absEnd: (prev.text || "").length,
-                scrollTop: scrollRef.current ? scrollRef.current.scrollTop : null,
-                sliceStart: null,
-              };
               delBlock(block.id);
+              setTimeout(() => {
+                const prevEl = blockRefs.current[prev.id];
+                if (!prevEl) return;
+                try { prevEl.focus({ preventScroll: true }); } catch(err) { prevEl.focus(); }
+                const pos = (prevEl.value || "").length;
+                try { prevEl.setSelectionRange(pos, pos); } catch(err) {}
+              }, 0);
               return;
             }
             if (prev.type !== block.type) {
-              filmEditStateRef.current = {
-                blockId: block.id,
-                absStart: 0,
-                absEnd: 0,
-                scrollTop: scrollRef.current ? scrollRef.current.scrollTop : null,
-                sliceStart: null,
-              };
               chType(block.id, prev.type);
               return;
             }
-            const prevText = prev.text || "";
-            const curText = block.text || "";
-            const needsSpace = !!prevText && !!curText && !/\s$/.test(prevText) && !/^\s/.test(curText);
-            const joiner = needsSpace ? " " : "";
-            const caretPos = prevText.length + joiner.length;
-            filmEditStateRef.current = {
-              blockId: prev.id,
-              absStart: caretPos,
-              absEnd: caretPos,
-              scrollTop: scrollRef.current ? scrollRef.current.scrollTop : null,
-              sliceStart: null,
-            };
-            setBlocks(bs => {
-              const prevIdx = bs.findIndex(b => b.id === prev.id);
-              const curIdx = bs.findIndex(b => b.id === block.id);
-              if (prevIdx < 0 || curIdx < 0 || prevIdx >= curIdx) return bs;
-              const mergedPrev = { ...bs[prevIdx], text: (bs[prevIdx].text || "") + joiner + curText };
-              const next = [...bs];
-              next[prevIdx] = mergedPrev;
-              next.splice(curIdx, 1);
-              markDirtyPlay(next);
-              return next;
-            });
+            const { joiner, caretPos } = computeMergeJoiner(prev.text, block.text);
+            applyBlocks(mergeAdjacentBlocks(blocksRef.current, prev.id, block.id, joiner));
+            setTimeout(() => {
+              const prevEl = blockRefs.current[prev.id];
+              if (!prevEl) return;
+              try { prevEl.focus({ preventScroll: true }); } catch(err) { prevEl.focus(); }
+              try { prevEl.setSelectionRange(caretPos, caretPos); } catch(err) {}
+              autoH(prevEl);
+            }, 0);
             return;
           }
         }
@@ -5533,22 +4875,8 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
               chType(block.id, prev.type);
               return;
             }
-            const prevText = prev.text || "";
-            const curText = block.text || "";
-            const needsSpace = !!prevText && !!curText && !/\s$/.test(prevText) && !/^\s/.test(curText);
-            const joiner = needsSpace ? " " : "";
-            const caretPos = prevText.length + joiner.length;
-            setBlocks(bs => {
-              const prevIdx = bs.findIndex(b => b.id === prev.id);
-              const curIdx = bs.findIndex(b => b.id === block.id);
-              if (prevIdx < 0 || curIdx < 0 || prevIdx >= curIdx) return bs;
-              const mergedPrev = { ...bs[prevIdx], text: (bs[prevIdx].text || "") + joiner + curText };
-              const next = [...bs];
-              next[prevIdx] = mergedPrev;
-              next.splice(curIdx, 1);
-              return next;
-            });
-            markDirty();
+            const { joiner, caretPos } = computeMergeJoiner(prev.text, block.text);
+            applyBlocks(mergeAdjacentBlocks(blocksRef.current, prev.id, block.id, joiner));
             setTimeout(() => {
               const prevEl = blockRefs.current[prev.id];
               if (!prevEl) return;
@@ -5578,22 +4906,8 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
               chType(block.id, prev.type);
               return;
             }
-            const prevText = prev.text || "";
-            const curText = block.text || "";
-            const needsSpace = !!prevText && !!curText && !/\s$/.test(prevText) && !/^\s/.test(curText);
-            const joiner = needsSpace ? " " : "";
-            const caretPos = prevText.length + joiner.length;
-            setBlocks(bs => {
-              const prevIdx = bs.findIndex(b => b.id === prev.id);
-              const curIdx = bs.findIndex(b => b.id === block.id);
-              if (prevIdx < 0 || curIdx < 0 || prevIdx >= curIdx) return bs;
-              const mergedPrev = { ...bs[prevIdx], text: (bs[prevIdx].text || "") + joiner + curText };
-              const next = [...bs];
-              next[prevIdx] = mergedPrev;
-              next.splice(curIdx, 1);
-              return next;
-            });
-            markDirty();
+            const { joiner, caretPos } = computeMergeJoiner(prev.text, block.text);
+            applyBlocks(mergeAdjacentBlocks(blocksRef.current, prev.id, block.id, joiner));
             setTimeout(() => {
               const prevEl = blockRefs.current[prev.id];
               if (!prevEl) return;
@@ -6219,7 +5533,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
   }, [projectId, mode, isMobile]);
 
   useLayoutEffect(()=>{
-    if (mode !== "film" && mode !== "play") return;
+    if (mode !== "film") return;
     const pending = filmEditStateRef.current;
     if (!pending) return;
     const root = scrollRef.current || document;
@@ -6288,375 +5602,40 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
   // SHARED HELPERS for rendering
   // ══════════════════════════════════════════════
 
-  // Структурный блок для film-scene на мобиле
-  const renderFilmSceneBlock = (block) => {
-    const parts = (block.text||"").split(".").map(s=>s.trim());
-    const intExt = parts[0]||"ИНТ";
-    const location = parts[1]||"";
-    const time = parts[2]||"";
-    return (
-      <div style={{paddingTop:"28px",paddingBottom:"0"}}>
-        <div style={{display:"flex",alignItems:"center",flexWrap:"wrap"}}>
-          {/* ИНТ/НАТ */}
-          <div style={{display:"flex",background:BG,borderRadius:"8px",boxShadow:SH_IN,padding:"2px"}}>
-            {["ИНТ","НАТ"].map(v=>(
-              <button key={v} onMouseDown={e=>e.preventDefault()} onClick={()=>{
-                setFoc(block.id);
-                const p=[...parts]; p[0]=v;
-                updBlock(block.id,p.filter(Boolean).join(". ")+".");
-              }} style={{
-                padding:"5px 10px",border:"none",borderRadius:"6px",
-                background:intExt===v?SURF:"transparent",
-                boxShadow:intExt===v?SH_SM:"none",
-                color:intExt===v?T1:T3,
-                fontSize:"12px",fontWeight:"bold",cursor:"pointer",
-                fontFamily:"'Courier New',monospace",letterSpacing:"1px",
-              }}>{v}.</button>
-            ))}
-          </div>
-          {/* Локация */}
-          <input
-            value={location}
-            onChange={e=>{
-              const p=[...parts]; p[1]=e.target.value.toUpperCase();
-              updBlock(block.id,p.slice(0,3).filter(Boolean).join(". ")+".");
-            }}
-            onFocus={()=>setFoc(block.id)}
-            onBlur={()=>setTimeout(()=>setFocId(f=>f===block.id?null:f),500)}
-            onKeyDown={e=>{
-              if (e.key==="Enter") {
-                e.preventDefault();
-                // ищем cast блок после этой сцены
-                const idx = blocks.findIndex(b=>b.id===block.id);
-                const castBlock = blocks[idx+1];
-                if (castBlock?.type==="cast") {
-                  setFoc(castBlock.id);
-                  setTimeout(()=>blockRefs.current[castBlock.id]?.focus(), 50);
-                }
-              }
-            }}
-            placeholder="ЛОКАЦИЯ"
-            style={{
-              flex:1,minWidth:"80px",background:"transparent",border:"none",
-              borderBottom:`1px solid ${T3}44`,outline:"none",color:T1,
-              fontSize:"14px",fontWeight:"bold",fontFamily:"'Courier New',monospace",
-              letterSpacing:"1px",padding:"4px 2px",textTransform:"uppercase",
-            }}
-          />
-          {/* Время */}
-          <div style={{display:"flex",background:BG,borderRadius:"8px",boxShadow:SH_IN,padding:"2px",flexWrap:"wrap"}}>
-            {["ДЕНЬ","НОЧЬ","УТРО","ВЕЧЕР"].map(v=>(
-              <button key={v} onMouseDown={e=>e.preventDefault()} onClick={()=>{
-                setFoc(block.id);
-                const p=[...parts]; p[2]=v;
-                updBlock(block.id,p.slice(0,3).filter(Boolean).join(". ")+".");
-                const idx=blocks.findIndex(b=>b.id===block.id);
-                const castBlock=blocks[idx+1];
-                if (castBlock?.type==="cast") setTimeout(()=>{ setFoc(castBlock.id); blockRefs.current[castBlock.id]?.focus(); },80);
-              }} style={{
-                padding:"5px 8px",border:"none",borderRadius:"6px",
-                background:time===v?SURF:"transparent",
-                boxShadow:time===v?SH_SM:"none",
-                color:time===v?T1:T3,
-                fontSize:"11px",cursor:"pointer",fontFamily:"'Courier New',monospace",
-              }}>{v}</button>
-            ))}
-          </div>
-        </div>
-      </div>
-    );
-  };
-
   // Textarea для play line
   // Сцена в режиме пьесы — с автонумерацией
-  const renderPlayScene = (block) => {
-    const idx = blocks.findIndex(b=>b.id===block.id);
-    let sceneInAct = 0;
-    for (let i=0; i<=idx; i++) {
-      if (blocks[i].type==="act" && i<idx) sceneInAct=0;
-      if (blocks[i].type==="scene") sceneInAct++;
-    }
-    const autoLabel = "Сцена " + sceneInAct;
-    return (
-      <div style={{position:"relative", width:"100%"}}>
-        {renderSearchOverlay({
-          scope:"block",
-          blockId:block.id,
-          text:block.text,
-          overlayStyle:{
-            boxSizing:"border-box",
-            padding:"16px 0 4px",
-            fontFamily:`${docFont||"Times New Roman"},serif`,
-            fontSize:PLAY_TYPO.sceneFontSize,
-            lineHeight:PLAY_TYPO.headingLineHeight,
-            fontWeight:"bold",
-            textAlign:sceneAlign||"left",
-          }
-        })}
-        <textarea
-          ref={el=>{blockRefs.current[block.id]=el;if(el)autoH(el);}}
-          value={block.text}
-          onChange={e=>{updBlock(block.id,e.target.value);autoH(e.target);}}
-          onFocus={()=>setFoc(block.id)}
-          onBlur={()=>setTimeout(()=>setFocId(f=>f===block.id?null:f),300)}
-          onKeyDown={e=>onKey(e,block)}
-          placeholder={autoLabel}
-          className="scene-ph"
-          spellCheck={false} rows={1}
-          style={{
-            width:"100%", display:"block", position:"relative", zIndex:1,
-            background:"transparent",border:"none",outline:"none",
-            resize:"none",overflow:"hidden",
-            fontFamily:`${docFont||"Times New Roman"},serif`,
-            fontSize:PLAY_TYPO.sceneFontSize,lineHeight:PLAY_TYPO.headingLineHeight,
-            fontWeight:"bold",
-            textAlign: sceneAlign||"left",
-            color:T1,
-            boxSizing:"border-box",padding:"16px 0 4px",
-            "::placeholder":{color:T1,opacity:1},
-          }}
-        />
-      </div>
-    );
-  };
+  const renderPlayScene = (block) => (
+    <PlayScene block={block} blocks={blocks} sceneAlign={sceneAlign}
+      blockRefs={blockRefs} docFont={docFont} autoH={autoH}
+      updBlock={updBlock} setFoc={setFoc} setFocId={setFocId}
+      onKey={onKey} renderSearchOverlay={renderSearchOverlay} />
+  );
 
   // Отступ в режиме пьесы
-  const renderPlaySpacer = (block) => {
-    const focused = focId === block.id;
-    return (
-      <div
-        tabIndex={0}
-        onFocus={()=>setFoc(block.id)}
-        onKeyDown={e=>onKey(e,block)}
-        className="no-print"
-        style={{
-          height:"24px", width:"100%", cursor:"text", outline:"none",
-          borderLeft: focused ? `2px solid ${mc}55` : "2px solid transparent",
-          transition:"border .15s", position:"relative",
-          display:"flex", alignItems:"center",
-        }}
-      >
-        <span style={{
-          color:T3, fontSize:"9px", letterSpacing:"2px",
-          opacity: focused ? 0.9 : 0.7, pointerEvents:"none",
-          transition:"opacity .15s", paddingLeft:"6px",
-          fontFamily:"inherit",
-        }}>ОТСТУП</span>
-      </div>
-    );
-  };
+  const renderPlaySpacer = (block) => (
+    <PlaySpacer block={block} focId={focId} accentColor={mc} setFoc={setFoc} onKey={onKey} />
+  );
 
   const renderPlayLine = (block) => (
-    <div style={{display:"flex",alignItems:"flex-start",paddingTop:"4px",fontFamily:`${docFont||'Times New Roman'},serif`,fontSize:PLAY_TYPO.bodyFontSize,lineHeight:PLAY_TYPO.bodyLineHeight}}>
-      <input
-        value={block.name||""}
-        onChange={e=>updBlockName(block.id,e.target.value)}
-        onFocus={()=>setFoc(block.id)}
-        onBlur={()=>setTimeout(()=>setFocId(f=>f===block.id?null:f),500)}
-        onKeyDown={e=>{if(e.key==="Tab"||e.key==="Enter"){e.preventDefault();blockRefs.current[block.id]?.focus();}}}
-        placeholder="Имя" spellCheck={false}
-        size={Math.max(3,(block.name||"").length+1)}
-        style={{background:"transparent",border:"none",outline:"none",fontWeight:"bold",color:T1,fontFamily:`${docFont||'Times New Roman'},serif`,fontSize:PLAY_TYPO.bodyFontSize,flexShrink:0,padding:"0",margin:"0",minWidth:"30px"}}
-      />
-      <span style={{color:T1,fontWeight:"bold",fontSize:PLAY_TYPO.bodyFontSize,marginRight:"7px",flexShrink:0}}>.</span>
-      <div style={{position:"relative", flex:1}}>
-        {renderSearchOverlay({
-          scope:"block",
-          blockId:block.id,
-          text:block.text,
-          overlayStyle:{
-            boxSizing:"border-box",
-            padding:"0",
-            margin:"0",
-            fontFamily:`${docFont||'Times New Roman'},serif`,
-            fontSize:PLAY_TYPO.bodyFontSize,
-            lineHeight:PLAY_TYPO.bodyLineHeight,
-          }
-        })}
-        <textarea
-          ref={el=>{blockRefs.current[block.id]=el;if(el)autoH(el);}}
-          value={block.text} onChange={e=>{updBlock(block.id,e.target.value);autoH(e.target);}}
-          onFocus={()=>setFoc(block.id)}
-          onBlur={()=>setTimeout(()=>setFocId(f=>f===block.id?null:f),500)}
-          onKeyDown={e=>onKey(e,block)}
-          placeholder="текст реплики..." rows={1}
-          style={{width:"100%",display:"block",position:"relative",zIndex:1,background:"transparent",border:"none",outline:"none",resize:"none",overflow:"hidden",color:T1,fontSize:PLAY_TYPO.bodyFontSize,lineHeight:PLAY_TYPO.bodyLineHeight,fontFamily:`${docFont||'Times New Roman'},serif`,boxSizing:"border-box",padding:"0",margin:"0"}}
-        />
-      </div>
-    </div>
+    <PlayLine block={block} blockRefs={blockRefs} docFont={docFont} autoH={autoH}
+      updBlock={updBlock} updBlockName={updBlockName} setFoc={setFoc} setFocId={setFocId}
+      onKey={onKey} renderSearchOverlay={renderSearchOverlay} />
   );
 
   const SHORT_SCENE_ICON = 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'14\' height=\'14\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'%23000000\' stroke-opacity=\'0\' stroke-width=\'1.7\' stroke-linecap=\'round\' stroke-linejoin=\'round\'%3E%3Cpath d=\'M12 21s-5.5-5.14-5.5-10A5.5 5.5 0 0 1 12 5.5A5.5 5.5 0 0 1 17.5 11c0 4.86-5.5 10-5.5 10Z\'/%3E%3Ccircle cx=\'12\' cy=\'11\' r=\'2.25\'/%3E%3C/svg%3E")';
   const SHORT_CAST_ICON  = 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'14\' height=\'14\' viewBox=\'0 0 24 24\' fill=\'none\' stroke=\'%23000000\' stroke-opacity=\'0\' stroke-width=\'1.7\' stroke-linecap=\'round\' stroke-linejoin=\'round\'%3E%3Cpath d=\'M20 21a8 8 0 0 0-16 0\'/%3E%3Ccircle cx=\'12\' cy=\'8\' r=\'3.25\'/%3E%3C/svg%3E")';
 
   // Обычная textarea
-  const renderTextarea = (block, extraStyle={}) => {
-    const def = defs.find(d=>d.type===block.type)||defs[0];
-    const UPPER = ["cast","char","scene"];
-    const textareaStyle = {
-      width:"100%",background:"transparent",border:"none",outline:"none",
-      resize:"none",overflow:"hidden",
-      fontSize:mode==="play"?PLAY_TYPO.bodyFontSize:"16px",
-      lineHeight:mode==="play"?PLAY_TYPO.bodyLineHeight:"1.85",
-      fontFamily:mode==="play"?`${docFont||'Times New Roman'},serif`:"'Courier New',monospace",
-      boxSizing:"border-box",padding:"5px 0",
-      position:"relative", zIndex:1, display:"block",
-      ...def.st,
-      ...(mode==="short" && block.type==="scene" ? {
-        backgroundImage: block.text ? "none" : SHORT_SCENE_ICON,
-        backgroundRepeat:"no-repeat",
-        backgroundPosition:"0 50%",
-        backgroundSize:"11px 11px",
-      } : {}),
-      ...(mode==="short" && block.type==="cast" ? {
-        backgroundImage: block.text ? "none" : SHORT_CAST_ICON,
-        backgroundRepeat:"no-repeat",
-        backgroundPosition:"0 50%",
-        backgroundSize:"11px 11px",
-      } : {}),
-      ...(extraStyle.paddingLeft==="0" ? {paddingLeft:0,paddingRight:0,textAlign:"left"} : {}),
-      ...extraStyle,
-      fontWeight: block.bold ? "bold" : block.semibold ? "600" : def.st?.fontWeight,
-      fontStyle: block.italic ? "italic" : def.st?.fontStyle,
-      textDecoration: block.underline ? "underline" : def.st?.textDecoration,
-      color: block.color || def.st?.color || "#e8e4d8",
-    };
-    return (
-      <div style={{position:"relative", width:"100%"}}>
-        {renderSearchOverlay({
-          scope:"block",
-          blockId:block.id,
-          text:block.text,
-          overlayStyle:{
-            boxSizing:"border-box",
-            padding:textareaStyle.padding,
-            fontSize:textareaStyle.fontSize,
-            lineHeight:textareaStyle.lineHeight,
-            fontFamily:textareaStyle.fontFamily,
-            fontWeight:textareaStyle.fontWeight,
-            fontStyle:textareaStyle.fontStyle,
-            textDecoration:textareaStyle.textDecoration,
-            textAlign:textareaStyle.textAlign,
-            paddingLeft:textareaStyle.paddingLeft,
-            paddingRight:textareaStyle.paddingRight,
-            paddingTop:textareaStyle.paddingTop,
-            paddingBottom:textareaStyle.paddingBottom,
-          }
-        })}
-        <textarea
-          ref={el=>{blockRefs.current[block.id]=el;if(el)autoH(el);}}
-          value={block.text}
-          onChange={e=>{
-            const val = UPPER.includes(block.type) ? e.target.value.toUpperCase() : e.target.value;
-            updBlock(block.id, val); autoH(e.target);
-          }}
-          onFocus={()=>setFoc(block.id)}
-          onBlur={()=>setTimeout(()=>{if(document.activeElement!==blockRefs.current[block.id])setFocId(f=>f===block.id?null:f);},300)}
-          onKeyDown={e=>onKey(e,block)}
-          onPaste={e=>{
-            // — play / short / media: многострочная вставка → отдельные блоки —
-            if (mode === "play" || mode === "short" || mode === "media") {
-              const text = e.clipboardData.getData('text/plain');
-              const lines = text.split('\n');
-              if (lines.length <= 1) return;
-              e.preventDefault();
-              const el = e.target;
-              const selStart = el.selectionStart ?? 0;
-              const selEnd   = el.selectionEnd   ?? 0;
-              const curText  = block.text || '';
-              const before   = curText.substring(0, selStart);
-              const after    = curText.substring(selEnd);
-              const baseType = block.type !== 'spacer' ? block.type
-                : (mode === 'play' ? 'line' : mode === 'short' ? 'action' : 'anchor');
-              const lineType = (l) => l.trim() === '' ? 'spacer' : baseType;
-              const firstText = before + lines[0];
-              const firstType = lineType(lines[0]) === 'spacer' && before ? baseType : lineType(lines[0]);
-              const lastId   = uid();
-              const lastText = lines[lines.length - 1] + after;
-              const lastType = lineType(lines[lines.length - 1]);
-              const middle   = lines.slice(1, -1);
-              setBlocks(bs => {
-                const i = bs.findIndex(b => b.id === block.id);
-                if (i === -1) return bs;
-                const next = [...bs];
-                const replacement = [
-                  { ...block, type: firstType, text: firstText },
-                  ...middle.map(l => ({ id: uid(), type: lineType(l), text: l })),
-                  { id: lastId, type: lastType, text: lastText },
-                ];
-                next.splice(i, 1, ...replacement);
-                return next;
-              });
-              markDirty();
-              setTimeout(() => {
-                const lastEl = blockRefs.current[lastId];
-                if (!lastEl) return;
-                try { lastEl.focus(); } catch(err) {}
-                try { lastEl.setSelectionRange(lastText.length, lastText.length); } catch(err) {}
-                autoH(lastEl);
-              }, 60);
-              return;
-            }
-            // — film —
-            if (mode !== "film") return;
-            const text = e.clipboardData.getData('text/plain');
-            const lines = text.split('\n');
-            if (lines.length <= 1) return;
-            e.preventDefault();
-            const el = e.target;
-            const selStart = el.selectionStart ?? 0;
-            const selEnd = el.selectionEnd ?? 0;
-            const curText = block.text || '';
-            const before = curText.substring(0, selStart);
-            const after = curText.substring(selEnd);
-            const detectFilmType = (line) => {
-              const t = line.trim();
-              if (!t) return 'spacer';
-              if (/^(?:\d+[\.\s]+)?(?:ИНТ|INT)[\.\s]/i.test(t)) return 'scene';
-              if (/^(?:\d+[\.\s]+)?(?:НАТ|NAT|EXT)[\.\s]/i.test(t)) return 'scene';
-              if (/^\(\s*.+\s*\)$/.test(t)) return 'paren';
-              if (/^(?:CUT TO|FADE|СМЕНА)/i.test(t)) return 'trans';
-              if (t === t.toUpperCase() && t.length <= 40 && /[A-ZА-ЯЁ]/.test(t)) return 'char';
-              return 'action';
-            };
-            const upMob = (t, tp) => (tp === 'scene' || tp === 'char') ? t.toUpperCase() : t;
-            const firstType = before.trim() ? block.type : detectFilmType(lines[0]);
-            const firstText = upMob(before + lines[0], firstType);
-            const lastLineType = detectFilmType(lines[lines.length - 1]);
-            const lastText = upMob(lines[lines.length - 1] + after, lastLineType);
-            const middleLines = lines.slice(1, -1);
-            const lastId = uid();
-            setBlocks(bs => {
-              const i = bs.findIndex(b => b.id === block.id);
-              if (i === -1) return bs;
-              const next = [...bs];
-              const replacement = [
-                { ...block, type: firstType, text: firstText },
-                ...middleLines.map(l => { const tp = detectFilmType(l); return { id: uid(), type: tp, text: upMob(l, tp) }; }),
-                { id: lastId, type: lastLineType, text: lastText },
-              ];
-              next.splice(i, 1, ...replacement);
-              return next;
-            });
-            markDirty();
-            setTimeout(() => {
-              const lastEl = blockRefs.current[lastId];
-              if (!lastEl) return;
-              try { lastEl.focus(); } catch(err) {}
-              const pos = lastText.length;
-              try { lastEl.setSelectionRange(pos, pos); } catch(err) {}
-              autoH(lastEl);
-            }, 60);
-          }}
-          placeholder={def.ph} spellCheck={spellOn && def.spell} rows={1}
-          autoCorrect={spellOn ? "on" : "off"}
-          autoComplete="off"
-          autoCapitalize={spellOn ? "sentences" : "off"}
-          style={textareaStyle}
-        />
-      </div>
-    );
-  };
+  const renderTextarea = (block, extraStyle={}) => (
+    <BlockTextarea
+      block={block} defs={defs} mode={mode} docFont={docFont}
+      shortSceneIcon={SHORT_SCENE_ICON} shortCastIcon={SHORT_CAST_ICON}
+      extraStyle={extraStyle} blockRefs={blockRefs} spellOn={spellOn}
+      autoH={autoH} updBlock={updBlock} setFoc={setFoc} setFocId={setFocId}
+      onKey={onKey} uid={uid} setBlocks={setBlocks} markDirty={markDirty}
+      renderSearchOverlay={renderSearchOverlay}
+    />
+  );
 
   // Рендер одного блока
   const renderBlock = (block, mobile=false) => {
@@ -6700,8 +5679,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
             {(() => {
               const COLORS = ["#e8e4d8","#f472b6","#60a5fa","#4ade80","#fbbf24","#a78bfa","#f87171","#34d399"];
               const setColor = (color) => {
-                setBlocks(bs=>bs.map(b=>b.id===block.id?{...b,color,_colorOpen:false}:b));
-                markDirty();
+                applyBlocks(blocksRef.current.map(b=>b.id===block.id?{...b,color,_colorOpen:false}:b));
               };
               return (
                 <div style={{position:"relative",marginRight:"4px"}}>
@@ -6744,7 +5722,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
               onClick={e=>{e.stopPropagation();
                 const i=blocks.findIndex(b=>b.id===block.id);
                 const copy={...block,id:Date.now()+Math.random()};
-                setBlocks([...blocks.slice(0,i+1),copy,...blocks.slice(i+1)]);markDirty();
+                applyBlocks([...blocks.slice(0,i+1),copy,...blocks.slice(i+1)]);
               }}
               style={{
                 background:`${mc}11`,border:`1px solid ${mc}33`,
@@ -6766,9 +5744,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
           <div style={{position:"absolute",top:"-8px",left:0,right:0,height:"1px",
             background:`linear-gradient(to right,transparent,${T3}44,transparent)`}}/>
         )}
-        {mobile && mode==="film" && block.type==="scene"
-          ? renderTextarea(block, {paddingLeft:"28px", paddingRight:"0", fontWeight:"bold", textTransform:"uppercase", paddingTop:"24px", fontSize:"16px"})
-          : isSceneHead && num && mode!=="play" && mode!=="media" && !mobile
+        {isSceneHead && num && mode!=="play" && mode!=="media" && !mobile
           ? (
             <div style={{position:"relative", width:"100%"}}>
               <div style={{
@@ -6825,8 +5801,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
               const toggle = (field) => {
                 const id = activeId;
                 if(!id) return;
-                setBlocks(bs=>bs.map(b=>b.id===id?{...b,[field]:!b[field]}:b));
-                markDirty();
+                applyBlocks(blocksRef.current.map(b=>b.id===id?{...b,[field]:!b[field]}:b));
               };
               const fmtBtn = (field, label, style) => (
                 <button key={field} onMouseDown={e=>e.preventDefault()} onClick={()=>toggle(field)}
@@ -6843,8 +5818,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
               const resetFmt = () => {
                 const id = activeId;
                 if(!id) return;
-                setBlocks(bs=>bs.map(b=>b.id===id?{...b,bold:false,italic:false,underline:false,semibold:false,color:null,_colorOpen:false}:b));
-                markDirty();
+                applyBlocks(blocksRef.current.map(b=>b.id===id?{...b,bold:false,italic:false,underline:false,semibold:false,color:null,_colorOpen:false}:b));
               };
               const fmtCfg = getFormatConfig(mode);
               return (
@@ -6963,72 +5937,6 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
   // ══════════════════════════════════════════════
   // MOBILE LAYOUT
   // ══════════════════════════════════════════════
-  const renderSaveAsModal = () => {
-    if (!saveAsOpen) return null;
-    const mod = modeRef.current || mode;
-    const modeLabel = MODES.find(m => m.id === mod)?.label || mod;
-    const canPickPath = Boolean(window.showSaveFilePicker);
-    const canSharePath = !canPickPath && typeof navigator !== "undefined" && Boolean(navigator.share);
-    const pathPlaceholder = canPickPath
-      ? "Документы — нажмите «Обзор…»"
-      : canSharePath
-        ? "«Обзор…» → Сохранить в Файлы"
-        : "Скачивание в браузере";
-    return (
-      <div onClick={()=>setSaveAsOpen(false)} style={{position:"fixed",inset:0,zIndex:400,background:"rgba(0,0,0,0.6)",display:"flex",alignItems:"center",justifyContent:"center",padding:"24px"}}>
-        <div onClick={e=>e.stopPropagation()} style={{background:SURF,borderRadius:"20px",padding:"24px",width:"100%",maxWidth:"380px",boxShadow:"0 16px 48px rgba(0,0,0,0.5)"}}>
-          <div style={{color:T1,fontSize:"11px",letterSpacing:"3px",marginBottom:"6px"}}>СОХРАНИТЬ КАК</div>
-          <div style={{color:T3,fontSize:"10px",letterSpacing:"1px",marginBottom:"16px"}}>Копия в «Мои проекты» · {modeLabel}</div>
-          <div style={{color:T3,fontSize:"9px",letterSpacing:"2px",marginBottom:"6px"}}>НАЗВАНИЕ</div>
-          <input
-            autoFocus
-            value={saveAsName}
-            onChange={e=>setSaveAsName(e.target.value)}
-            onKeyDown={e=>{if(e.key==="Enter")confirmSaveAs(saveAsName);if(e.key==="Escape")setSaveAsOpen(false);}}
-            placeholder="Название проекта"
-            style={{
-              width:"100%",background:BG,border:`1px solid ${T3}44`,borderRadius:"10px",
-              padding:"12px 14px",color:T1,fontSize:"14px",fontFamily:"inherit",
-              outline:"none",boxSizing:"border-box",marginBottom:"14px",
-            }}
-          />
-          <div style={{color:T3,fontSize:"9px",letterSpacing:"2px",marginBottom:"6px"}}>ПУТЬ К ФАЙЛУ .whale</div>
-          <div style={{display:"flex",gap:"8px",marginBottom:"16px"}}>
-            <input
-              readOnly
-              value={saveAsPathLabel}
-              onClick={(canPickPath || canSharePath) ? pickSaveAsFileLocation : undefined}
-              onKeyDown={e=>{if(e.key==="Enter")confirmSaveAs(saveAsName);}}
-              placeholder={pathPlaceholder}
-              style={{
-                flex:1,minWidth:0,background:BG,border:`1px solid ${T3}44`,borderRadius:"10px",
-                padding:"12px 14px",color:saveAsPathLabel ? T1 : T2,fontSize:"13px",fontFamily:"inherit",
-                outline:"none",boxSizing:"border-box",cursor:(canPickPath || canSharePath) ? "pointer" : "default",
-              }}
-            />
-            {(canPickPath || canSharePath) && (
-              <button type="button" onClick={pickSaveAsFileLocation} style={{
-                flexShrink:0,padding:"12px 14px",background:BG,border:`1px solid ${T3}44`,
-                borderRadius:"10px",color:T1,fontSize:"11px",cursor:"pointer",
-                fontFamily:"inherit",letterSpacing:"1px",whiteSpace:"nowrap",
-              }}>Обзор…</button>
-            )}
-          </div>
-          <div style={{display:"flex",gap:"8px"}}>
-            <button onClick={()=>setSaveAsOpen(false)} style={{
-              flex:1,padding:"11px",background:BG,border:"none",borderRadius:"10px",
-              color:T2,fontSize:"12px",cursor:"pointer",fontFamily:"inherit",boxShadow:SH_SM,
-            }}>Отмена</button>
-            <button onClick={()=>confirmSaveAs(saveAsName)} style={{
-              flex:2,padding:"11px",background:SURF,border:`1px solid ${mc}55`,borderRadius:"10px",
-              color:"#fff",fontSize:"12px",cursor:"pointer",fontFamily:"inherit",letterSpacing:"1px",
-            }}>СОХРАНИТЬ</button>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
   if (isMobile) {
     return (
       <div style={{display:"flex",flexDirection:"column",height:`${viewportH}px`,background:BG,fontFamily:"'Courier New',monospace",color:T1,overflow:"hidden"}}>
@@ -7145,10 +6053,10 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
             onClose={() => setMenuOpen(false)}
             onNewProject={newProject}
             onSave={saveNow}
-            onSaveAs={openSaveAsDialog}
-            onOpenHistory={openEditorHistory}
+            onSaveAs={saveAs}
+            onOpenHistory={openProjectsList}
             onOpenMyProjects={() => {
-              openMyProjectsList();
+              openProjectsList();
               setMenuOpen(false);
             }}
             onExportPdf={() => {
@@ -7176,7 +6084,8 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
             onOpenImportPicker={() => openOpenFilePicker("whale-import")}
             onImportFileChange={importWhale}
             onSwitchMode={(id) => {
-              switchMode(id);
+              if (onModeRouteChange) onModeRouteChange(id);
+              else switchMode(id);
               setMenuOpen(false);
             }}
             onShare={() => {
@@ -7193,7 +6102,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
         {titlePageOpen && (
           <div style={{position:"absolute",inset:0,zIndex:300,background:BG,display:"flex",flexDirection:"column"}}>
             <div style={{padding:"16px 20px",display:"flex",alignItems:"center",borderBottom:`1px solid ${T3}22`,flexShrink:0}}>
-              <button onClick={closeTitlePage} style={{background:"transparent",border:"none",color:T2,fontSize:"20px",cursor:"pointer",padding:"0",lineHeight:1}}>←</button>
+              <button onClick={()=>{ setNewProjectOverlay(false); setTitlePageOpen(false); }} style={{background:"transparent",border:"none",color:T2,fontSize:"20px",cursor:"pointer",padding:"0",lineHeight:1}}>←</button>
               <span style={{color:T1,fontSize:"11px",letterSpacing:"3px"}}>{mode==="note" ? "ЭКСПОРТ" : "ТИТУЛЬНЫЙ ЛИСТ"}</span>
             </div>
             <div style={{flex:1,overflow:"auto",padding:"20px"}}>
@@ -7223,15 +6132,15 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
                 {key:"author",  label:"АВТОР",     ph:"Имя Фамилия",  val: playHeader.find(h=>h.key==="author")?.text||"", set: v=>setPlayHeader(p=>p.map(h=>h.key==="author"?{...h,text:v}:h))},
                 {key:"remark",  label:"ПРИМЕЧАНИЕ",ph:"Ремарка",      val: playHeader.find(h=>h.key==="remark")?.text||"", set: v=>setPlayHeader(p=>p.map(h=>h.key==="remark"?{...h,text:v}:h))},
               ] : isGuest ? [
-                {key:"title",   label:"НАЗВАНИЕ",  ph:"Название", val:titlePage.title,  set:v=>patchTitlePage(p=>({...p,title:v}))},
-                {key:"author",  label:"ИНИЦИАЛЫ",  ph:"И. Фамилия", val:titlePage.author, set:v=>patchTitlePage(p=>({...p,author:v}))},
+                {key:"title",   label:"НАЗВАНИЕ",  ph:"Название", val:titlePage.title,  set:v=>setTitlePage(p=>({...p,title:v}))},
+                {key:"author",  label:"ИНИЦИАЛЫ",  ph:"И. Фамилия", val:titlePage.author, set:v=>setTitlePage(p=>({...p,author:v}))},
               ] : [
-                {key:"title",   label:"НАЗВАНИЕ",  ph:"Название сценария", val:titlePage.title,  set:v=>patchTitlePage(p=>({...p,title:v}))},
-                {key:"genre",   label:"ЖАНР",      ph:"драма, фантастика...",val:titlePage.genre, set:v=>patchTitlePage(p=>({...p,genre:v}))},
-                {key:"author",  label:"АВТОР",     ph:"Имя Фамилия",       val:titlePage.author, set:v=>patchTitlePage(p=>({...p,author:v}))},
-                {key:"phone",   label:"ТЕЛЕФОН",   ph:"+7 000 000 00 00",  val:titlePage.phone,  set:v=>patchTitlePage(p=>({...p,phone:v}))},
-                {key:"email",   label:"EMAIL",     ph:"email@example.com", val:titlePage.email,  set:v=>patchTitlePage(p=>({...p,email:v}))},
-                {key:"year",    label:"ГОД",       ph:new Date().getFullYear()+"",val:titlePage.year,set:v=>patchTitlePage(p=>({...p,year:v}))},
+                {key:"title",   label:"НАЗВАНИЕ",  ph:"Название сценария", val:titlePage.title,  set:v=>setTitlePage(p=>({...p,title:v}))},
+                {key:"genre",   label:"ЖАНР",      ph:"драма, фантастика...",val:titlePage.genre, set:v=>setTitlePage(p=>({...p,genre:v}))},
+                {key:"author",  label:"АВТОР",     ph:"Имя Фамилия",       val:titlePage.author, set:v=>setTitlePage(p=>({...p,author:v}))},
+                {key:"phone",   label:"ТЕЛЕФОН",   ph:"+7 000 000 00 00",  val:titlePage.phone,  set:v=>setTitlePage(p=>({...p,phone:v}))},
+                {key:"email",   label:"EMAIL",     ph:"email@example.com", val:titlePage.email,  set:v=>setTitlePage(p=>({...p,email:v}))},
+                {key:"year",    label:"ГОД",       ph:new Date().getFullYear()+"",val:titlePage.year,set:v=>setTitlePage(p=>({...p,year:v}))},
               ]).map(({key,label,ph,val,set})=>(
                 <div key={key} style={{marginBottom:"16px"}}>
                   <div style={{color:T3,fontSize:"9px",letterSpacing:"3px",marginBottom:"6px"}}>{label}</div>
@@ -7385,7 +6294,36 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
           </div>
         )}
 
-        {renderSaveAsModal()}
+        {/* Модальное окно: Сохранить как */}
+        {saveAsOpen && (
+          <div onClick={()=>setSaveAsOpen(false)} style={{position:"absolute",inset:0,zIndex:300,background:"rgba(0,0,0,0.6)",display:"flex",alignItems:"center",justifyContent:"center",padding:"24px"}}>
+            <div onClick={e=>e.stopPropagation()} style={{background:SURF,borderRadius:"20px",padding:"24px",width:"100%",maxWidth:"340px",boxShadow:"0 16px 48px rgba(0,0,0,0.5)"}}>
+              <div style={{color:T1,fontSize:"11px",letterSpacing:"3px",marginBottom:"16px"}}>СОХРАНИТЬ КАК</div>
+              <input
+                autoFocus
+                value={saveAsName}
+                onChange={e=>setSaveAsName(e.target.value)}
+                onKeyDown={e=>{if(e.key==="Enter")confirmSaveAs(saveAsName);if(e.key==="Escape")setSaveAsOpen(false);}}
+                placeholder="Название проекта"
+                style={{
+                  width:"100%",background:BG,border:`1px solid ${T3}44`,borderRadius:"10px",
+                  padding:"12px 14px",color:T1,fontSize:"14px",fontFamily:"inherit",
+                  outline:"none",boxSizing:"border-box",marginBottom:"16px",
+                }}
+              />
+              <div style={{display:"flex"}}>
+                <button onClick={()=>setSaveAsOpen(false)} style={{
+                  flex:1,padding:"11px",background:BG,border:"none",borderRadius:"10px",
+                  color:T2,fontSize:"12px",cursor:"pointer",fontFamily:"inherit",boxShadow:SH_SM,
+                }}>Отмена</button>
+                <button onClick={()=>confirmSaveAs(saveAsName)} style={{
+                  flex:2,padding:"11px",background:SURF,border:`1px solid ${mc}55`,borderRadius:"10px",
+                  color:"#fff",fontSize:"12px",cursor:"pointer",fontFamily:"inherit",letterSpacing:"1px",
+                }}>СОХРАНИТЬ</button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Модальное окно: список проектов */}
         {projectsOpen && (
@@ -7617,7 +6555,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
                           display:"flex",alignItems:"center",justifyContent:"center",
                         }}>{selectedScenes.has(s.id)&&<span style={{color:"#000",fontSize:"11px",fontWeight:"bold"}}>✓</span>}</div>
                       )}
-                      <span style={{color:mc,fontSize:"11px",minWidth:"20px"}}>{(mode==="play"||mode==="short"||mode==="media") && s.actNum ? `${s.actNum}.${s.subNum}` : `${s.num}.`}</span>
+                      <span style={{color:mc,fontSize:"11px",minWidth:"20px"}}>{formatSceneLabel(mode, s)}</span>
                       <span style={{color:T1,fontSize:"13px",lineHeight:"1.4"}}>{s.text||"—"}</span>
                       <span style={{marginLeft:"auto",color:T3,fontSize:"16px",opacity:0.35,paddingLeft:"8px"}}>⠿</span>
                     </div>
@@ -7668,7 +6606,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
                           display:"flex",alignItems:"center",justifyContent:"center",
                         }}>{selectedScenes.has(s.id)&&<span style={{color:"#000",fontSize:"11px",fontWeight:"bold"}}>✓</span>}</div>
                       )}
-                      <span style={{color:mc,fontSize:"11px",minWidth:"20px"}}>{(mode==="play"||mode==="short"||mode==="media") && s.actNum ? `${s.actNum}.${s.subNum}` : `${s.num}.`}</span>
+                      <span style={{color:mc,fontSize:"11px",minWidth:"20px"}}>{formatSceneLabel(mode, s)}</span>
                       <span style={{color:T1,fontSize:"13px",lineHeight:"1.4"}}>{s.text||"—"}</span>
                     </div>
                     {s.cast && <div style={{color:T2,fontSize:"11px",paddingLeft:"28px",marginTop:"4px"}}>{s.cast}</div>}
@@ -7969,8 +6907,6 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
       position:"relative",
     }}>
 
-      {renderSaveAsModal()}
-
       {/* ══ DESKTOP: menuOpen ══ */}
 
       {/* ══ DESKTOP: projectsOpen ══ */}
@@ -8075,9 +7011,9 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
             setMenuOpen(false);
           }}
           onSave={saveNow}
-          onSaveAs={openSaveAsDialog}
+          onSaveAs={saveAs}
           onOpenHistory={() => {
-            openEditorHistory();
+            openProjectsList();
             setMenuOpen(false);
           }}
           onExportPdf={() => {
@@ -8105,7 +7041,8 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
           onOpenImportPicker={() => openOpenFilePicker("whale-import-desk")}
           onImportFileChange={importWhale}
           onSwitchMode={(id) => {
-            switchMode(id);
+            if (onModeRouteChange) onModeRouteChange(id);
+            else switchMode(id);
             setMenuOpen(false);
           }}
           onGoHome={goHome}
@@ -8118,7 +7055,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
       {titlePageOpen && (
         <div style={{position:"fixed",inset:0,zIndex:300,background:BG,display:"flex",flexDirection:"column"}}>
           <div style={{padding:"16px 20px",display:"flex",alignItems:"center",borderBottom:`1px solid ${T3}22`,flexShrink:0}}>
-            <button onClick={closeTitlePage} style={{background:"transparent",border:"none",color:T2,fontSize:"20px",cursor:"pointer",padding:"0",lineHeight:1}}>←</button>
+            <button onClick={()=>{ setNewProjectOverlay(false); setTitlePageOpen(false); }} style={{background:"transparent",border:"none",color:T2,fontSize:"20px",cursor:"pointer",padding:"0",lineHeight:1}}>←</button>
             <span style={{color:T1,fontSize:"11px",letterSpacing:"3px"}}>ТИТУЛЬНЫЙ ЛИСТ</span>
           </div>
           <div style={{flex:1,overflow:"auto",padding:"20px 20px 0"}}>
@@ -8149,15 +7086,15 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
                 {key:"author", label:"АВТОР",     ph:"Имя Фамилия", val:playHeader.find(h=>h.key==="author")?.text||"", set:v=>setPlayHeader(p=>p.map(h=>h.key==="author"?{...h,text:v}:h))},
                 {key:"remark", label:"ПРИМЕЧАНИЕ",ph:"Ремарка",     val:playHeader.find(h=>h.key==="remark")?.text||"", set:v=>setPlayHeader(p=>p.map(h=>h.key==="remark"?{...h,text:v}:h))},
               ] : isGuest ? [
-                {key:"title",  label:"НАЗВАНИЕ", ph:"Название",    val:titlePage.title,  set:v=>patchTitlePage(p=>({...p,title:v}))},
-                {key:"author", label:"ИНИЦИАЛЫ", ph:"И. Фамилия",  val:titlePage.author, set:v=>patchTitlePage(p=>({...p,author:v}))},
+                {key:"title",  label:"НАЗВАНИЕ", ph:"Название",    val:titlePage.title,  set:v=>setTitlePage(p=>({...p,title:v}))},
+                {key:"author", label:"ИНИЦИАЛЫ", ph:"И. Фамилия",  val:titlePage.author, set:v=>setTitlePage(p=>({...p,author:v}))},
               ] : [
-                {key:"title",  label:"НАЗВАНИЕ", ph:"Название сценария",   val:titlePage.title,  set:v=>patchTitlePage(p=>({...p,title:v}))},
-                {key:"genre",  label:"ЖАНР",     ph:"драма, фантастика...",val:titlePage.genre,  set:v=>patchTitlePage(p=>({...p,genre:v}))},
-                {key:"author", label:"АВТОР",    ph:"Имя Фамилия",         val:titlePage.author, set:v=>patchTitlePage(p=>({...p,author:v}))},
-                {key:"phone",  label:"ТЕЛЕФОН",  ph:"+7 000 000 00 00",    val:titlePage.phone,  set:v=>patchTitlePage(p=>({...p,phone:v}))},
-                {key:"email",  label:"EMAIL",    ph:"email@example.com",   val:titlePage.email,  set:v=>patchTitlePage(p=>({...p,email:v}))},
-                {key:"year",   label:"ГОД",      ph:new Date().getFullYear()+"", val:titlePage.year, set:v=>patchTitlePage(p=>({...p,year:v}))},
+                {key:"title",  label:"НАЗВАНИЕ", ph:"Название сценария",   val:titlePage.title,  set:v=>setTitlePage(p=>({...p,title:v}))},
+                {key:"genre",  label:"ЖАНР",     ph:"драма, фантастика...",val:titlePage.genre,  set:v=>setTitlePage(p=>({...p,genre:v}))},
+                {key:"author", label:"АВТОР",    ph:"Имя Фамилия",         val:titlePage.author, set:v=>setTitlePage(p=>({...p,author:v}))},
+                {key:"phone",  label:"ТЕЛЕФОН",  ph:"+7 000 000 00 00",    val:titlePage.phone,  set:v=>setTitlePage(p=>({...p,phone:v}))},
+                {key:"email",  label:"EMAIL",    ph:"email@example.com",   val:titlePage.email,  set:v=>setTitlePage(p=>({...p,email:v}))},
+                {key:"year",   label:"ГОД",      ph:new Date().getFullYear()+"", val:titlePage.year, set:v=>setTitlePage(p=>({...p,year:v}))},
               ]).map(({key,label,ph,val,set})=>(
                 <div key={key} style={{marginBottom:"16px"}}>
                   <div style={{color:T3,fontSize:"9px",letterSpacing:"3px",marginBottom:"6px"}}>{label}</div>
@@ -9195,7 +8132,10 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
           getDesktopSceneCardMeta={getDesktopSceneCardMeta}
           onCollapse={()=>setLeftPanelOpen(false)}
           onToggleMenu={()=>setMenuOpen(o=>!o)}
-          onSwitchMode={switchMode}
+          onSwitchMode={(id) => {
+            if (onModeRouteChange) onModeRouteChange(id);
+            else switchMode(id);
+          }}
           onOpenMyProjects={openMyProjectsList}
           onCreateProject={()=>{newProject();setProjectsOpen(false);}}
           onOpenSceneCards={openSceneCardsWindow}
@@ -9339,7 +8279,6 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
             renderMarkerOverlay,
             handleMarkerContextMenu,
             onKey,
-            onPlayLineNameKey,
             autoH,
             updBlock,
             updBlockName,
@@ -9453,14 +8392,12 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
                 const colorOpenBlock = blocks.find(b=>b._colorOpen) || null;
                 const toggle = (field) => {
                   if(!activeId) return;
-                  setBlocks(bs=>bs.map(b=>b.id===activeId?{...b,[field]:!b[field]}:b));
-                  markDirty();
+                  applyBlocks(blocksRef.current.map(b=>b.id===activeId?{...b,[field]:!b[field]}:b));
                 };
                 const setColor = (color) => {
                   const blockId = colorOpenBlock?.id || activeId;
                   if (!blockId) return;
-                  setBlocks(bs=>bs.map(b=>b.id===blockId?{...b,color,_colorOpen:false}:b));
-                  markDirty();
+                  applyBlocks(blocksRef.current.map(b=>b.id===blockId?{...b,color,_colorOpen:false}:b));
                 };
                 const filmSquareBtn = {
                   width:"26px", height:"26px", minWidth:"26px", minHeight:"26px", padding:0,
@@ -9497,7 +8434,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
                   <div style={{display:"flex", alignItems:"center", marginRight:"6px"}}>
                     {fmtCfg.bold && <button onMouseDown={e=>e.preventDefault()} onClick={()=>toggle("bold")}
                       style={{...btnStyle(curBlock?.bold), fontWeight:"bold", fontFamily:"serif", color: fmtGlyphColor}}>Ж</button>}
-                    <button onMouseDown={e=>e.preventDefault()} onClick={()=>{if(!activeId)return;setBlocks(bs=>bs.map(b=>b.id===activeId?{...b,bold:false,italic:false,underline:false,semibold:false,color:null,_colorOpen:false}:b));markDirty();}} {...getTooltipAnchorProps("Сбросить формат")}
+                    <button onMouseDown={e=>e.preventDefault()} onClick={()=>{if(!activeId)return;applyBlocks(blocksRef.current.map(b=>b.id===activeId?{...b,bold:false,italic:false,underline:false,semibold:false,color:null,_colorOpen:false}:b));}} {...getTooltipAnchorProps("Сбросить формат")}
                       style={{...btnStyle(false), color: fmtGlyphColor}}>Н</button>
                     {fmtCfg.italic && <button onMouseDown={e=>e.preventDefault()} onClick={()=>toggle("italic")}
                       style={{...btnStyle(curBlock?.italic), fontStyle:"italic", fontFamily:"serif"}}>К</button>}

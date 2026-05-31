@@ -17,7 +17,8 @@
     "test:e2e:update": "playwright test --update-snapshots",
     "test:e2e:capture-reference": "CAPTURE_REFERENCE=1 playwright test visual/reference.capture.spec.ts",
     "test:unit": "vitest run",
-    "test:unit:watch": "vitest"
+    "test:unit:watch": "vitest",
+    "lint": "eslint src"
   },
   "dependencies": {
     "@capacitor/android": "^7.6.2",

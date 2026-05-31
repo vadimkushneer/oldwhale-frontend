@@ -9,6 +9,7 @@ function buildAuthState(overrides: Partial<AuthState> = {}): AuthState {
     restoreStatus: "restoring",
     loginLoading: false,
     registerLoading: false,
+    passwordResetLoading: false,
     lastError: null,
     sessionExpired: false,
     ...overrides,

@@ -30,6 +30,7 @@ export interface AuthState {
   restoreStatus: RestoreStatus;
   loginLoading: boolean;
   registerLoading: boolean;
+  passwordResetLoading: boolean;
   lastError: string | null;
   sessionExpired: boolean;
 }
@@ -42,6 +43,7 @@ function buildInitialAuthState(): AuthState {
     restoreStatus: "idle",
     loginLoading: false,
     registerLoading: false,
+    passwordResetLoading: false,
     lastError: null,
     sessionExpired: false,
   };
@@ -171,6 +173,48 @@ export const completeRegistrationThunk = createAsyncThunk(
     }
     if (!data.token || !data.user) return rejectWithValue("Некорректный ответ сервера");
     return { token: data.token, user: data.user };
+  },
+);
+
+export const requestPasswordResetThunk = createAsyncThunk(
+  "auth/passwordReset/request",
+  async (
+    { login }: { login: string },
+    { rejectWithValue },
+  ) => {
+    const base = apiRequestBase();
+    if (!base) return rejectWithValue("API base URL unavailable");
+    const res = await fetch(`${base}/api/auth/password-reset/request`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ login }),
+    });
+    const data = (await readJsonSafe(res)) as { error?: string; expiresInSeconds?: number };
+    if (!res.ok) {
+      return rejectWithValue(data?.error || res.statusText);
+    }
+    return { expiresInSeconds: data?.expiresInSeconds ?? 3600 };
+  },
+);
+
+export const completePasswordResetThunk = createAsyncThunk(
+  "auth/passwordReset/complete",
+  async (
+    { email, token, password }: { email: string; token: string; password: string },
+    { rejectWithValue },
+  ) => {
+    const base = apiRequestBase();
+    if (!base) return rejectWithValue("API base URL unavailable");
+    const res = await fetch(`${base}/api/auth/password-reset/complete`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, token, password }),
+    });
+    const data = (await readJsonSafe(res)) as { error?: string };
+    if (!res.ok) {
+      return rejectWithValue(data?.error || res.statusText);
+    }
+    return { ok: true };
   },
 );
 
@@ -310,6 +354,28 @@ export const authSlice = createSlice({
       .addCase(completeRegistrationThunk.rejected, (state, action) => {
         state.registerLoading = false;
         state.lastError = String(action.payload || action.error.message || "Ошибка регистрации");
+      })
+      .addCase(requestPasswordResetThunk.pending, (state) => {
+        state.passwordResetLoading = true;
+        state.lastError = null;
+      })
+      .addCase(requestPasswordResetThunk.fulfilled, (state) => {
+        state.passwordResetLoading = false;
+      })
+      .addCase(requestPasswordResetThunk.rejected, (state, action) => {
+        state.passwordResetLoading = false;
+        state.lastError = String(action.payload || action.error.message || "Ошибка восстановления пароля");
+      })
+      .addCase(completePasswordResetThunk.pending, (state) => {
+        state.passwordResetLoading = true;
+        state.lastError = null;
+      })
+      .addCase(completePasswordResetThunk.fulfilled, (state) => {
+        state.passwordResetLoading = false;
+      })
+      .addCase(completePasswordResetThunk.rejected, (state, action) => {
+        state.passwordResetLoading = false;
+        state.lastError = String(action.payload || action.error.message || "Ошибка восстановления пароля");
       })
       .addCase(topUpCreditsThunk.fulfilled, (state, action) => {
         state.user = action.payload;

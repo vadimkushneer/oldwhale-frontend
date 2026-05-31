@@ -7,6 +7,7 @@ import { useGetPublicCatalogQuery } from "../features/ai-catalog/aiCatalogApi";
 import { apiRequestBase } from "../api/env";
 import { OnboardingPage } from "../pages/OnboardingPage";
 import { LoginPage } from "../pages/LoginPage";
+import { ResetPasswordPage } from "../pages/ResetPasswordPage";
 import { EditorPage } from "../pages/EditorPage";
 import { ProfilePage } from "../pages/ProfilePage";
 import { AdminPage } from "../pages/AdminPage";
@@ -86,6 +87,14 @@ export default function App() {
             element={
               <IonicRouteShell>
                 <LoginPage />
+              </IonicRouteShell>
+            }
+          />
+          <Route
+            path="/reset-password"
+            element={
+              <IonicRouteShell>
+                <ResetPasswordPage />
               </IonicRouteShell>
             }
           />

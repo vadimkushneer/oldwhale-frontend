@@ -47,6 +47,7 @@ function wrapperForAuth(
         restoreStatus,
         loginLoading: false,
         registerLoading: false,
+        passwordResetLoading: false,
         lastError: null,
         sessionExpired: false,
       },

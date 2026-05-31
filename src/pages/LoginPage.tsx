@@ -7,6 +7,7 @@ import {
   clearFormError,
   completeRegistrationThunk,
   loginThunk,
+  requestPasswordResetThunk,
   requestRegistrationOtpThunk,
   verifyRegistrationOtpThunk,
 } from "../features/auth/authSlice";
@@ -104,6 +105,10 @@ export function LoginPage() {
       submitCompleteRegistration={async (email, setupToken, password) => {
         if (!navigator.onLine) throw new Error(OFFLINE_MESSAGE);
         await dispatch(completeRegistrationThunk({ email, setupToken, password })).unwrap();
+      }}
+      submitPasswordReset={async (login) => {
+        if (!navigator.onLine) throw new Error(OFFLINE_MESSAGE);
+        await dispatch(requestPasswordResetThunk({ login })).unwrap();
       }}
       onLogin={() => {
         dispatch(clearFormError());

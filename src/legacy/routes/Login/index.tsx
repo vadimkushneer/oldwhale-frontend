@@ -32,6 +32,7 @@ export function Login({
   submitRegisterEmail,
   submitVerifyRegistrationOtp,
   submitCompleteRegistration,
+  submitPasswordReset,
   authError,
 }: {
   onLogin: () => void;
@@ -39,6 +40,7 @@ export function Login({
   submitRegisterEmail?: (email: string) => Promise<void>;
   submitVerifyRegistrationOtp?: (email: string, otp: string) => Promise<{ setupToken: string }>;
   submitCompleteRegistration?: (email: string, setupToken: string, password: string) => Promise<void>;
+  submitPasswordReset?: (login: string) => Promise<void>;
   authError?: string | null;
 }) {
   const [tab, setTab] = useState("in");
@@ -49,6 +51,9 @@ export function Login({
   const [otp, setOtp] = useState("");
   const [setupToken, setSetupToken] = useState("");
   const [loading, setLoading] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetMessage, setResetMessage] = useState("");
+  const [resetError, setResetError] = useState(false);
 
   const submit = async () => {
     if (tab === "in" && (!login || !pass)) return;
@@ -89,10 +94,38 @@ export function Login({
   const switchTab = (nextTab) => {
     setTab(nextTab);
     setPass("");
+    setResetMessage("");
+    setResetError(false);
     if (nextTab === "reg") {
       setRegisterStep("email");
       setOtp("");
       setSetupToken("");
+    }
+  };
+
+  const requestPasswordReset = async () => {
+    const identifier = login.trim();
+    if (!identifier) {
+      setResetError(true);
+      setResetMessage("Введите логин или email, чтобы получить ссылку.");
+      return;
+    }
+
+    setResetLoading(true);
+    setResetMessage("");
+    setResetError(false);
+    try {
+      if (submitPasswordReset) {
+        await submitPasswordReset(identifier);
+      } else {
+        await new Promise((r) => setTimeout(r, 800));
+      }
+      setResetMessage("Если аккаунт найден, ссылка отправлена на email.");
+    } catch (error) {
+      setResetError(true);
+      setResetMessage(typeof error === "string" ? error : error?.message || "Не удалось отправить ссылку.");
+    } finally {
+      setResetLoading(false);
     }
   };
 
@@ -244,7 +277,14 @@ export function Login({
           {/* Forgot */}
           {tab==="in" && (
             <div style={{textAlign:"right", marginTop:"10px"}}>
-              <span style={{color:T3, fontSize:"11px", cursor:"pointer", letterSpacing:"1px"}}>забыл пароль?</span>
+              <button
+                type="button"
+                onClick={requestPasswordReset}
+                disabled={resetLoading}
+                style={{color:resetLoading ? T3 : ACCENT, fontSize:"11px", cursor:resetLoading ? "default" : "pointer", letterSpacing:"1px", border:"none", background:"transparent", padding:0, fontFamily:"inherit"}}
+              >
+                {resetLoading ? "отправляем..." : "забыл пароль?"}
+              </button>
             </div>
           )}
 
@@ -273,18 +313,18 @@ export function Login({
               : submitLabel
             }
           </button>
-          {authError ? (
+          {authError || resetMessage ? (
             <div
               style={{
                 textAlign: "center",
                 marginTop: "14px",
-                color: "#f472b6",
+                color: authError || resetError ? "#f472b6" : T3,
                 fontSize: "11px",
                 letterSpacing: "1px",
                 lineHeight: 1.4,
               }}
             >
-              {authError}
+              {authError || resetMessage}
             </div>
           ) : null}
         </div>

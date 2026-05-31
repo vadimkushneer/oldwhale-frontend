@@ -54,6 +54,7 @@ function renderUsersAdmin(initialAuth: {
         restoreStatus: initialAuth.restoreStatus,
         loginLoading: false,
         registerLoading: false,
+        passwordResetLoading: false,
         lastError: null,
         sessionExpired: false,
       },

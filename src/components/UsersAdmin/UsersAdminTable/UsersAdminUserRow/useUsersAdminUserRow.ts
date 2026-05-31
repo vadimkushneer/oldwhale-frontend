@@ -16,6 +16,11 @@ function defaultConfirmDelete(user: User): boolean {
   return window.confirm(`Удалить пользователя ${user.login}?`);
 }
 
+function normalizeCredits(value: unknown): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? Math.max(0, Math.trunc(parsed)) : 0;
+}
+
 /** Renders the row's `created_at` timestamp using the local Russian locale. */
 export function formatUserCreatedAt(iso: string): string {
   if (!iso) return "";
@@ -35,18 +40,19 @@ export function useUsersAdminUserRow({
   onDeleteUser,
   confirmDelete = defaultConfirmDelete,
 }: UseUsersAdminUserRowArgs) {
+  const userCredits = useMemo(() => normalizeCredits(user.credits), [user.credits]);
   const [role, setRole] = useState<UserRole>(user.role);
   const [disabled, setDisabled] = useState<boolean>(user.disabled);
-  const [credits, setCredits] = useState<number>(user.credits);
+  const [credits, setCredits] = useState<number>(() => normalizeCredits(user.credits));
 
   useEffect(() => {
     setRole(user.role);
     setDisabled(user.disabled);
-    setCredits(user.credits);
-  }, [user.id, user.role, user.disabled, user.credits]);
+    setCredits(userCredits);
+  }, [user.id, user.role, user.disabled, userCredits]);
 
   const isSelf = user.id === selfId;
-  const isDirty = role !== user.role || disabled !== user.disabled || credits !== user.credits;
+  const isDirty = role !== user.role || disabled !== user.disabled || credits !== userCredits;
   const saveDisabled = isSelf || patchBusy || !isDirty;
   const deleteDisabled = isSelf || deleteBusy;
   const formattedCreatedAt = useMemo(
@@ -59,7 +65,7 @@ export function useUsersAdminUserRow({
     const body: UsersAdminPatchBody = {};
     if (disabled !== user.disabled) body.disabled = disabled;
     if (role !== user.role) body.role = role;
-    if (credits !== user.credits) body.credits = Math.max(0, Math.trunc(credits));
+    if (credits !== userCredits) body.credits = normalizeCredits(credits);
     await onPatchUser(user.id, body);
   }, [
     credits,
@@ -67,10 +73,10 @@ export function useUsersAdminUserRow({
     onPatchUser,
     role,
     saveDisabled,
-    user.credits,
     user.disabled,
     user.id,
     user.role,
+    userCredits,
   ]);
 
   const onDelete = useCallback(async () => {

@@ -119,6 +119,22 @@ describe("UsersAdminUserRow", () => {
     });
   });
 
+  it("defaults missing credit balances to zero before editing", async () => {
+    const userWithoutCredits = { ...baseUser, credits: undefined } as unknown as User;
+    const { onPatchUser } = renderRow({ user: userWithoutCredits });
+    const creditsInput = screen.getByLabelText(`Кредиты (Krill) пользователя ${baseUser.login}`);
+
+    expect(creditsInput).toHaveValue(0);
+    fireEvent.change(creditsInput, {
+      target: { value: "125" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "СОХРАНИТЬ" }));
+
+    await waitFor(() => {
+      expect(onPatchUser).toHaveBeenCalledWith(baseUser.id, { credits: 125 });
+    });
+  });
+
   it("aborts deletion if confirmation is declined", () => {
     const { onDeleteUser, confirmDelete } = renderRow({
       confirmDelete: vi.fn().mockReturnValue(false),

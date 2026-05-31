@@ -14,6 +14,7 @@ import { EDITOR_MODES } from "../registry";
 import { loadLastProjectForMode, saveProjectForMode } from "../document/projectStore";
 import { autoH, getPlayActTitle, getScenes } from "../../legacy/util/doc";
 import { formatSceneLabel } from "../editor-core/scenes";
+import { buildPlayDocumentPages } from "../../legacy/routes/Editor/EditorDocument/play/playPagination";
 import { BG, SURF, T1, T2, T3 } from "../../legacy/ui/tokens";
 
 /**
@@ -157,6 +158,7 @@ export function PlayEditorNext() {
 
   const tbBtn = (label: string, active: boolean, onClick: () => void, extra: CSSProperties = {}) => (
     <button
+      key={label}
       onMouseDown={(e) => e.preventDefault()}
       onClick={onClick}
       style={{
@@ -305,6 +307,28 @@ export function PlayEditorNext() {
 
   const renderSearchOverlay = () => null;
 
+  // ---- pagination ----------------------------------------------------------
+  // Reuse the canonical play paginator (same engine the legacy editor + every
+  // play export use) to find page breaks, then place each WHOLE block on its
+  // first page. We don't slice a block across a page boundary (legacy renders
+  // editable slices with caret mapping — a much larger port); for play, blocks
+  // are short so this is a close approximation with legacy-consistent breaks.
+  const pageGroups = useMemo<EditorBlock[][]>(() => {
+    let pages: Array<Array<{ bi: number }>> = [];
+    try {
+      const res = buildPlayDocumentPages({ defs, blocks }) as { pages?: Array<Array<{ bi: number }>> };
+      pages = res?.pages ?? [];
+    } catch {
+      pages = [];
+    }
+    if (!pages.length) return [blocks]; // fallback: single sheet
+    const pageOfBi = new Map<number, number>();
+    pages.forEach((pg, pi) => pg.forEach((e) => { if (!pageOfBi.has(e.bi)) pageOfBi.set(e.bi, pi); }));
+    const groups: EditorBlock[][] = pages.map(() => []);
+    blocks.forEach((b, bi) => { (groups[pageOfBi.get(bi) ?? 0] ||= []).push(b); });
+    return groups.filter((g) => g.length > 0);
+  }, [blocks, defs]);
+
   // ---- scene navigator -----------------------------------------------------
   const sceneList = getScenes(blocks, "play") as Array<{
     id: EditorBlock["id"]; kind: string; text?: string; actNum?: number; subNum?: number; num?: number;
@@ -387,17 +411,24 @@ export function PlayEditorNext() {
   };
 
   return (
-    <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", background: BG }}>
+    <div data-testid="play-editor-next" style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", background: BG }}>
       {renderToolbar()}
       <div style={{ flex: 1, display: "flex", minHeight: 0 }}>
         {renderNav()}
         <div style={{ flex: 1, overflow: "auto", padding: "40px 0", display: "flex", flexDirection: "column", alignItems: "center" }}>
-          <div style={{ width: "816px", maxWidth: "calc(100% - 48px)", margin: "0 auto 24px", background: SURF, boxShadow: "8px 8px 24px rgba(0,0,0,0.16)", borderRadius: "2px", padding: "56px 72px", minHeight: "1056px", boxSizing: "border-box" }}>
-            <div style={{ fontSize: "11px", letterSpacing: "1px", color: PLAY_ACCENT, marginBottom: "24px", fontFamily: "'Courier New',monospace" }}>
-              PLAYEDITOR · NEXT (увеличение 6 · ?next=1 · прод не затронут)
+          {pageGroups.map((group, pi) => (
+            <div key={pi} style={{ position: "relative", width: "816px", maxWidth: "calc(100% - 48px)", margin: "0 auto 24px", background: SURF, boxShadow: "8px 8px 24px rgba(0,0,0,0.16)", borderRadius: "2px", padding: "56px 72px", minHeight: "1056px", boxSizing: "border-box" }}>
+              {pi === 0 && (
+                <div style={{ fontSize: "11px", letterSpacing: "1px", color: PLAY_ACCENT, marginBottom: "24px", fontFamily: "'Courier New',monospace" }}>
+                  PLAYEDITOR · NEXT (увеличение 7 · пагинация)
+                </div>
+              )}
+              {pi > 0 && (
+                <div style={{ position: "absolute", top: "24px", right: "40px", fontSize: "12px", color: T3, fontFamily: "'Times New Roman',serif" }}>{pi + 1}.</div>
+              )}
+              {group.map(renderBlock)}
             </div>
-            {blocks.map(renderBlock)}
-          </div>
+          ))}
         </div>
       </div>
     </div>

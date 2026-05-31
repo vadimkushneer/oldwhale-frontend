@@ -2,7 +2,6 @@ import { useCallback, useMemo } from "react";
 import { Navigate, useLocation, useNavigate, useParams } from "react-router-dom";
 import { EDITOR_MODE_IDS } from "../modes/registry";
 import { getEditorShell } from "../modes/editorShells";
-import { PlayEditorNext } from "../modes/play/PlayEditorNext";
 import type { EditorModeId } from "../modes/EditorMode";
 import { useAppDispatch, useAppSelector } from "../hooks";
 import { clearAuth } from "../features/auth/authSlice";
@@ -188,14 +187,10 @@ export function EditorPage() {
   }
 
   const EditorModeShell = getEditorShell(resolvedMode as EditorModeId);
-  const usePlayNext = resolvedMode === "play" && new URLSearchParams(location.search).get("next") === "1";
 
   return (
     <div style={{ position: "relative", width: "100%", height: "100%" }}>
-      {usePlayNext ? (
-        <PlayEditorNext key="play-next" />
-      ) : (
-        <EditorModeShell
+      <EditorModeShell
         key={resolvedMode}
         profile={profile}
         isGuest={Boolean(isGuest)}
@@ -207,7 +202,6 @@ export function EditorPage() {
         onAiVariantRouteStateChange={onAiVariantRouteStateChange}
         showAdminLink={user?.role === "admin"}
       />
-      )}
     </div>
   );
 }

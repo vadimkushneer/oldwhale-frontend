@@ -111,16 +111,30 @@ describe("EditorPage", () => {
       user: { role: "user" },
       restoreStatus: "ready",
     };
-    localStorage.setItem("ow_profile", JSON.stringify({ mode: "play" }));
+    localStorage.setItem("ow_profile", JSON.stringify({ mode: "film" }));
 
     renderAt("/editor");
 
     expect(screen.getByTestId("editor-screen")).toBeInTheDocument();
-    expect(readLocation()).toMatchObject({ pathname: "/editor/play", search: "" });
+    expect(readLocation()).toMatchObject({ pathname: "/editor/film", search: "" });
     expect(editorScreenMock.mock.calls.at(-1)?.[0]).toMatchObject({
-      profile: { mode: "play" },
-      routeMode: "play",
+      profile: { mode: "film" },
+      routeMode: "film",
     });
+  });
+
+  it("renders the original EditorScreen for /editor/play by default", () => {
+    authStateRef.current = { token: "jwt", user: { role: "user" }, restoreStatus: "ready" };
+    renderAt("/editor/play");
+    expect(screen.getByTestId("editor-screen")).toBeInTheDocument();
+    expect(screen.queryByTestId("play-editor-next")).toBeNull();
+  });
+
+  it("renders the original EditorScreen for /editor/play even with ?next=1 (no divergent UI reachable)", () => {
+    authStateRef.current = { token: "jwt", user: { role: "user" }, restoreStatus: "ready" };
+    renderAt("/editor/play?next=1");
+    expect(screen.getByTestId("editor-screen")).toBeInTheDocument();
+    expect(screen.queryByTestId("play-editor-next")).toBeNull();
   });
 
   it("redirects invalid mode params to the canonical editor route", () => {

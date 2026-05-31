@@ -15,13 +15,6 @@ import type { EditorBlock } from "../editor-core/blocks";
 
 type Id = EditorBlock["id"];
 
-/** Inline format (italic/underline/colour) from a block, for live editor display. */
-const fmtStyle = (b: EditorBlock): CSSProperties => ({
-  fontStyle: b.italic ? "italic" : undefined,
-  textDecoration: b.underline ? "underline" : undefined,
-  ...(b.color ? { color: b.color } : null),
-});
-
 interface OverlayRenderProp {
   (config: { scope: string; blockId: Id; text?: string; overlayStyle: CSSProperties }): ReactNode;
 }
@@ -90,7 +83,6 @@ export function PlayScene({
           updBlock(block.id, e.target.value);
           autoH(e.target);
         }}
-        onPointerDown={() => setFoc(block.id)}
         onFocus={() => setFoc(block.id)}
         onBlur={() => setTimeout(() => setFocId((f) => (f === block.id ? null : f)), 300)}
         onKeyDown={(e) => onKey(e, block)}
@@ -115,7 +107,6 @@ export function PlayScene({
             fontWeight: "bold",
             textAlign: sceneAlign || "left",
             color: T1,
-            ...fmtStyle(block),
             boxSizing: "border-box",
             padding: "16px 0 4px",
             "::placeholder": { color: T1, opacity: 1 },
@@ -139,7 +130,6 @@ export function PlaySpacer({ block, focId, accentColor, setFoc, onKey }: PlaySpa
   return (
     <div
       tabIndex={0}
-      onPointerDown={() => setFoc(block.id)}
       onFocus={() => setFoc(block.id)}
       onKeyDown={(e) => onKey(e, block)}
       className="no-print"
@@ -196,7 +186,6 @@ export function PlayLine({
       <input
         value={block.name || ""}
         onChange={(e) => updBlockName(block.id, e.target.value)}
-        onPointerDown={() => setFoc(block.id)}
         onFocus={() => setFoc(block.id)}
         onBlur={() => setTimeout(() => setFocId((f) => (f === block.id ? null : f)), 500)}
         onKeyDown={(e) => {
@@ -228,13 +217,12 @@ export function PlayLine({
             updBlock(block.id, e.target.value);
             autoH(e.target);
           }}
-          onPointerDown={() => setFoc(block.id)}
           onFocus={() => setFoc(block.id)}
           onBlur={() => setTimeout(() => setFocId((f) => (f === block.id ? null : f)), 500)}
           onKeyDown={(e) => onKey(e, block)}
           placeholder="текст реплики..."
           rows={1}
-          style={{ width: "100%", display: "block", position: "relative", zIndex: 1, background: "transparent", border: "none", outline: "none", resize: "none", overflow: "hidden", color: T1, ...fmtStyle(block), fontSize: "15px", lineHeight: "1.7", fontFamily: font, boxSizing: "border-box", padding: "0", margin: "0" }}
+          style={{ width: "100%", display: "block", position: "relative", zIndex: 1, background: "transparent", border: "none", outline: "none", resize: "none", overflow: "hidden", color: T1, fontSize: "15px", lineHeight: "1.7", fontFamily: font, boxSizing: "border-box", padding: "0", margin: "0" }}
         />
       </div>
     </div>

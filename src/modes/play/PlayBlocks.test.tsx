@@ -64,3 +64,27 @@ describe("PlayLine", () => {
     expect(nameInput).toBeTruthy();
   });
 });
+
+describe("PlayBlocks parity (no live format on scene/line)", () => {
+  // Origin renders play scene/line textareas as plain T1 text; block bold/italic/
+  // underline/colour are NOT applied live (only in the generic renderer/export).
+  // This guards against re-adding an fmtStyle-style spread to the bricks.
+  const formatted: EditorBlock = { id: "p1", type: "line", text: "реплика", name: "АННА", italic: true, underline: true, color: "#ff0000" };
+
+  it("PlayLine textarea ignores italic/underline/colour (origin parity)", () => {
+    const { container } = render(<PlayLine block={formatted} updBlockName={vi.fn()} {...core()} />);
+    const ta = container.querySelector("textarea") as HTMLTextAreaElement;
+    expect(ta.style.fontStyle).not.toBe("italic");
+    expect(ta.style.textDecoration).not.toContain("underline");
+    expect(ta.style.color).not.toBe("rgb(255, 0, 0)");
+  });
+
+  it("PlayScene textarea ignores italic/underline/colour (origin parity)", () => {
+    const scene: EditorBlock = { ...formatted, type: "scene" };
+    const { container } = render(<PlayScene block={scene} blocks={[scene]} {...core()} />);
+    const ta = container.querySelector("textarea") as HTMLTextAreaElement;
+    expect(ta.style.fontStyle).not.toBe("italic");
+    expect(ta.style.textDecoration).not.toContain("underline");
+    expect(ta.style.color).not.toBe("rgb(255, 0, 0)");
+  });
+});

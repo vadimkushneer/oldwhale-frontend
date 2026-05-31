@@ -69,6 +69,11 @@ export function UsersAdminUserRow(props: UsersAdminUserRowProps) {
         >
           УДАЛИТЬ
         </button>
+        {c.saveError ? (
+          <span className={c.saveErrorClassName} role="alert" title={c.saveError}>
+            {c.saveError}
+          </span>
+        ) : null}
       </td>
     </tr>
   );

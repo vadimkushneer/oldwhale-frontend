@@ -16,7 +16,11 @@
 }
 
 .users-admin-user-row__cell--actions {
-  @apply flex items-center gap-2;
+  @apply flex flex-wrap items-center gap-2;
+}
+
+.users-admin-user-row__save-error {
+  @apply max-w-[160px] truncate text-[9px] text-[#f472b6];
 }
 
 .users-admin-user-row__role-select {

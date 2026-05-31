@@ -21,6 +21,17 @@ function normalizeCredits(value: unknown): number {
   return Number.isFinite(parsed) ? Math.max(0, Math.trunc(parsed)) : 0;
 }
 
+/** Extracts a human-readable message from an RTK Query / fetch rejection. */
+function getPatchErrorMessage(error: unknown): string {
+  if (error && typeof error === "object") {
+    const data = (error as { data?: { error?: string } }).data;
+    if (data?.error) return data.error;
+    const message = (error as { error?: string }).error;
+    if (typeof message === "string" && message) return message;
+  }
+  return "Не удалось сохранить изменения";
+}
+
 /** Renders the row's `created_at` timestamp using the local Russian locale. */
 export function formatUserCreatedAt(iso: string): string {
   if (!iso) return "";
@@ -44,11 +55,13 @@ export function useUsersAdminUserRow({
   const [role, setRole] = useState<UserRole>(user.role);
   const [disabled, setDisabled] = useState<boolean>(user.disabled);
   const [credits, setCredits] = useState<number>(() => normalizeCredits(user.credits));
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   useEffect(() => {
     setRole(user.role);
     setDisabled(user.disabled);
     setCredits(userCredits);
+    setSaveError(null);
   }, [user.id, user.role, user.disabled, userCredits]);
 
   const isSelf = user.id === selfId;
@@ -66,7 +79,12 @@ export function useUsersAdminUserRow({
     if (disabled !== user.disabled) body.disabled = disabled;
     if (role !== user.role) body.role = role;
     if (credits !== userCredits) body.credits = normalizeCredits(credits);
-    await onPatchUser(user.id, body);
+    setSaveError(null);
+    try {
+      await onPatchUser(user.id, body);
+    } catch (error) {
+      setSaveError(getPatchErrorMessage(error));
+    }
   }, [
     credits,
     disabled,
@@ -104,6 +122,7 @@ export function useUsersAdminUserRow({
         "users-admin-user-row__button users-admin-user-row__button--save",
       deleteButtonClassName:
         "users-admin-user-row__button users-admin-user-row__button--delete",
+      saveErrorClassName: "users-admin-user-row__save-error",
     }),
     [],
   );
@@ -120,6 +139,7 @@ export function useUsersAdminUserRow({
     saveDisabled,
     deleteDisabled,
     formattedCreatedAt,
+    saveError,
     onSave,
     onDelete,
   };

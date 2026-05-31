@@ -18,6 +18,11 @@ export interface EditorBlock {
   type: string;
   text?: string;
   name?: string;
+  bold?: boolean;
+  italic?: boolean;
+  underline?: boolean;
+  semibold?: boolean;
+  color?: string | null;
 }
 
 export interface BlockDefLike {

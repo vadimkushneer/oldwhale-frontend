@@ -12,8 +12,9 @@ import {
 } from "../editor-core/blocks";
 import { EDITOR_MODES } from "../registry";
 import { loadLastProjectForMode, saveProjectForMode } from "../document/projectStore";
-import { autoH } from "../../legacy/util/doc";
-import { BG, SURF, T1 } from "../../legacy/ui/tokens";
+import { autoH, getPlayActTitle, getScenes } from "../../legacy/util/doc";
+import { formatSceneLabel } from "../editor-core/scenes";
+import { BG, SURF, T1, T2, T3 } from "../../legacy/ui/tokens";
 
 /**
  * PlayEditorNext — standalone play editor (variant A, path 2).
@@ -26,13 +27,17 @@ import { BG, SURF, T1 } from "../../legacy/ui/tokens";
  * useEditorCore + PlayBlocks. Reachable only behind `?next=1`; production play
  * stays on EditorScreen.
  *
- * Increment 3: loads/saves the real play project via projectStore (same LS keys
- * as production). Debounced autosave + flush-on-unmount.
- *
- * Still NOT parity: toolbar, scene navigator, import/export, title page,
- * paginated document frame.
+ * Still NOT parity: real project load/save, toolbar, scene navigator, import/
+ * export, title page, paginated document frame.
  */
 const PLAY_ACCENT = "#a78bfa";
+const COLORS = ["#e8e4d8", "#f472b6", "#60a5fa", "#4ade80", "#fbbf24", "#a78bfa", "#f87171", "#34d399"];
+const PROT = ["scene", "act"]; // can't retype these via the type buttons
+const PANEL: { type: string; label: string }[] = [
+  { type: "scene", label: "Сцена" },
+  { type: "line", label: "Реплика" },
+  { type: "spacer", label: "Отступ" },
+];
 const newId = () => "p" + Math.random().toString(36).slice(2, 10);
 
 function findNameInput(el: HTMLElement): HTMLInputElement | null {
@@ -91,6 +96,111 @@ export function PlayEditorNext() {
     if (type === "scene" || type === "act") core.setActiveSceneId(nid);
     setTimeout(() => core.setFoc(nid), 0);
   };
+
+  // ---- toolbar -------------------------------------------------------------
+  const [colorOpen, setColorOpen] = useState(false);
+  // render-time, for button highlight only
+  const activeId = core.getActiveBlockId() as EditorBlock["id"] | null;
+  const activeBlock = activeId != null ? blocks.find((b) => b.id === activeId) || null : null;
+  const curType = activeBlock?.type;
+
+  // Actions resolve the active block FRESH at click time via core refs — never the
+  // value captured at render. Toolbar buttons keep textarea focus (onMouseDown
+  // preventDefault), so the focused block is the target even before re-render.
+  const mapActive = (fn: (b: EditorBlock) => EditorBlock) => {
+    const id = core.getActiveBlockId();
+    if (id == null) return;
+    core.applyBlocks((core.blocksRef.current as unknown as EditorBlock[]).map((b) => (b.id === id ? fn(b) : b)) as never);
+  };
+  const toggleFmt = (field: "italic" | "underline") => mapActive((b) => ({ ...b, [field]: !b[field] }));
+  const resetFmt = () => mapActive((b) => ({ ...b, bold: false, italic: false, underline: false, semibold: false, color: null }));
+  const setColor = (color: string | null) => { mapActive((b) => ({ ...b, color })); setColorOpen(false); };
+  const setType = (t: string) => {
+    const id = core.getActiveBlockId() as EditorBlock["id"] | null;
+    if (id == null) return;
+    const b = (core.blocksRef.current as unknown as EditorBlock[]).find((x) => x.id === id);
+    if (!b) return;
+    if (b.type === t) addAfter(id, t);
+    else if (!PROT.includes(b.type)) chType(id, t);
+  };
+  const addSceneEnd = () => {
+    const cur = core.blocksRef.current as unknown as EditorBlock[];
+    const last = cur[cur.length - 1];
+    if (last) addAfter(last.id, "scene");
+  };
+  const insertAct = () => {
+    const cur = core.blocksRef.current as unknown as EditorBlock[];
+    let targetId: EditorBlock["id"] | null = null;
+    const asid = core.activeSceneId as EditorBlock["id"] | null;
+    if (asid != null && cur.some((b) => b.id === asid && b.type === "scene")) targetId = asid;
+    if (targetId == null && core.focId != null) {
+      const fi = cur.findIndex((b) => b.id === core.focId);
+      for (let j = fi; j >= 0; j--) {
+        if (cur[j].type === "scene") { targetId = cur[j].id; break; }
+        if (cur[j].type === "act") break;
+      }
+    }
+    const nid = newId();
+    if (targetId != null) {
+      const ti = cur.findIndex((b) => b.id === targetId);
+      const actNumber = cur.slice(0, ti).filter((b) => b.type === "act").length + 1;
+      const a = [...cur];
+      a.splice(ti, 0, { id: nid, type: "act", text: getPlayActTitle(actNumber) });
+      core.applyBlocks(a as never);
+    } else {
+      const actNumber = cur.filter((b) => b.type === "act").length + 1;
+      core.applyBlocks([...cur, { id: nid, type: "act", text: getPlayActTitle(actNumber) }] as never);
+    }
+    core.setActiveSceneId(nid);
+    setTimeout(() => { refOf(nid)?.focus?.(); core.setFoc(nid); }, 60);
+  };
+
+  const tbBtn = (label: string, active: boolean, onClick: () => void, extra: CSSProperties = {}) => (
+    <button
+      onMouseDown={(e) => e.preventDefault()}
+      onClick={onClick}
+      style={{
+        height: "26px", padding: "0 10px", borderRadius: "7px", marginRight: "4px", cursor: "pointer",
+        background: active ? `${PLAY_ACCENT}22` : BG, border: `1px solid ${active ? PLAY_ACCENT : PLAY_ACCENT + "33"}`,
+        color: active ? PLAY_ACCENT : T2, fontSize: "11px", fontFamily: "inherit", whiteSpace: "nowrap",
+        display: "inline-flex", alignItems: "center", justifyContent: "center", ...extra,
+      }}
+    >
+      {label}
+    </button>
+  );
+
+  const renderToolbar = () => (
+    <div style={{ position: "sticky", top: 0, zIndex: 20, display: "flex", alignItems: "center", flexWrap: "wrap", gap: "2px", padding: "8px 12px", background: SURF, borderBottom: `1px solid ${PLAY_ACCENT}22` }}>
+      {tbBtn("+ Акт", false, insertAct)}
+      {tbBtn("+ Сцена", false, addSceneEnd)}
+      <span style={{ width: "1px", height: "18px", background: T3, margin: "0 6px" }} />
+      {PANEL.map((d) => tbBtn(d.label, curType === d.type, () => setType(d.type)))}
+      <span style={{ width: "1px", height: "18px", background: T3, margin: "0 6px" }} />
+      {tbBtn("К", !!activeBlock?.italic, () => toggleFmt("italic"), { fontStyle: "italic", width: "26px", padding: 0 })}
+      {tbBtn("Ч", !!activeBlock?.underline, () => toggleFmt("underline"), { textDecoration: "underline", width: "26px", padding: 0 })}
+      {tbBtn("Н", false, resetFmt, { width: "26px", padding: 0 })}
+      <div style={{ position: "relative", display: "inline-flex" }}>
+        <button
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => setColorOpen((o) => !o)}
+          style={{ width: "26px", height: "26px", borderRadius: "7px", cursor: "pointer", background: activeBlock?.color ? activeBlock.color + "22" : BG, border: `2px solid ${activeBlock?.color || PLAY_ACCENT + "44"}`, display: "inline-flex", alignItems: "center", justifyContent: "center" }}
+        >
+          <span style={{ width: "9px", height: "9px", borderRadius: "50%", background: activeBlock?.color || T2 }} />
+        </button>
+        {colorOpen && (
+          <div style={{ position: "absolute", top: "30px", right: 0, background: SURF, borderRadius: "10px", boxShadow: "0 8px 24px rgba(0,0,0,0.5)", padding: "8px", zIndex: 100, display: "flex", flexWrap: "wrap", width: "112px" }}>
+            {COLORS.map((c) => (
+              <button key={c} onMouseDown={(e) => e.preventDefault()} onClick={() => setColor(c)}
+                style={{ width: "20px", height: "20px", borderRadius: "50%", background: c, border: activeBlock?.color === c ? "2px solid #fff" : "2px solid transparent", cursor: "pointer", margin: "0 4px 4px 0" }} />
+            ))}
+            <button onMouseDown={(e) => e.preventDefault()} onClick={() => setColor(null)}
+              style={{ width: "20px", height: "20px", borderRadius: "50%", background: "transparent", border: `1px dashed ${T3}`, cursor: "pointer", color: T3, fontSize: "11px", lineHeight: "16px" }}>×</button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 
   const onKey = (e: React.KeyboardEvent<HTMLElement>, block: EditorBlock) => {
     if (!defs || defs.length === 0) return;
@@ -195,6 +305,42 @@ export function PlayEditorNext() {
 
   const renderSearchOverlay = () => null;
 
+  // ---- scene navigator -----------------------------------------------------
+  const sceneList = getScenes(blocks, "play") as Array<{
+    id: EditorBlock["id"]; kind: string; text?: string; actNum?: number; subNum?: number; num?: number;
+  }>;
+  const jump = (id: EditorBlock["id"]) => {
+    core.setFoc(id);
+    setTimeout(() => {
+      const el = refOf(id);
+      el?.scrollIntoView?.({ block: "center", behavior: "smooth" });
+      el?.focus?.();
+    }, 0);
+  };
+  const renderNav = () => (
+    <div style={{ width: "216px", flexShrink: 0, overflow: "auto", borderRight: `1px solid ${PLAY_ACCENT}22`, background: SURF, padding: "12px 8px" }}>
+      <div style={{ fontSize: "10px", letterSpacing: "1px", color: T3, padding: "4px 8px 8px" }}>СЦЕНЫ</div>
+      {sceneList.length === 0 && <div style={{ color: T3, fontSize: "12px", padding: "8px" }}>Нет сцен</div>}
+      {sceneList.map((s) => {
+        if (s.kind === "act") {
+          return (
+            <div key={String(s.id)} onClick={() => jump(s.id)}
+              style={{ cursor: "pointer", padding: "8px", marginTop: "8px", fontSize: "11px", fontWeight: "bold", letterSpacing: "0.5px", color: T1, textTransform: "uppercase", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              {s.text || "АКТ"}
+            </div>
+          );
+        }
+        const active = core.activeSceneId === s.id;
+        return (
+          <div key={String(s.id)} onClick={() => jump(s.id)}
+            style={{ cursor: "pointer", padding: "6px 8px 6px 16px", borderRadius: "6px", fontSize: "12px", color: active ? PLAY_ACCENT : T2, background: active ? `${PLAY_ACCENT}18` : "transparent", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            <span style={{ color: T3, marginRight: "6px" }}>{formatSceneLabel("play", s)}</span>{s.text || "Сцена"}
+          </div>
+        );
+      })}
+    </div>
+  );
+
   const common = {
     blockRefs: core.blockRefs as never,
     docFont: "Times New Roman",
@@ -241,12 +387,18 @@ export function PlayEditorNext() {
   };
 
   return (
-    <div style={{ width: "100%", height: "100%", overflow: "auto", background: BG, padding: "40px 0" }}>
-      <div style={{ maxWidth: "640px", margin: "0 auto", background: SURF, borderRadius: "8px", padding: "48px 64px", minHeight: "60vh" }}>
-        <div style={{ fontSize: "11px", letterSpacing: "1px", color: PLAY_ACCENT, marginBottom: "24px", fontFamily: "'Courier New',monospace" }}>
-          PLAYEDITOR · NEXT (увеличение 3 · ?next=1 · прод не затронут)
+    <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", background: BG }}>
+      {renderToolbar()}
+      <div style={{ flex: 1, display: "flex", minHeight: 0 }}>
+        {renderNav()}
+        <div style={{ flex: 1, overflow: "auto", padding: "40px 0", display: "flex", flexDirection: "column", alignItems: "center" }}>
+          <div style={{ width: "816px", maxWidth: "calc(100% - 48px)", margin: "0 auto 24px", background: SURF, boxShadow: "8px 8px 24px rgba(0,0,0,0.16)", borderRadius: "2px", padding: "56px 72px", minHeight: "1056px", boxSizing: "border-box" }}>
+            <div style={{ fontSize: "11px", letterSpacing: "1px", color: PLAY_ACCENT, marginBottom: "24px", fontFamily: "'Courier New',monospace" }}>
+              PLAYEDITOR · NEXT (увеличение 6 · ?next=1 · прод не затронут)
+            </div>
+            {blocks.map(renderBlock)}
+          </div>
         </div>
-        {blocks.map(renderBlock)}
       </div>
     </div>
   );

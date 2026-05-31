@@ -71,6 +71,8 @@ export function useEditorCore({ mode, modeRef, setSaved, getInitialBlocks, sched
 
   const blockRefs = useRef<Record<string, HTMLElement | null>>({});
   const lastFocId = useRef<unknown>(null);
+  const focIdRef = useRef<unknown>(null);
+  const toolbarBlockIdRef = useRef<unknown>(null);
   const [focId, setFocId] = useState<unknown>(null);
   const [spellOn, setSpellOn] = useState(false);
   const [toolbarBlockId, setToolbarBlockId] = useState<unknown>(null); // отдельный state для тулбара
@@ -81,8 +83,10 @@ export function useEditorCore({ mode, modeRef, setSaved, getInitialBlocks, sched
 
   const setFoc = (id: unknown) => {
     setFocId(id);
+    focIdRef.current = id;
     if (id) {
       lastFocId.current = id;
+      toolbarBlockIdRef.current = id;
       setToolbarBlockId(id);
       // Обновляем активную сцену по фокусу
       const idx = blocks.findIndex((b) => b.id === id);
@@ -95,7 +99,10 @@ export function useEditorCore({ mode, modeRef, setSaved, getInitialBlocks, sched
     }
   };
 
-  const getActiveBlockId = () => toolbarBlockId || focId || lastFocId.current || null;
+  // refs first so callers (e.g. a toolbar button) read the focused block
+  // synchronously at click time, before the focus state re-render flushes.
+  const getActiveBlockId = () =>
+    toolbarBlockIdRef.current || focIdRef.current || toolbarBlockId || focId || lastFocId.current || null;
 
   const ensureModeHistory = (m: string, blks: unknown) => {
     const next = ensureHistory(

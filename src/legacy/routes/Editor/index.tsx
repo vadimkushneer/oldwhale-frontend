@@ -97,13 +97,15 @@ import {
 import { buildModeTxt } from "../../../modes/export/txt";
 import { buildProjectData } from "../../../modes/document/serialize";
 import { upsertProjectEntry, removeProjectEntry, findLatestEntryForMode } from "../../../modes/document/projectIndex";
+import { saveProjectForMode, loadLastProjectForMode, readProjectSnapshot as storeReadSnapshot } from "../../../modes/document/projectStore";
 import { normalizeSearchNeedle, getSearchNeedleVariants, collectSearchOccurrences, computeSearchMatches } from "../../../modes/editor-core/search";
 import { splitBlockText, findPrecedingCharName, insertBlocksAfter, nextEnterType, cycleBlockType, computeMergeJoiner, mergeAdjacentBlocks } from "../../../modes/editor-core/blocks";
 import { moveSceneRange, formatSceneLabel } from "../../../modes/editor-core/scenes";
 import { computeOverlayRanges, buildSearchOverlayHtml as buildSearchOverlayHtmlCore } from "../../../modes/editor-core/searchOverlay";
+import { buildLinePasteReplacement, buildFilmPasteReplacement } from "../../../modes/editor-core/paste";
 import { BlockTextarea } from "../../../modes/editor-core/BlockTextarea";
-import { PlayScene, PlaySpacer, PlayLine } from "../../../modes/play/PlayBlocks";
 import { useEditorCore } from "../../../modes/editor-core/useEditorCore";
+import { PlayScene, PlaySpacer, PlayLine } from "../../../modes/play/PlayBlocks";
 import { PlayHeaderEditor } from "./PlayHeader";
 import { AiComposer } from "./AiComposer";
 import { AiPanel } from "./AiPanel";
@@ -724,26 +726,9 @@ async function readAiChatSseEvent(res) {
 
 const OW_ACTIVE_PROJECT_KEY = "ow_active_project";
 
-const readProjectSnapshot = (id) => {
-  if (!id) return null;
-  try {
-    return JSON.parse(localStorage.getItem("ow_proj_" + id) || "null");
-  } catch(e) {
-    return null;
-  }
-};
+const readProjectSnapshot = (id) => storeReadSnapshot(id);
 
-const readLastProjectForMode = (mode) => {
-  try {
-    const active = readProjectSnapshot(localStorage.getItem(OW_ACTIVE_PROJECT_KEY));
-    if (active && (active.mode || "film") === mode) return active;
-    const index = JSON.parse(localStorage.getItem("ow_index") || "[]");
-    const meta = findLatestEntryForMode(index, mode);
-    return meta ? readProjectSnapshot(meta.id) : null;
-  } catch(e) {
-    return null;
-  }
-};
+const readLastProjectForMode = (mode) => loadLastProjectForMode(mode);
 
 const persistActiveProjectId = (id) => {
   if (!id) return;
@@ -1926,11 +1911,11 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
     const { syncRoute = true } = options;
     const currentMode = modeRef.current || mode;
     const currentBlocks = blocksRef.current;
-    modeBlocksCache.current[currentMode] = currentBlocks;
+    modeBlocksCache.current[currentMode] = currentBlocks.map(b=>({...b}));
     modeSceneCardMetaCache.current[currentMode] = cloneSceneCardMetaMap(sceneCardMetaRef.current || {});
     ensureModeHistory(currentMode, currentBlocks);
     const cached = modeBlocksCache.current[m];
-    const nextBlocks = cached ? [...cached] : (INIT[m]||INIT.film).map(b=>({...b}));
+    const nextBlocks = cached ? cached.map(b=>({...b})) : (INIT[m]||INIT.film).map(b=>({...b}));
     const nextSceneCardMeta = cloneSceneCardMetaMap(modeSceneCardMetaCache.current[m] || {});
     ensureModeHistory(m, nextBlocks);
     updateSceneCardMeta(nextSceneCardMeta, { autosave:false });
@@ -1968,16 +1953,14 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
   }, [mode, routeMode, onModeRouteChange]);
 
   const saveProject = (id, name, blks, mod) => {
-    try {
-      const nt = noteTextRef.current;
-      const meta = { id, name, mode: mod, updatedAt: Date.now(), blocksCount: blks.filter(b=>b.type==="scene").length };
-      const data = buildProjectData(meta, { blocks: blks, playHeader, mediaHeader, contentHeader, contentLogo, docFont, sceneAlign, noteText: nt, sceneCardMeta: sceneCardMetaRef.current, markerHighlights, layout: { leftW, rightW, aiW, leftPanelOpen, rightPanelOpen, aiOpen, sceneCardsOpen, sceneCardsMiniMode, sceneCardsRect }, titlePage: titlePageRef.current });
-      localStorage.setItem("ow_proj_"+id, JSON.stringify(data));
-      const index = JSON.parse(localStorage.getItem("ow_index")||"[]");
-      const next = upsertProjectEntry(index, meta);
-      localStorage.setItem("ow_index", JSON.stringify(next));
-      persistActiveProjectId(id);
-    } catch(e) {}
+    saveProjectForMode(id, name, blks, mod, {
+      playHeader, mediaHeader, contentHeader, contentLogo, docFont, sceneAlign,
+      noteText: noteTextRef.current,
+      sceneCardMeta: sceneCardMetaRef.current,
+      markerHighlights,
+      layout: { leftW, rightW, aiW, leftPanelOpen, rightPanelOpen, aiOpen, sceneCardsOpen, sceneCardsMiniMode, sceneCardsRect },
+      titlePage: titlePageRef.current,
+    });
   };
 
   const registerOpenedProject = (proj) => {
@@ -2019,10 +2002,11 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
     saveTimer.current = setTimeout(()=>{
       savedRef.current = true;
       setSaved(true);
-      saveProject(projectId, projectName, blocksRef.current, modeRef.current || mode);
+      saveProject(projectIdRef.current, projectNameRef.current, blocksRef.current, modeRef.current || mode);
     }, 1500);
   };
   scheduleAutosaveRef.current = scheduleProjectAutosave;
+
 
   useEffect(()=>{
     ensureModeHistory(mode, blocks);
@@ -2069,6 +2053,8 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
   };
 
   const loadProject = (proj) => {
+    flushProjectSave();
+    clearTimeout(saveTimer.current);
     const nextMode = proj.mode||"film";
     const nextBlocks = proj.blocks.map(b=>({...b}));
     blocksRef.current = nextBlocks;
@@ -2161,10 +2147,13 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
   }, []);
 
   const newProject = () => {
+    flushProjectSave();
+    clearTimeout(saveTimer.current);
     const nid = "proj_"+Date.now();
     const nextMode = modeRef.current || mode;
     const year = new Date().getFullYear()+"";
     const nextBlocks = (INIT[nextMode] || []).map(b=>({...b}));
+    blocksRef.current = nextBlocks;
 
     modeBlocksCache.current = {};
     modeSceneCardMetaCache.current = {};

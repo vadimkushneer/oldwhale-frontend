@@ -113,26 +113,4 @@ describe("createBlockKeyHandler", () => {
     onKey(ev("1", { metaKey: true }), block);
     expect(deps.chType).toHaveBeenCalledWith(30, "action");
   });
-
-  it("Backspace at start of an empty play name deletes the line", () => {
-    const deps = makeDeps({
-      mode: "play",
-      blocksRef: { current: [{ id: 40, type: "scene", text: "s" }, { id: 41, type: "line", text: "", name: "" }] },
-    });
-    const block = { id: 41, type: "line", text: "", name: "" };
-    createBlockKeyHandler(deps)(ev("Backspace", { target: fakeEl(0, 0, "") }), block, { fromName: true });
-    expect(deps.delBlock).toHaveBeenCalledWith(41);
-  });
-
-  it("Backspace at start of a non-empty play name merges the line into the previous block", () => {
-    const deps = makeDeps({
-      mode: "play",
-      blocksRef: { current: [{ id: 50, type: "line", text: "prev", name: "A" }, { id: 51, type: "line", text: "hi", name: "B" }] },
-    });
-    const block = { id: 51, type: "line", text: "hi", name: "B" };
-    createBlockKeyHandler(deps)(ev("Backspace", { target: fakeEl(0, 0, "hi") }), block, { fromName: true });
-    expect(deps.applyBlocks).toHaveBeenCalledTimes(1);
-    expect(deps.delBlock).not.toHaveBeenCalled();
-  });
-
 });

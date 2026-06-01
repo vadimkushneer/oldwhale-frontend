@@ -182,37 +182,6 @@ export function createBlockKeyHandler(deps: BlockKeyDeps) {
         }
         if (mode === "play" && bi > 0 && block.type !== "act") {
           if (block.type === "line") {
-            const prev = currentBlocks[bi - 1];
-            if (ctx && ctx.fromName) {
-              // Backspace at the very start of the speaker-name field:
-              // merge this line into the previous block, or delete it if blank.
-              e.preventDefault();
-              const lineBlank = isBlankBlock && !((block.name || "").length);
-              if (lineBlank) {
-                delBlock(block.id);
-                setTimeout(() => {
-                  const prevEl = prev ? blockRefs.current[prev.id] : null;
-                  if (!prevEl) return;
-                  try { prevEl.focus({ preventScroll: true }); } catch(err) { prevEl.focus(); }
-                  const pos = (prevEl.value || "").length;
-                  try { prevEl.setSelectionRange(pos, pos); } catch(err) {}
-                }, 0);
-                return;
-              }
-              if (prev && prev.type && prev.type !== "act") {
-                const { joiner, caretPos } = computeMergeJoiner(prev.text, block.text);
-                applyBlocks(mergeAdjacentBlocks(blocksRef.current, prev.id, block.id, joiner));
-                setTimeout(() => {
-                  const prevEl = blockRefs.current[prev.id];
-                  if (!prevEl) return;
-                  try { prevEl.focus({ preventScroll: true }); } catch(err) { prevEl.focus(); }
-                  try { prevEl.setSelectionRange(caretPos, caretPos); } catch(err) {}
-                  autoH(prevEl);
-                }, 0);
-                return;
-              }
-              return;
-            }
             const nameText = block.name || "";
             const rowEl = el && el.parentElement ? el.parentElement : null;
             const nameInput = rowEl ? rowEl.querySelector('input') : null;

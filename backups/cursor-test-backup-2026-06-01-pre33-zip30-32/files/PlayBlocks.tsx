@@ -26,7 +26,7 @@ interface CommonCore {
   updBlock: (id: Id, text: string) => void;
   setFoc: (id: Id) => void;
   setFocId: (updater: (f: Id | null) => Id | null) => void;
-  onKey: (e: React.KeyboardEvent<HTMLTextAreaElement>, block: EditorBlock, ctx?: any) => void;
+  onKey: (e: React.KeyboardEvent<HTMLTextAreaElement>, block: EditorBlock) => void;
   renderSearchOverlay: OverlayRenderProp;
 }
 
@@ -192,14 +192,6 @@ export function PlayLine({
           if (e.key === "Tab" || e.key === "Enter") {
             e.preventDefault();
             blockRefs.current[block.id]?.focus();
-            return;
-          }
-          if (
-            e.key === "Backspace" &&
-            e.currentTarget.selectionStart === 0 &&
-            e.currentTarget.selectionEnd === 0
-          ) {
-            onKey(e as any, block, { fromName: true });
           }
         }}
         placeholder="Имя"

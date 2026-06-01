@@ -424,32 +424,6 @@ export function buildDocumentPages({
 
   if (curPage.length > 0) pages.push(curPage);
 
-  try {
-    if (typeof localStorage !== "undefined" && localStorage.getItem("ow_debug_pages")) {
-      const heights = blocks.map((b, bi) => ({
-        bi,
-        type: b.type,
-        len: (b.text || "").length,
-        h: Math.round(getBlockMetrics(config, b, b.text || "", false).blockH),
-      }));
-      const layout = pages.map((pg, i) => ({
-        page: i + 1,
-        entries: pg.map((e) => ({ bi: e.bi, type: blocks[e.bi]?.type, part: e.part, start: e.start, end: e.end })),
-      }));
-      // eslint-disable-next-line no-console
-      console.log("[ow pages]", JSON.stringify({
-        mode,
-        pageBudgetH,
-        desktopTitleEditorH,
-        blockCount: blocks.length,
-        pagesBuilt: pages.length,
-        totalMeasuredH: heights.reduce((s, x) => s + x.h, 0),
-        heights,
-        layout,
-      }));
-    }
-  } catch (e) { /* noop */ }
-
   return {
     pages,
     pagePadMode: mode === "play" ? "play" : mode === "short" || mode === "media" ? "other" : "film",
@@ -578,20 +552,6 @@ export function useEditorDocument({
     }
     return () => { alive = false; cancelAnimationFrame(raf); };
   }, []);
-
-  // Import / paste / Enter-split change the BLOCK COUNT (not just text). The first
-  // pagination pass right after that can run before the new sheets' layout is
-  // settled, so it under-measures and crams everything into too few pages (the
-  // "import shows only 2 pages until I edit" bug). Re-run pagination on the next
-  // frame whenever the block count or mode changes — but NOT on every keystroke
-  // (plain typing keeps the count the same), so normal editing stays cheap.
-  const blockCount = blocksState.blocks.length;
-  useEffect(() => {
-    const raf = requestAnimationFrame(() =>
-      requestAnimationFrame(() => setRemeasureTick((t) => t + 1)),
-    );
-    return () => cancelAnimationFrame(raf);
-  }, [blockCount, mode]);
 
   const onDocumentMouseDown = useCallback(
     (e) => {

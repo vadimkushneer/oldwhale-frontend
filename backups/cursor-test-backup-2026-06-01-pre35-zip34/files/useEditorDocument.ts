@@ -579,20 +579,6 @@ export function useEditorDocument({
     return () => { alive = false; cancelAnimationFrame(raf); };
   }, []);
 
-  // Import / paste / Enter-split change the BLOCK COUNT (not just text). The first
-  // pagination pass right after that can run before the new sheets' layout is
-  // settled, so it under-measures and crams everything into too few pages (the
-  // "import shows only 2 pages until I edit" bug). Re-run pagination on the next
-  // frame whenever the block count or mode changes — but NOT on every keystroke
-  // (plain typing keeps the count the same), so normal editing stays cheap.
-  const blockCount = blocksState.blocks.length;
-  useEffect(() => {
-    const raf = requestAnimationFrame(() =>
-      requestAnimationFrame(() => setRemeasureTick((t) => t + 1)),
-    );
-    return () => cancelAnimationFrame(raf);
-  }, [blockCount, mode]);
-
   const onDocumentMouseDown = useCallback(
     (e) => {
       if (e.button !== 1) return;

@@ -1,6 +1,6 @@
 import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
 import type { PayloadAction } from "@reduxjs/toolkit";
-import type { User } from "../../api/types";
+import type { User, VtbCreateOrderResponse } from "../../api/types";
 import { apiRequestBase } from "../../api/env";
 
 const TOKEN_KEY = "ow_token";
@@ -218,24 +218,24 @@ export const completePasswordResetThunk = createAsyncThunk(
   },
 );
 
-export const topUpCreditsThunk = createAsyncThunk(
-  "auth/credits/topup",
+export const createVtbCreditsOrderThunk = createAsyncThunk(
+  "auth/credits/createVtbOrder",
   async ({ amount }: { amount: number }, { getState, rejectWithValue }) => {
     const token = (getState() as { auth: AuthState }).auth.token;
     if (!token) return rejectWithValue("Не авторизован");
     const base = apiRequestBase();
     if (!base) return rejectWithValue("API base URL unavailable");
-    const res = await fetch(`${base}/api/me/credits/topup`, {
+    const res = await fetch(`${base}/api/payments/vtb/orders`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       body: JSON.stringify({ amount }),
     });
-    const data = (await readJsonSafe(res)) as User | { error?: string } | null;
+    const data = (await readJsonSafe(res)) as VtbCreateOrderResponse | { error?: string } | null;
     if (!res.ok) {
       const message = data && typeof data === "object" && "error" in data && data.error ? data.error : res.statusText;
       return rejectWithValue(message);
     }
-    return data as User;
+    return data as VtbCreateOrderResponse;
   },
 );
 
@@ -376,9 +376,6 @@ export const authSlice = createSlice({
       .addCase(completePasswordResetThunk.rejected, (state, action) => {
         state.passwordResetLoading = false;
         state.lastError = String(action.payload || action.error.message || "Ошибка восстановления пароля");
-      })
-      .addCase(topUpCreditsThunk.fulfilled, (state, action) => {
-        state.user = action.payload;
       });
   },
 });

@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { clearAuth, restoreSession, topUpCreditsThunk } from "../../features/auth/authSlice";
+import { clearAuth, createVtbCreditsOrderThunk, restoreSession } from "../../features/auth/authSlice";
 import { CREDITS_TOPUP_PRESETS, formatCredits } from "../../features/credits/credits";
 import { useAppDispatch, useAppSelector } from "../../hooks";
 import { useOnlineStatus } from "../../hooks/useOnlineStatus";
@@ -77,11 +77,15 @@ export function useProfile(): UseProfileResult {
       setTopUpError(null);
       setTopUpBusy(true);
       try {
-        await dispatch(topUpCreditsThunk({ amount })).unwrap();
+        const order = await dispatch(createVtbCreditsOrderThunk({ amount })).unwrap();
+        window.location.assign(order.form_url);
       } catch (e: unknown) {
-        setTopUpError(typeof e === "string" ? e : "Не удалось пополнить баланс");
-      } finally {
+        setTopUpError(typeof e === "string" ? e : "Не удалось открыть страницу оплаты");
         setTopUpBusy(false);
+      } finally {
+        if (typeof document !== "undefined" && document.visibilityState === "visible") {
+          setTopUpBusy(false);
+        }
       }
     },
     [dispatch],

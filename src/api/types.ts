@@ -33,6 +33,30 @@ export interface ApiErrorBody {
   error: string;
 }
 
+export type PaymentOrderStatus = "pending" | "registered" | "paid" | "failed" | "refunded";
+
+export interface PaymentOrder {
+  uid: Uid;
+  provider: string;
+  status: PaymentOrderStatus;
+  credits: number;
+  amount_minor: number;
+  currency: string;
+  form_url: string | null;
+  credited_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface VtbCreateOrderResponse {
+  order_uid: Uid;
+  form_url: string;
+  status: PaymentOrderStatus;
+  credits: number;
+  amount_minor: number;
+  currency: string;
+}
+
 /** Current-user `GET /api/ai/models` (optional auth; guests receive free groups only). */
 export interface AiVariantPublic {
   uid: Uid;

@@ -1,9 +1,10 @@
 // @ts-nocheck
-import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import {
   SCREENPLAY_FORMAT,
   buildScreenplayCssVars,
   buildFilmBlockCssVars,
+  buildFilmTextareaLayoutStyle,
   filmBlockPaddingTop,
   getFilmBlockIndent,
 } from "../../../domain/screenplayFormat";
@@ -122,6 +123,232 @@ function ensureMeasureTextarea(id: string) {
   return el;
 }
 
+/** Word-wrap line count — char/line alone under-counts vs real Courier wraps (Cyrillic). */
+export function countFilmWrappedLines(text: string, charsPerLine: number) {
+  const safe = text && text.length ? text : " ";
+  let lines = 0;
+  for (const paragraph of safe.split("\n")) {
+    if (!paragraph.length) {
+      lines += 1;
+      continue;
+    }
+    const tokens = paragraph.match(/\S+\s*/g) || [paragraph];
+    let lineLen = 0;
+    let paragraphLines = 1;
+    for (const token of tokens) {
+      const tlen = token.length;
+      if (lineLen > 0 && lineLen + tlen > charsPerLine) {
+        paragraphLines += 1;
+        lineLen = tlen;
+      } else {
+        lineLen += tlen;
+      }
+    }
+    lines += Math.max(1, paragraphLines);
+  }
+  return lines;
+}
+
+/** Line-count floor when DOM scrollHeight under-reports (long blocks after import / height:0 measure). */
+export function estimateFilmBlockHeightFromLines(
+  text: string,
+  charsPerLine: number,
+  pt: number,
+  pb: number,
+  linePx: number,
+) {
+  const lines = countFilmWrappedLines(text, charsPerLine);
+  return pt + pb + lines * linePx;
+}
+
+function readFilmTextareaScrollHeight(el: HTMLTextAreaElement) {
+  el.style.overflow = "hidden";
+  el.style.minHeight = "0";
+  el.style.height = "auto";
+  void el.offsetHeight;
+  const blockH = el.scrollHeight;
+  el.style.height = "0px";
+  return blockH;
+}
+
+function schedulePaginationRemeasure(setRemeasureTick: (fn: (t: number) => number) => void) {
+  const bump = () => setRemeasureTick((t) => t + 1);
+  requestAnimationFrame(() => requestAnimationFrame(bump));
+  if (typeof queueMicrotask === "function") queueMicrotask(bump);
+  for (const ms of [0, 50, 150, 300, 500, 800]) {
+    setTimeout(bump, ms);
+  }
+  const fonts = typeof document !== "undefined" ? (document as Document & { fonts?: FontFaceSet }).fonts : null;
+  if (fonts?.ready) fonts.ready.then(bump).catch(() => {});
+}
+
+/** Heights read from on-screen film textareas — overrides hidden #ow-film-measure after import. */
+const filmDomHeightCache = new Map<string, number>();
+
+/** Import / project switch — clear DOM height cache before repagination. */
+export function markFilmPaginationCold() {
+  clearFilmDomHeightCache();
+}
+
+export function filmMeasureCacheKey(
+  blockId: string,
+  text: string,
+  continued: boolean,
+  openingScene: boolean,
+) {
+  return `${blockId}|${continued ? "c" : "f"}|${openingScene ? "o" : "n"}|${text || " "}`;
+}
+
+export function clearFilmDomHeightCache() {
+  filmDomHeightCache.clear();
+}
+
+/** Pass 2+ pagination: cache real scrollHeights from rendered slices. */
+export function syncFilmDomHeightsFromEditorRoot(root: ParentNode | null | undefined): boolean {
+  if (!root) return false;
+  let dirty = false;
+  const nodes = root.querySelectorAll("textarea.editor-document__textarea--script[data-block-id]");
+  nodes.forEach((node) => {
+    if (!(node instanceof HTMLTextAreaElement)) return;
+    const blockId = node.dataset.blockId || "";
+    if (!blockId) return;
+    const sliceStart = parseInt(node.dataset.sliceStart || "0", 10) || 0;
+    const continued = sliceStart > 0;
+    const openingScene = node.classList.contains("editor-document__textarea--scene-opening");
+    const text = node.value || " ";
+    const sh = syncFilmTextareaScrollHeight(node);
+    const key = filmMeasureCacheKey(blockId, text, continued, openingScene);
+    const prev = filmDomHeightCache.get(key);
+    if (prev == null || Math.abs(prev - sh) > 1) {
+      if (prev != null) dirty = true;
+      else dirty = true;
+      filmDomHeightCache.set(key, sh);
+    }
+  });
+  return dirty && nodes.length > 0;
+}
+
+/** True when rendered content exceeds the 1056px film page clip. */
+export function detectFilmPageOverflow(root: ParentNode | null | undefined) {
+  if (!root) return false;
+  const pageEls = root.querySelectorAll(".editor-document__page--film");
+  for (const page of pageEls) {
+    if (!(page instanceof HTMLElement)) continue;
+    if (page.scrollHeight > page.clientHeight + 2) return true;
+  }
+  return false;
+}
+
+/** Page still overflows after pagination — bump cached slice heights and repaginate. */
+export function inflateFilmDomHeightsFromOverflow(root: ParentNode | null | undefined) {
+  if (!root) return false;
+  let dirty = false;
+
+  root.querySelectorAll(".editor-document__page--film").forEach((page) => {
+    if (!(page instanceof HTMLElement)) return;
+    if (page.scrollHeight <= page.clientHeight + 2) return;
+
+    page
+      .querySelectorAll("textarea.editor-document__textarea--script[data-block-id]")
+      .forEach((node) => {
+        if (!(node instanceof HTMLTextAreaElement)) return;
+        const blockId = node.dataset.blockId || "";
+        if (!blockId) return;
+        const sliceStart = parseInt(node.dataset.sliceStart || "0", 10) || 0;
+        const continued = sliceStart > 0;
+        const openingScene = node.classList.contains("editor-document__textarea--scene-opening");
+        const text = node.value || " ";
+        const sh = syncFilmTextareaScrollHeight(node);
+        const key = filmMeasureCacheKey(blockId, text, continued, openingScene);
+        const prev = filmDomHeightCache.get(key);
+        const next = Math.max(sh, (prev ?? 0) + 1);
+        if (prev == null || next > prev + 0.5) {
+          filmDomHeightCache.set(key, next);
+          dirty = true;
+        }
+      });
+  });
+
+  return dirty;
+}
+
+/** Italic / narrow columns wrap tighter than action dialogue. */
+function filmCharsPerLine(colW: number, fs: number, blockType: string) {
+  const ratio =
+    blockType === "paren" || blockType === "note" ? 0.5 : 0.62;
+  return Math.max(16, Math.round(colW / (fs * ratio)));
+}
+
+const FILM_DOM_MEASURE_TYPES = new Set([
+  "action",
+  "dialogue",
+  "note",
+  "paren",
+  "trans",
+  "scene",
+  "char",
+  "cast",
+]);
+
+function applyFilmMeasureTypography(el: HTMLTextAreaElement, blockType: string) {
+  el.style.fontWeight = "400";
+  el.style.fontStyle = "normal";
+  el.style.textAlign = "left";
+  el.style.textTransform = "none";
+  el.style.borderLeft = "none";
+
+  if (blockType === "paren" || blockType === "note") {
+    el.style.fontStyle = "italic";
+  }
+  if (blockType === "note") {
+    el.style.borderLeft = "2px solid #2a2a4a";
+  }
+  if (blockType === "trans") {
+    el.style.textAlign = "right";
+    el.style.textTransform = "uppercase";
+  }
+  if (blockType === "scene" || blockType === "char" || blockType === "cast") {
+    el.style.textTransform = "uppercase";
+  }
+}
+
+/** Hidden textarea measure — must mirror EditorDocument.scss film textareas. */
+function measureFilmBlockInDom(
+  blockType: string,
+  text: string,
+  opts: { continued?: boolean; openingScene?: boolean } = {},
+) {
+  const el = ensureMeasureTextarea("ow-film-measure-block");
+  if (!el) return 0;
+
+  const layout = buildFilmTextareaLayoutStyle(blockType, opts);
+  const fs = SCREENPLAY_FORMAT.FONT_SIZE;
+
+  el.value = text && text.length ? text : " ";
+  el.style.width = `${PAGE_TEXT_W}px`;
+  el.style.fontFamily = SCREENPLAY_FORMAT.FONT_FAMILY_FILM;
+  el.style.fontSize = `${fs}px`;
+  el.style.lineHeight = `${SCREENPLAY_FORMAT.LINE_PX}px`;
+  el.style.boxSizing = "border-box";
+  el.style.paddingTop = `${layout.paddingTop}px`;
+  el.style.paddingBottom = `${layout.paddingBottom ?? 0}px`;
+  el.style.paddingLeft = `${layout.paddingLeft}px`;
+  el.style.paddingRight = `${layout.paddingRight}px`;
+  applyFilmMeasureTypography(el, blockType);
+
+  return readFilmTextareaScrollHeight(el);
+}
+
+/** Match on-screen textarea height to content — source of truth after paint. */
+export function syncFilmTextareaScrollHeight(el: HTMLTextAreaElement | null | undefined) {
+  if (!el) return 0;
+  el.style.height = "auto";
+  void el.offsetHeight;
+  const sh = el.scrollHeight;
+  el.style.height = `${sh}px`;
+  return sh;
+}
+
 function getBlockMetrics({ defs, mode }, block, text, continued = false, openingScene = false) {
   const def = defs.find((item) => item.type === block.type) || defs[0];
 
@@ -146,36 +373,41 @@ function getBlockMetrics({ defs, mode }, block, text, continued = false, opening
     colW = PAGE_TEXT_W - ind.padL - ind.padR;
   }
 
-  const charsPerLine = Math.max(20, Math.round(colW / (fs * 0.6)));
+  const charsPerLine = isFilm
+    ? filmCharsPerLine(colW, fs, block.type)
+    : Math.max(20, Math.round(colW / (fs * 0.6)));
   const safeText = text && text.length ? text : " ";
   const lineH = fs * lh;
 
   if (isFilm) {
-    const el = ensureMeasureTextarea("ow-film-measure");
-    if (el) {
-      const { padL, padR } = getFilmBlockIndent(block.type);
-      el.value = safeText;
-      el.rows = 1;
-      el.style.width = `${PAGE_TEXT_W}px`;
-      el.style.fontFamily = SCREENPLAY_FORMAT.FONT_FAMILY_FILM;
-      el.style.fontSize = `${fs}px`;
-      el.style.lineHeight = String(lh);
-      el.style.paddingTop = `${pt}px`;
-      el.style.paddingBottom = `${pb}px`;
-      el.style.paddingLeft = `${padL}px`;
-      el.style.paddingRight = `${padR}px`;
-      el.style.fontStyle = block.italic ? "italic" : (def.st?.fontStyle || "normal");
-      el.style.fontWeight = block.bold ? "bold" : block.semibold ? "600" : (def.st?.fontWeight || "400");
-      el.style.textTransform = def.st?.textTransform || "none";
-      el.style.textAlign = def.st?.textAlign || "left";
-      el.style.letterSpacing = "normal";
-      el.style.borderLeft = "none";
-      el.style.borderRight = "none";
-      el.style.borderTop = "none";
-      el.style.borderBottom = "none";
-      el.style.height = "0px";
-      return { def, pt, pb, fs, lh, colW, charsPerLine, lineH, blockH: el.scrollHeight };
+    const lineEstimate = estimateFilmBlockHeightFromLines(
+      safeText,
+      charsPerLine,
+      pt,
+      pb,
+      SCREENPLAY_FORMAT.LINE_PX,
+    );
+
+    // Only trust heights from on-screen textareas (post-paint cache). Hidden
+    // #ow-film-measure under-reports Cyrillic wraps on import / cold open — that
+    // is what breaks page splits until the user edits and forces a remeasure.
+    if (block.id != null) {
+      const cacheKey = filmMeasureCacheKey(String(block.id), safeText, continued, openingScene);
+      const cached = filmDomHeightCache.get(cacheKey);
+      if (cached != null) {
+        return { def, pt, pb, fs, lh, colW, charsPerLine, lineH, blockH: Math.max(cached, lineEstimate) };
+      }
     }
+
+    let blockH = lineEstimate;
+    if (FILM_DOM_MEASURE_TYPES.has(block.type)) {
+      blockH = Math.max(
+        blockH,
+        measureFilmBlockInDom(block.type, safeText, { continued, openingScene }),
+      );
+    }
+
+    return { def, pt, pb, fs, lh, colW, charsPerLine, lineH, blockH };
   }
 
   const totalLines = Math.max(1, Math.ceil(safeText.length / charsPerLine));
@@ -351,8 +583,12 @@ export function buildDocumentPages({
       let start = 0;
       let continued = false;
       let sliceIx = 0;
+      let splitGuard = 0;
 
       while (true) {
+        splitGuard += 1;
+        if (splitGuard > 400) break;
+
         const remaining = pageRemaining();
         const metrics = getBlockMetrics(config, block, rest, continued, false);
 
@@ -363,13 +599,25 @@ export function buildDocumentPages({
           break;
         }
 
-        const splitLocal = findSplitByMeasure(
+        let splitLocal = findSplitByMeasure(
           config,
           block,
           rest,
           filmTextBudget(remaining, block, continued, block.type === "dialogue"),
           continued,
         );
+        if (splitLocal <= 0 || splitLocal >= rest.length) {
+          if (curPage.length === 0 && remaining > 0 && rest.length > 1) {
+            const tightSplit = findSplitByMeasure(
+              config,
+              block,
+              rest,
+              Math.max(1, remaining - 1),
+              continued,
+            );
+            if (tightSplit > 0 && tightSplit < rest.length) splitLocal = tightSplit;
+          }
+        }
         if (splitLocal <= 0 || splitLocal >= rest.length) {
           pushPage();
           continued = start > 0;
@@ -502,7 +750,7 @@ export function buildStandardBlockOverlayStyle({ mode, def, block, continued, op
     return {
       boxSizing: "border-box",
       fontSize: `${SCREENPLAY_FORMAT.FONT_SIZE}px`,
-      lineHeight: String(SCREENPLAY_FORMAT.LINE_HEIGHT),
+      lineHeight: `${SCREENPLAY_FORMAT.LINE_PX}px`,
       fontFamily: SCREENPLAY_FORMAT.FONT_FAMILY_FILM,
       paddingLeft: `${ind.padL}px`,
       paddingRight: `${ind.padR}px`,
@@ -568,29 +816,22 @@ export function useEditorDocument({
   // a recompute. Bump a tick after the first paints and once fonts are ready so
   // pagination re-runs against correct metrics without needing the user to type.
   const [remeasureTick, setRemeasureTick] = useState(0);
+  const domPassRef = useRef(0);
+  const blockCount = blocksState.blocks.length;
+
   useEffect(() => {
-    let alive = true;
-    const bump = () => { if (alive) setRemeasureTick((t) => t + 1); };
-    const raf = requestAnimationFrame(() => requestAnimationFrame(bump));
-    const fonts = typeof document !== "undefined" ? (document as any).fonts : null;
-    if (fonts && fonts.ready && typeof fonts.ready.then === "function") {
-      fonts.ready.then(bump).catch(() => {});
-    }
-    return () => { alive = false; cancelAnimationFrame(raf); };
+    schedulePaginationRemeasure(setRemeasureTick);
   }, []);
 
-  // Import / paste / Enter-split change the BLOCK COUNT (not just text). The first
-  // pagination pass right after that can run before the new sheets' layout is
-  // settled, so it under-measures and crams everything into too few pages (the
-  // "import shows only 2 pages until I edit" bug). Re-run pagination on the next
-  // frame whenever the block count or mode changes — but NOT on every keystroke
-  // (plain typing keeps the count the same), so normal editing stays cheap.
-  const blockCount = blocksState.blocks.length;
+  // Import always gets a new projectId; blockCount alone misses same-length imports.
   useEffect(() => {
-    const raf = requestAnimationFrame(() =>
-      requestAnimationFrame(() => setRemeasureTick((t) => t + 1)),
-    );
-    return () => cancelAnimationFrame(raf);
+    markFilmPaginationCold();
+    domPassRef.current = 0;
+    schedulePaginationRemeasure(setRemeasureTick);
+  }, [projectId, mode]);
+
+  useEffect(() => {
+    schedulePaginationRemeasure(setRemeasureTick);
   }, [blockCount, mode]);
 
   const onDocumentMouseDown = useCallback(
@@ -645,11 +886,29 @@ export function useEditorDocument({
     ],
   );
 
+  const { pages, pagePadMode } = pageModel;
+
+  // Hidden measure often wrong on import (reference.html height:0 bug). After paint,
+  // read real textarea heights and rerun pagination until slices match the 864px budget.
+  useLayoutEffect(() => {
+    if (mode !== "film") return;
+    const root = scrollRef.current;
+    if (!root) return;
+    const dirtyHeights = syncFilmDomHeightsFromEditorRoot(root);
+    const dirtyOverflow = detectFilmPageOverflow(root)
+      ? inflateFilmDomHeightsFromOverflow(root)
+      : false;
+    if ((dirtyHeights || dirtyOverflow) && domPassRef.current < 12) {
+      domPassRef.current += 1;
+      setRemeasureTick((t) => t + 1);
+    }
+  }, [mode, blocksState.blocks, remeasureTick, projectId, pages, scrollRef]);
+
   return {
     cssVars,
     shortLogoInputId,
     onDocumentMouseDown,
-    pages: pageModel.pages,
-    pagePadMode: pageModel.pagePadMode,
+    pages,
+    pagePadMode,
   };
 }

@@ -117,7 +117,7 @@ import { MarkerContextMenu } from "./MarkerContextMenu";
 import { EditorDocument } from "./EditorDocument/EditorDocument";
 import { FilmTitlePageEditor } from "./FilmTitlePage";
 import { EditorDocumentNote } from "./EditorDocument/EditorDocumentNote/EditorDocumentNote";
-import { buildDocumentPages, buildEditorDocumentCssVars } from "./EditorDocument/useEditorDocument";
+import { buildDocumentPages, buildEditorDocumentCssVars, markFilmPaginationCold } from "./EditorDocument/useEditorDocument";
 import { buildPlayScriptExportHTML } from "./EditorDocument/play/playExportHtml";
 import { buildPlayDocxDocument, playDocxFileName } from "./EditorDocument/play/playExportDocx";
 import { buildPlayFdxExport } from "./EditorDocument/play/playExportFdx";
@@ -1293,6 +1293,19 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
   const sceneCardNoteInputRef = useRef(null);
   const msgEnd     = useRef(null);
   const filmEditStateRef = useRef(null);
+  const editorOpGenRef = useRef(0);
+  const beginEditorOp = () => {
+    editorOpGenRef.current += 1;
+    return editorOpGenRef.current;
+  };
+  const isStaleEditorOp = (gen) => gen !== editorOpGenRef.current;
+  const resetEditorDocumentSurface = () => {
+    blockRefs.current = {};
+    filmEditStateRef.current = null;
+    modeBlocksCache.current = {};
+    modeSceneCardMetaCache.current = {};
+    markFilmPaginationCold();
+  };
   const noteEditorRef   = useRef(null);
   const noteTextRef     = useRef(noteText);
   const noteSelRangeRef = useRef(null);
@@ -2055,14 +2068,14 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
   };
 
   const loadProject = (proj) => {
+    beginEditorOp();
     flushProjectSave();
     clearTimeout(saveTimer.current);
     const nextMode = proj.mode||"film";
     const nextBlocks = proj.blocks.map(b=>({...b}));
+    resetEditorDocumentSurface();
     blocksRef.current = nextBlocks;
     registerOpenedProject({ ...proj, mode: nextMode, blocks: nextBlocks });
-    modeBlocksCache.current = {};
-    modeSceneCardMetaCache.current = {};
     resetModeHistories(nextMode, nextBlocks);
     setProjectId(proj.id);
     setProjectName(proj.name);
@@ -2149,16 +2162,16 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
   }, []);
 
   const newProject = () => {
+    beginEditorOp();
     flushProjectSave();
     clearTimeout(saveTimer.current);
     const nid = "proj_"+Date.now();
     const nextMode = modeRef.current || mode;
     const year = new Date().getFullYear()+"";
     const nextBlocks = (INIT[nextMode] || []).map(b=>({...b}));
+    resetEditorDocumentSurface();
     blocksRef.current = nextBlocks;
 
-    modeBlocksCache.current = {};
-    modeSceneCardMetaCache.current = {};
     resetModeHistories(nextMode, nextBlocks);
     setProjectId(nid);
     setProjectName("Без названия");
@@ -2565,20 +2578,52 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
     return { importedTitle, semanticBlocks };
   };
 
-  const importFilmDOCX = async (arrayBuffer, fileName) => {
+  const applyNewImportedProject = ({
+    opGen,
+    projectId: nid,
+    projectName: name,
+    mode: importMode,
+    blocks: importBlocks,
+    afterApply,
+  }) => {
+    if (isStaleEditorOp(opGen)) return false;
+    flushProjectSave();
+    clearTimeout(saveTimer.current);
+    resetEditorDocumentSurface();
+    blocksRef.current = importBlocks;
+    projectIdRef.current = nid;
+    projectNameRef.current = name;
+    resetModeHistories(importMode, importBlocks);
+    setProjectId(nid);
+    setProjectName(name);
+    setMode(importMode);
+    setBlocks(importBlocks);
+    persistActiveProjectId(nid);
+    projectHydratedRef.current = true;
+    setFocId(null);
+    setToolbarBlockId(null);
+    lastFocId.current = null;
+    savedRef.current = true;
+    setSaved(true);
+    setMenuOpen(false);
+    if (afterApply) afterApply();
+    return true;
+  };
+
+  const importFilmDOCX = async (arrayBuffer, fileName, opGen) => {
     const parsed = await extractDOCXSemantic(arrayBuffer, fileName);
-    if (!parsed) return;
+    if (!parsed || isStaleEditorOp(opGen)) return;
 
     const { importedTitle, semanticBlocks } = parsed;
     const newBlocks = semanticBlocks.map(block => ({ id: uid(), type: block.type, text: block.text }));
 
-    const nid = "proj_" + Date.now();
-    setProjectId(nid);
-    setProjectName(importedTitle || fileName.replace(/\.docx$/i, ""));
-    setMode("film");
-    setBlocks(newBlocks);
-    setFocId(null); setToolbarBlockId(null); lastFocId.current = null;
-    setSaved(true); setMenuOpen(false);
+    applyNewImportedProject({
+      opGen,
+      projectId: "proj_" + Date.now(),
+      projectName: importedTitle || fileName.replace(/\.docx$/i, ""),
+      mode: "film",
+      blocks: newBlocks,
+    });
   };
 
   const openOpenFilePicker = (inputId) => {
@@ -2594,17 +2639,19 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
   const importWhale = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    const opGen = beginEditorOp();
     const ext = file.name.split(".").pop().toLowerCase();
     const reader = new FileReader();
     reader.onload = async (ev) => {
       try {
+        if (isStaleEditorOp(opGen)) return;
         if (ext === "docx") {
           const currentMode = modeRef.current || mode;
           if (currentMode === "film") {
-            await importFilmDOCX(ev.target.result, file.name);
+            await importFilmDOCX(ev.target.result, file.name, opGen);
           } else if (["play", "short", "media"].includes(currentMode)) {
             const parsed = await extractDOCXSemantic(ev.target.result, file.name);
-            if (!parsed) return;
+            if (!parsed || isStaleEditorOp(opGen)) return;
 
             const { importedTitle, semanticBlocks } = parsed;
             const newBlocks = [];
@@ -2677,25 +2724,28 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
             }
 
             if (newBlocks.length === 0) { alert("Не удалось собрать блоки из DOCX-файла"); return; }
-            const nid = "proj_" + Date.now();
-            setProjectId(nid);
-            setProjectName(importedTitle || file.name.replace(/\.docx$/i, ""));
-            setMode(currentMode);
-            setBlocks(newBlocks);
-            if (currentMode === "play" && importedTitle) {
-              setPlayHeader(ph => ph.map(h => h.key === "title" ? { ...h, text: importedTitle } : h));
-            }
-            if (currentMode === "media" && importedTitle) {
-              setMediaHeader(mh => mh.map(h => h.key === "show" ? { ...h, text: importedTitle } : h));
-            }
-            setFocId(null); setToolbarBlockId(null); lastFocId.current = null;
-            setSaved(true); setMenuOpen(false);
+            applyNewImportedProject({
+              opGen,
+              projectId: "proj_" + Date.now(),
+              projectName: importedTitle || file.name.replace(/\.docx$/i, ""),
+              mode: currentMode,
+              blocks: newBlocks,
+              afterApply: () => {
+                if (currentMode === "play" && importedTitle) {
+                  setPlayHeader(ph => ph.map(h => h.key === "title" ? { ...h, text: importedTitle } : h));
+                }
+                if (currentMode === "media" && importedTitle) {
+                  setMediaHeader(mh => mh.map(h => h.key === "show" ? { ...h, text: importedTitle } : h));
+                }
+              },
+            });
           } else if (currentMode === "note") {
             let mammoth;
             try { mammoth = await loadMammothLib(); }
             catch(err) { alert("Не удалось загрузить библиотеку Mammoth для DOCX-импорта."); return; }
 
             const result = await mammoth.convertToHtml({ arrayBuffer: ev.target.result });
+            if (isStaleEditorOp(opGen)) return;
             const html = normalizeNoteHtml(result.value || "");
             if (!html.replace(/<[^>]*>/g, "").replace(/&nbsp;/gi, " ").trim()) {
               alert("Не удалось извлечь текст из DOCX-файла");
@@ -2703,14 +2753,17 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
             }
 
             const nid = "proj_" + Date.now();
-            setProjectId(nid);
-            setProjectName(file.name.replace(/\.docx$/i, ""));
-            setMode("note");
-            setBlocks((INIT.note || []).map(b=>({...b})));
-            setNoteText(html);
-            noteTextRef.current = html;
-            setFocId(null); setToolbarBlockId(null); lastFocId.current = null;
-            setSaved(true); setMenuOpen(false);
+            applyNewImportedProject({
+              opGen,
+              projectId: nid,
+              projectName: file.name.replace(/\.docx$/i, ""),
+              mode: "note",
+              blocks: (INIT.note || []).map(b=>({...b})),
+              afterApply: () => {
+                setNoteText(html);
+                noteTextRef.current = html;
+              },
+            });
           } else {
             alert("DOCX не поддерживается в этом режиме");
             return;
@@ -2762,18 +2815,14 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
             if (newBlocks.length === 0) { alert("Не удалось найти содержимое в FDX-файле"); return; }
             const nid = "proj_" + Date.now();
             const projName = importedTitle || file.name.replace(/\.fdx$/i, "");
-            blocksRef.current = newBlocks;
-            projectIdRef.current = nid;
-            projectNameRef.current = projName;
-            resetModeHistories("film", newBlocks);
-            setProjectId(nid);
-            setProjectName(projName);
-            setMode("film");
-            setBlocks(newBlocks);
-            saveProject(nid, projName, newBlocks, "film");
-            setFocId(null); setToolbarBlockId(null); lastFocId.current = null;
-            savedRef.current = true;
-            setSaved(true); setMenuOpen(false);
+            applyNewImportedProject({
+              opGen,
+              projectId: nid,
+              projectName: projName,
+              mode: "film",
+              blocks: newBlocks,
+              afterApply: () => saveProject(nid, projName, newBlocks, "film"),
+            });
           } else if (currentMode === "play") {
             const newBlocks = [];
             let pendingChar = "";
@@ -2799,20 +2848,22 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
               }
             });
             if (newBlocks.length === 0) { alert("Не удалось найти содержимое в FDX-файле"); return; }
-            const nid = "proj_" + Date.now();
-            setProjectId(nid);
-            setProjectName(importedTitle || file.name.replace(/\.fdx$/i, ""));
-            setMode("play");
-            setBlocks(newBlocks);
-            if (importedTitle || importedAuthor) {
-              setPlayHeader(ph => ph.map(h => {
-                if (h.key === "title" && importedTitle) return { ...h, text: importedTitle };
-                if (h.key === "author" && importedAuthor) return { ...h, text: importedAuthor };
-                return h;
-              }));
-            }
-            setFocId(null); setToolbarBlockId(null); lastFocId.current = null;
-            setSaved(true); setMenuOpen(false);
+            applyNewImportedProject({
+              opGen,
+              projectId: "proj_" + Date.now(),
+              projectName: importedTitle || file.name.replace(/\.fdx$/i, ""),
+              mode: "play",
+              blocks: newBlocks,
+              afterApply: () => {
+                if (importedTitle || importedAuthor) {
+                  setPlayHeader(ph => ph.map(h => {
+                    if (h.key === "title" && importedTitle) return { ...h, text: importedTitle };
+                    if (h.key === "author" && importedAuthor) return { ...h, text: importedAuthor };
+                    return h;
+                  }));
+                }
+              },
+            });
           } else if (currentMode === "short") {
             const newBlocks = [];
             let pendingChar = "";
@@ -2841,13 +2892,13 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
               }
             });
             if (newBlocks.length === 0) { alert("Не удалось найти содержимое в FDX-файле"); return; }
-            const nid = "proj_" + Date.now();
-            setProjectId(nid);
-            setProjectName(importedTitle || file.name.replace(/\.fdx$/i, ""));
-            setMode("short");
-            setBlocks(newBlocks);
-            setFocId(null); setToolbarBlockId(null); lastFocId.current = null;
-            setSaved(true); setMenuOpen(false);
+            applyNewImportedProject({
+              opGen,
+              projectId: "proj_" + Date.now(),
+              projectName: importedTitle || file.name.replace(/\.fdx$/i, ""),
+              mode: "short",
+              blocks: newBlocks,
+            });
           } else if (currentMode === "media") {
             const newBlocks = [];
             let pendingChar = "";
@@ -2874,16 +2925,18 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
               }
             });
             if (newBlocks.length === 0) { alert("Не удалось найти содержимое в FDX-файле"); return; }
-            const nid = "proj_" + Date.now();
-            setProjectId(nid);
-            setProjectName(importedTitle || file.name.replace(/\.fdx$/i, ""));
-            setMode("media");
-            setBlocks(newBlocks);
-            if (importedTitle) {
-              setMediaHeader(mh => mh.map(h => h.key === "show" ? { ...h, text: importedTitle } : h));
-            }
-            setFocId(null); setToolbarBlockId(null); lastFocId.current = null;
-            setSaved(true); setMenuOpen(false);
+            applyNewImportedProject({
+              opGen,
+              projectId: "proj_" + Date.now(),
+              projectName: importedTitle || file.name.replace(/\.fdx$/i, ""),
+              mode: "media",
+              blocks: newBlocks,
+              afterApply: () => {
+                if (importedTitle) {
+                  setMediaHeader(mh => mh.map(h => h.key === "show" ? { ...h, text: importedTitle } : h));
+                }
+              },
+            });
           } else if (currentMode === "note") {
             const escapeHtml = (s) => String(s || "")
               .replace(/&/g, "&amp;")
@@ -2905,68 +2958,61 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
             });
             const html = normalizeNoteHtml(parasHtml.join(""));
             if (!html.replace(/<[^>]*>/g, "").replace(/&nbsp;/gi, " ").trim()) { alert("Не удалось найти содержимое в FDX-файле"); return; }
-            const nid = "proj_" + Date.now();
-            setProjectId(nid);
-            setProjectName(importedTitle || file.name.replace(/\.fdx$/i, ""));
-            setMode("note");
-            setBlocks((INIT.note || []).map(b=>({...b})));
-            setNoteText(html);
-            noteTextRef.current = html;
-            setFocId(null); setToolbarBlockId(null); lastFocId.current = null;
-            setSaved(true); setMenuOpen(false);
+            applyNewImportedProject({
+              opGen,
+              projectId: "proj_" + Date.now(),
+              projectName: importedTitle || file.name.replace(/\.fdx$/i, ""),
+              mode: "note",
+              blocks: (INIT.note || []).map(b=>({...b})),
+              afterApply: () => {
+                setNoteText(html);
+                noteTextRef.current = html;
+              },
+            });
           } else {
             alert("FDX не поддерживается в этом режиме");
           }
         } else {
-          /* ─── .whale JSON-импорт (без изменений) ─── */
+          /* ─── .whale JSON-импорт ─── */
           const data = JSON.parse(ev.target.result);
-          if (!data.blocks) return;
-          flushProjectSave();
-          clearTimeout(saveTimer.current);
+          if (!data.blocks || isStaleEditorOp(opGen)) return;
           const nid = "proj_" + Date.now();
           const importMode = data.mode || "film";
           const importBlocks = data.blocks.map(b=>({...b}));
-          blocksRef.current = importBlocks;
-          modeBlocksCache.current = {};
-          modeSceneCardMetaCache.current = {};
-          resetModeHistories(importMode, importBlocks);
-          setProjectId(nid);
-          setProjectName(data.name || file.name.replace(".whale",""));
-          setMode(importMode);
-          setBlocks(importBlocks);
-          persistActiveProjectId(nid);
-          projectHydratedRef.current = true;
-          setFocId(null);
-          setToolbarBlockId(null);
-          lastFocId.current = null;
-          if (data.playHeader) setPlayHeader(data.playHeader);
-      if (data.mediaHeader) setMediaHeader(data.mediaHeader);
-      if (data.contentHeader) setContentHeader(data.contentHeader);
-      if (data.contentLogo) setContentLogo(data.contentLogo);
-            if (data.noteText !== undefined) { setNoteText(data.noteText); noteTextRef.current = data.noteText; }
-          if (data.docFont)    setDocFont(data.docFont);
-          if (data.sceneAlign) setSceneAlign(data.sceneAlign);
-          if ((data.mode || "film") === "film") {
-            setTitlePage(normalizeTitlePage(data.titlePage, data.name || file.name.replace(/\.whale$/i, "")));
-          }
-          if (data.markerHighlights) setMarkerHighlights(data.markerHighlights);
-          if (data.layout) {
-            const l = data.layout;
-            if (l.leftW)          setLeftW(l.leftW);
-            if (l.rightW)         setRightW(l.rightW);
-            if (l.aiW)            setAiW(l.aiW);
-            if (l.leftPanelOpen  !== undefined) setLeftPanelOpen(l.leftPanelOpen);
-            if (l.rightPanelOpen !== undefined) setRightPanelOpen(l.rightPanelOpen);
-            if (l.aiOpen         !== undefined) setAiOpen(l.aiOpen);
-            if (l.sceneCardsOpen !== undefined) setSceneCardsOpen(l.sceneCardsOpen);
-            if (l.sceneCardsMiniMode !== undefined) setSceneCardsMiniMode(l.sceneCardsMiniMode);
-            if (l.sceneCardsRect)  setSceneCardsRect(l.sceneCardsRect);
-          }
-          updateSceneCardMeta(cloneSceneCardMetaMap(data.sceneCardMeta || {}), { autosave:false });
-          setSceneCardMenu(null);
-          modeSceneCardMetaCache.current = {};
-          setSaved(true);
-          setMenuOpen(false);
+          applyNewImportedProject({
+            opGen,
+            projectId: nid,
+            projectName: data.name || file.name.replace(".whale",""),
+            mode: importMode,
+            blocks: importBlocks,
+            afterApply: () => {
+              if (data.playHeader) setPlayHeader(data.playHeader);
+              if (data.mediaHeader) setMediaHeader(data.mediaHeader);
+              if (data.contentHeader) setContentHeader(data.contentHeader);
+              if (data.contentLogo) setContentLogo(data.contentLogo);
+              if (data.noteText !== undefined) { setNoteText(data.noteText); noteTextRef.current = data.noteText; }
+              if (data.docFont) setDocFont(data.docFont);
+              if (data.sceneAlign) setSceneAlign(data.sceneAlign);
+              if ((data.mode || "film") === "film") {
+                setTitlePage(normalizeTitlePage(data.titlePage, data.name || file.name.replace(/\.whale$/i, "")));
+              }
+              if (data.markerHighlights) setMarkerHighlights(data.markerHighlights);
+              if (data.layout) {
+                const l = data.layout;
+                if (l.leftW) setLeftW(l.leftW);
+                if (l.rightW) setRightW(l.rightW);
+                if (l.aiW) setAiW(l.aiW);
+                if (l.leftPanelOpen !== undefined) setLeftPanelOpen(l.leftPanelOpen);
+                if (l.rightPanelOpen !== undefined) setRightPanelOpen(l.rightPanelOpen);
+                if (l.aiOpen !== undefined) setAiOpen(l.aiOpen);
+                if (l.sceneCardsOpen !== undefined) setSceneCardsOpen(l.sceneCardsOpen);
+                if (l.sceneCardsMiniMode !== undefined) setSceneCardsMiniMode(l.sceneCardsMiniMode);
+                if (l.sceneCardsRect) setSceneCardsRect(l.sceneCardsRect);
+              }
+              updateSceneCardMeta(cloneSceneCardMetaMap(data.sceneCardMeta || {}), { autosave:false });
+              setSceneCardMenu(null);
+            },
+          });
         }
       } catch(err) { alert("Ошибка чтения файла: " + err.message); }
     };
@@ -7975,6 +8021,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, routeMode
 
         {/* Document */}
         <EditorDocument
+          key={projectId}
           mode={mode}
           zoom={zoom}
           sheetOn={sheetOn}

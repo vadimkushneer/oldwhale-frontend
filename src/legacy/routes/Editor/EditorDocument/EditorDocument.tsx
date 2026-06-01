@@ -11,7 +11,7 @@ import {
   buildPlayLineOverlayStyle,
   buildStandardBlockOverlayStyle,
   cx,
-  measureFilmBlockHeight,
+  syncFilmTextareaScrollHeight,
   useEditorDocument,
 } from "./useEditorDocument";
 import { EditorActionButtons } from "../EditorActionButtons/EditorActionButtons";
@@ -389,7 +389,16 @@ export function EditorDocument({
                         ) : null}
 
                         {pageBlocks.map((entry, entryIdx) => {
-                          const { bi, part, split, start = 0, end = null, continued = false, editable = true, sliceIx = 0 } = entry;
+                          const {
+                            bi,
+                            part,
+                            split,
+                            start = 0,
+                            end = null,
+                            continued = false,
+                            editable = true,
+                            sliceIx = 0,
+                          } = entry;
                           const block = blocks[bi];
                           const isFilmSlice = part === "filmSlice";
                           const isPlaySlice = part === "playSlice";
@@ -447,18 +456,8 @@ export function EditorDocument({
                             isContinuedMeasuredSlice,
                             hasEarlierSceneOnPage,
                           );
-                          const setFilmTextareaHeight = (el) => {
-                            if (!el || mode !== "film") return;
-                            el.style.height = `${measureFilmBlockHeight(
-                              defs,
-                              block,
-                              el.value,
-                              isContinuedMeasuredSlice,
-                              isOpeningScene,
-                            )}px`;
-                          };
                           const syncTextareaHeight = (el) => {
-                            if (mode === "film") setFilmTextareaHeight(el);
+                            if (mode === "film") syncFilmTextareaScrollHeight(el);
                             else autoH(el);
                           };
 

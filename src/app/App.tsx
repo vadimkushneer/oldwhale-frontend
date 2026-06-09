@@ -10,6 +10,7 @@ import { LoginPage } from "../pages/LoginPage";
 import { ResetPasswordPage } from "../pages/ResetPasswordPage";
 import { EditorPage } from "../pages/EditorPage";
 import { ProfilePage } from "../pages/ProfilePage";
+import { PaymentReturnPage } from "../pages/PaymentReturnPage";
 import { AdminPage } from "../pages/AdminPage";
 import { AiChatLogsAdminPage } from "../pages/AiChatLogsAdminPage";
 import { AiModelsAdminPage } from "../pages/AiModelsAdminPage";
@@ -119,6 +120,22 @@ export default function App() {
             element={
               <IonicRouteShell>
                 <ProfilePage />
+              </IonicRouteShell>
+            }
+          />
+          <Route
+            path="/payment/return/:paymentId"
+            element={
+              <IonicRouteShell>
+                <PaymentReturnPage />
+              </IonicRouteShell>
+            }
+          />
+          <Route
+            path="/payment/return"
+            element={
+              <IonicRouteShell>
+                <PaymentReturnPage />
               </IonicRouteShell>
             }
           />

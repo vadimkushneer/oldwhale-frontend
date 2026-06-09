@@ -123,6 +123,10 @@
   @apply px-3 py-2 text-[10px];
 }
 
+.profile__topup-hint {
+  @apply w-full text-[9px] leading-relaxed tracking-[1px] text-[#5a587a];
+}
+
 .profile__topup-error {
   @apply text-[11px] text-[#f472b6];
 }

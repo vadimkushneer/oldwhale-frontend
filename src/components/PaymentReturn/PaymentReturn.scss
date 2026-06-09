@@ -1,0 +1,100 @@
+/* BEM block `payret` — post-payment landing page (VTB return/fail redirect). */
+.payret {
+  @apply box-border flex min-h-[100dvh] w-full items-center justify-center bg-[#1a1b2e] px-5 py-8 font-mono text-[#e4e1f5];
+}
+
+.payret__card {
+  @apply mx-auto flex w-full max-w-[420px] flex-col items-center gap-4 rounded-2xl bg-[#1f2040] p-7 text-center;
+  box-shadow:
+    8px 8px 22px rgba(0, 0, 0, 0.5),
+    -4px -4px 12px rgba(255, 255, 255, 0.038);
+}
+
+.payret__badge {
+  @apply flex h-16 w-16 select-none items-center justify-center rounded-full bg-[#1a1b2e] text-2xl;
+  box-shadow:
+    inset 3px 3px 10px rgba(0, 0, 0, 0.5),
+    inset -2px -2px 6px rgba(255, 255, 255, 0.035);
+}
+
+.payret__badge--paid {
+  @apply text-[#4ade80];
+}
+
+.payret__badge--failed {
+  @apply text-[#f472b6];
+}
+
+.payret__badge--checking,
+.payret__badge--pending {
+  @apply text-[#7c6af7];
+}
+
+.payret__badge--error,
+.payret__badge--unauthorized,
+.payret__badge--no-id {
+  @apply text-[#f59e0b];
+}
+
+.payret__title {
+  @apply text-[13px] tracking-[3px];
+}
+
+.payret__message {
+  @apply text-[11px] leading-relaxed text-[#9896b8];
+}
+
+.payret__amount {
+  @apply mt-1 flex w-full items-baseline justify-between gap-3 rounded-xl bg-[#1a1b2e] px-4 py-3;
+  box-shadow:
+    inset 3px 3px 10px rgba(0, 0, 0, 0.5),
+    inset -2px -2px 6px rgba(255, 255, 255, 0.035);
+}
+
+.payret__amount-label {
+  @apply text-[10px] tracking-[2px] text-[#5a587a];
+}
+
+.payret__amount-value {
+  @apply text-lg tracking-[1px] text-[#4ade80];
+}
+
+.payret__balance {
+  @apply flex w-full items-baseline justify-between gap-3 px-1;
+}
+
+.payret__balance-label {
+  @apply text-[10px] tracking-[2px] text-[#5a587a];
+}
+
+.payret__balance-value {
+  @apply text-[13px] tracking-[1px] text-[#7c6af7];
+}
+
+.payret__error {
+  @apply w-full text-[11px] leading-relaxed text-[#f472b6];
+}
+
+.payret__actions {
+  @apply mt-2 flex w-full flex-wrap items-center justify-center gap-3;
+}
+
+.payret__button {
+  @apply cursor-pointer rounded-[10px] border-0 px-4 py-2.5 font-[inherit] text-[10px] tracking-[2px] no-underline transition-colors duration-150;
+}
+
+.payret__button:focus-visible {
+  @apply outline-none ring-1 ring-[#7c6af7];
+}
+
+.payret__button:disabled {
+  @apply cursor-default opacity-60;
+}
+
+.payret__button--primary {
+  @apply bg-[#7c6af7] text-white hover:bg-[#8a7bff];
+}
+
+.payret__button--ghost {
+  @apply bg-[#232438] text-[#e4e1f5] hover:bg-[#2b2c44];
+}

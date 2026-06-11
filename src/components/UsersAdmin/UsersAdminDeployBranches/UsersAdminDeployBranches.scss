@@ -1,0 +1,70 @@
+/* BEM block `users-admin-deploy-branches` — hosting auto-deploy branch selectors. */
+.users-admin-deploy-branches {
+  @apply mb-6 rounded-2xl bg-[#1f2040] p-5;
+  box-shadow:
+    8px 8px 22px rgba(0, 0, 0, 0.5),
+    -4px -4px 12px rgba(255, 255, 255, 0.038);
+}
+
+.users-admin-deploy-branches__title {
+  @apply mb-4 text-[11px] tracking-[2px] text-[#9b97c4];
+}
+
+.users-admin-deploy-branches__grid {
+  @apply grid gap-4 md:grid-cols-2;
+}
+
+.users-admin-deploy-branches__field {
+  @apply flex flex-col gap-2;
+}
+
+.users-admin-deploy-branches__label {
+  @apply text-[10px] tracking-[1.5px] text-[#7c79a8];
+}
+
+.users-admin-deploy-branches__select {
+  @apply w-full rounded-lg border-0 bg-[#1a1b2e] py-2.5 px-3 font-[inherit] text-[#e4e1f5];
+  box-shadow:
+    inset 3px 3px 10px rgba(0, 0, 0, 0.5),
+    inset -2px -2px 6px rgba(255, 255, 255, 0.035);
+}
+
+.users-admin-deploy-branches__select:focus-visible {
+  @apply outline-none ring-1 ring-[#7c6af7];
+}
+
+.users-admin-deploy-branches__select:disabled {
+  @apply cursor-default opacity-60;
+}
+
+.users-admin-deploy-branches__hint {
+  @apply text-[10px] leading-relaxed text-[#5a587a];
+}
+
+.users-admin-deploy-branches__actions {
+  @apply mt-4 flex flex-wrap items-center gap-3;
+}
+
+.users-admin-deploy-branches__submit {
+  @apply cursor-pointer rounded-[10px] border-0 bg-[#7c6af7] px-4 py-2.5 font-[inherit] text-[10px] tracking-[2px] text-white;
+}
+
+.users-admin-deploy-branches__submit:focus-visible {
+  @apply outline-none ring-1 ring-[#7c6af7];
+}
+
+.users-admin-deploy-branches__submit:disabled {
+  @apply cursor-default opacity-70;
+}
+
+.users-admin-deploy-branches__meta {
+  @apply text-[10px] text-[#5a587a];
+}
+
+.users-admin-deploy-branches__error {
+  @apply mt-3 text-[11px] text-[#f472b6];
+}
+
+.users-admin-deploy-branches__offline {
+  @apply mb-3 text-[11px] text-[#fbbf24];
+}

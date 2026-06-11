@@ -6,6 +6,10 @@ import type {
   AdminUiSettingsResponse,
   AiChatLogListParams,
   AiChatLogListResponse,
+  HostingDeployBranchesPutRequest,
+  HostingDeployBranchesResponse,
+  HostingRepoBranchesResponse,
+  HostingRepoKey,
   User,
   UserListResponse,
   UserWrapResponse,
@@ -27,7 +31,7 @@ export const adminApi = createApi({
     if (res.error?.status === 401) api.dispatch(clearAuth());
     return res;
   },
-  tagTypes: ["UserList", "AiChatLogs", "AdminUiSettings"],
+  tagTypes: ["UserList", "AiChatLogs", "AdminUiSettings", "HostingDeployBranches"],
   endpoints: (build) => ({
     listAiChatLogs: build.query<AiChatLogListResponse, AiChatLogListParams | void>({
       query: (params) => ({
@@ -74,6 +78,24 @@ export const adminApi = createApi({
       query: (body) => ({ url: "/api/admin/me/ui-settings", method: "PUT", body }),
       invalidatesTags: () => [{ type: "AdminUiSettings", id: "ME" }],
     }),
+    getHostingDeployBranches: build.query<HostingDeployBranchesResponse, void>({
+      query: () => ({ url: "/api/admin/hosting/deploy-branches", method: "GET" }),
+      providesTags: () => [{ type: "HostingDeployBranches", id: "CURRENT" }],
+    }),
+    putHostingDeployBranches: build.mutation<
+      HostingDeployBranchesResponse,
+      HostingDeployBranchesPutRequest
+    >({
+      query: (body) => ({ url: "/api/admin/hosting/deploy-branches", method: "PUT", body }),
+      invalidatesTags: () => [{ type: "HostingDeployBranches", id: "CURRENT" }],
+    }),
+    listHostingRepoBranches: build.query<HostingRepoBranchesResponse, HostingRepoKey>({
+      query: (repo) => ({
+        url: "/api/admin/hosting/repo-branches",
+        method: "GET",
+        params: { repo },
+      }),
+    }),
   }),
 });
 
@@ -85,4 +107,7 @@ export const {
   useDeleteUserMutation,
   useLazyGetAdminUiSettingsQuery,
   usePutAdminUiSettingsMutation,
+  useGetHostingDeployBranchesQuery,
+  usePutHostingDeployBranchesMutation,
+  useListHostingRepoBranchesQuery,
 } = adminApi;

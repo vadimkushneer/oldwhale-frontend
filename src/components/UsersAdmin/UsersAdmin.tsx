@@ -1,5 +1,6 @@
 import { Link, Navigate } from "react-router-dom";
 import { UsersAdminBlockingScreen } from "./UsersAdminBlockingScreen/UsersAdminBlockingScreen";
+import { UsersAdminDeployBranches } from "./UsersAdminDeployBranches/UsersAdminDeployBranches";
 import { UsersAdminCreateForm } from "./UsersAdminCreateForm/UsersAdminCreateForm";
 import { UsersAdminOfflineBanner } from "./UsersAdminOfflineBanner/UsersAdminOfflineBanner";
 import { UsersAdminTable } from "./UsersAdminTable/UsersAdminTable";
@@ -36,6 +37,8 @@ export function UsersAdmin() {
         {!vm.online ? <UsersAdminOfflineBanner /> : null}
 
         <UsersAdminToolbar />
+
+        <UsersAdminDeployBranches />
 
         <UsersAdminCreateForm />
 

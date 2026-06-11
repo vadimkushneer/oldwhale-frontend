@@ -294,3 +294,20 @@ export interface AdminUiSettingsPutRequest {
     columns: Partial<Record<AiChatLogColumnKey, boolean>>;
   };
 }
+
+export type HostingRepoKey = "backend" | "frontend";
+
+export interface HostingDeployBranchesResponse {
+  backendBranch: string;
+  frontendBranch: string;
+  updatedAt: string | null;
+}
+
+export interface HostingDeployBranchesPutRequest {
+  backendBranch?: string;
+  frontendBranch?: string;
+}
+
+export interface HostingRepoBranchesResponse {
+  branches: string[];
+}

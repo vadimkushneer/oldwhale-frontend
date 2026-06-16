@@ -108,7 +108,7 @@ export function Onboarding({ onSelect }) {
         }}>
           <Whale size={18}/>
         </div>
-        <span style={{color:T1, fontSize:"12px", letterSpacing:"6px"}}>OLD WHALE</span>
+        <span style={{color:"#ef4444", fontSize:"12px", letterSpacing:"6px"}}>OLD WHALE</span>
       </div>
 
       {/* MAIN ROW */}

@@ -20,6 +20,7 @@
  *       force a component re-render of the SCSS rules.
  */
 import React, { useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { BG, SURF, SH_IN, SH_SM, T1, T2 } from "../../ui/tokens";
 import "./AiComposer.scss";
 
@@ -50,6 +51,7 @@ export function AiComposer({
   onDragLeave,
   onDrop,
 }) {
+  const { t } = useTranslation();
   const cssVars = useMemo(() => ({
     "--ai-bg": BG,
     "--ai-surf": SURF,
@@ -102,7 +104,7 @@ export function AiComposer({
                   <span className="ai-composer__chip-name">📎 {file.name}</span>
                   <button
                     onClick={() => onRemoveAttachment(file.id)}
-                    title="Убрать файл"
+                    title={t("ai.removeFile")}
                     className="ai-composer__chip-remove"
                   >×</button>
                 </div>
@@ -134,8 +136,8 @@ export function AiComposer({
             <button
               className="ai-composer__side-button"
               onClick={onStartNewChat}
-              aria-label="Новый чат"
-              {...getTooltipAnchorProps("Новый чат")}
+              aria-label={t("ai.newChatAria")}
+              {...getTooltipAnchorProps(t("ai.newChatAria"))}
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <path d="M12 5v14"/>
@@ -145,8 +147,8 @@ export function AiComposer({
             <button
               className={cn("ai-composer__side-button", historyOpen && "ai-composer__side-button--open")}
               onClick={onToggleHistory}
-              aria-label="Просмотреть историю"
-              {...getTooltipAnchorProps("История чатов")}
+              aria-label={t("ai.viewHistory")}
+              {...getTooltipAnchorProps(t("ai.history"))}
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <path d="M6 7h12"/>
@@ -159,7 +161,7 @@ export function AiComposer({
             <button
               className="ai-composer__flat-button"
               onClick={() => onOpenFilePicker(fileInputId)}
-              title="Добавить файл"
+              title={t("ai.attachFile")}
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <path d="M21.44 11.05l-8.49 8.49a6 6 0 0 1-8.49-8.49l8.49-8.48a4 4 0 0 1 5.66 5.65l-8.5 8.49a2 2 0 0 1-2.82-2.83l7.78-7.78"/>

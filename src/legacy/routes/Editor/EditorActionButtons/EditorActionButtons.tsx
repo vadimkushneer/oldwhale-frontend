@@ -1,4 +1,5 @@
 import type { MouseEventHandler } from "react";
+import { useTranslation } from "react-i18next";
 import {
   useEditorActionButtons,
   type EditorActionButtonsProps,
@@ -53,11 +54,12 @@ function ActionButton({
 }
 
 export function EditorActionButtons(props: EditorActionButtonsProps) {
+  const { t } = useTranslation();
   const { rootClassName, buttonConfigs, getButtonClassName, getMouseDownHandler, getClickHandler } =
     useEditorActionButtons(props);
 
   return (
-    <div className={rootClassName} role="group" aria-label="Действия элемента">
+    <div className={rootClassName} role="group" aria-label={t("editor.elementActions")}>
       {buttonConfigs.map((button) => (
         <ActionButton
           key={button.kind}

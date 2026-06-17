@@ -1,4 +1,5 @@
 import type { CSSProperties } from "react";
+import { useTranslation } from "react-i18next";
 import { useMarkerContextMenu, type MarkerContextMenuState } from "./useMarkerContextMenu";
 import "./MarkerContextMenu.scss";
 
@@ -17,6 +18,7 @@ export function MarkerContextMenu({
   onApplyColor: (color: string | null) => void;
   onDismiss: () => void;
 }) {
+  const { t } = useTranslation();
   const { cssVars, clipboardActions } = useMarkerContextMenu({ menu, accent });
 
   if (!menu || !cssVars) return null;
@@ -34,7 +36,7 @@ export function MarkerContextMenu({
         onMouseDown={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="marker-context-menu__title">ЦВЕТ МАРКЕРА</div>
+        <div className="marker-context-menu__title">{t("marker.title")}</div>
         <div className="marker-context-menu__swatches">
           {colors.map((col, i) => (
             <button
@@ -42,7 +44,7 @@ export function MarkerContextMenu({
               type="button"
               className={`marker-context-menu__swatch marker-context-menu__swatch--idx-${i}`}
               onClick={() => onApplyColor(col)}
-              title={col === null ? "Стереть" : col}
+              title={col === null ? t("marker.erase") : col}
             >
               {col === null ? (
                 <svg
@@ -74,7 +76,7 @@ export function MarkerContextMenu({
             </button>
           ))}
         </div>
-        <button type="button" className="marker-context-menu__close" onClick={onDismiss} aria-label="Закрыть">
+        <button type="button" className="marker-context-menu__close" onClick={onDismiss} aria-label={t("marker.close")}>
           ×
         </button>
       </div>

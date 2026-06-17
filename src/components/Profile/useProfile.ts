@@ -1,10 +1,12 @@
 import { useCallback, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { clearAuth, restoreSession, topUpCreditsThunk } from "../../features/auth/authSlice";
 import { createPaymentThunk, type CreatePaymentRejected } from "../../features/payments/paymentsThunks";
 import { CREDITS_TOPUP_PRESETS, formatCredits } from "../../features/credits/credits";
 import { useAppDispatch, useAppSelector } from "../../hooks";
 import { useOnlineStatus } from "../../hooks/useOnlineStatus";
+import { formatAppDateTime } from "../../i18n/locale";
 
 /** Sends the user back to `/profile` after they re-authenticate from the login form. */
 export const PROFILE_LOGIN_REDIRECT_STATE = { from: { pathname: "/profile", search: "" } };
@@ -42,23 +44,8 @@ export interface UseProfileResult {
   onLogout: () => void;
 }
 
-/** Renders an ISO timestamp using the local Russian locale, mirroring the admin tables. */
-function formatCreatedAt(iso: string): string {
-  if (!iso) return "—";
-  try {
-    return new Date(iso).toLocaleString("ru-RU");
-  } catch {
-    return iso;
-  }
-}
-
-/**
- * Backs the read-only personal profile screen. The account record is the same
- * `state.auth.user` populated from `GET /api/me` on session restore, so the
- * page never duplicates that fetch — "ОБНОВИТЬ" simply re-validates the JWT
- * through `restoreSession`, which refreshes the very same store slice.
- */
 export function useProfile(): UseProfileResult {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
   const token = useAppSelector((s) => s.auth.token);
@@ -88,7 +75,7 @@ export function useProfile(): UseProfileResult {
             return;
           } catch (fallbackError: unknown) {
             setTopUpError(
-              typeof fallbackError === "string" ? fallbackError : "Не удалось пополнить баланс",
+              typeof fallbackError === "string" ? fallbackError : t("profile.topUpFailed"),
             );
             return;
           }
@@ -98,13 +85,13 @@ export function useProfile(): UseProfileResult {
             ? rejected.message
             : typeof e === "string"
               ? e
-              : "Не удалось начать оплату";
+              : t("profile.paymentStartFailed");
         setTopUpError(message);
       } finally {
         setTopUpBusy(false);
       }
     },
-    [dispatch],
+    [dispatch, t],
   );
 
   const onLogout = useCallback(() => {
@@ -125,20 +112,30 @@ export function useProfile(): UseProfileResult {
 
   const isAdmin = user?.role === "admin";
   const displayName = user?.login ?? "";
-  const roleLabel = isAdmin ? "Администратор" : "Пользователь";
+  const roleLabel = isAdmin ? t("profile.roleAdmin") : t("profile.roleUser");
   const monogram = (displayName.trim()[0] ?? "?").toUpperCase();
 
   const fields = useMemo<ProfileField[]>(() => {
     if (!user) return [];
     return [
-      { key: "login", label: "ЛОГИН", value: user.login, tone: "default" },
-      { key: "email", label: "ПОЧТА", value: user.email, tone: "default" },
-      { key: "role", label: "РОЛЬ", value: roleLabel, tone: "default" },
-      { key: "status", label: "СТАТУС", value: user.disabled ? "Отключён" : "Активен", tone: "default" },
-      { key: "created", label: "РЕГИСТРАЦИЯ", value: formatCreatedAt(user.created_at), tone: "muted" },
+      { key: "login", label: t("profile.fields.login"), value: user.login, tone: "default" },
+      { key: "email", label: t("profile.fields.email"), value: user.email, tone: "default" },
+      { key: "role", label: t("profile.fields.role"), value: roleLabel, tone: "default" },
+      {
+        key: "status",
+        label: t("profile.fields.status"),
+        value: user.disabled ? t("profile.statusDisabled") : t("profile.statusActive"),
+        tone: "default",
+      },
+      {
+        key: "created",
+        label: t("profile.fields.created"),
+        value: formatAppDateTime(user.created_at),
+        tone: "muted",
+      },
       { key: "id", label: "ID", value: String(user.id), tone: "muted" },
     ];
-  }, [user, roleLabel]);
+  }, [user, roleLabel, t]);
 
   return {
     phase,

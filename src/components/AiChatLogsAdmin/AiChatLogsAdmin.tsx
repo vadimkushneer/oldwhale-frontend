@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { Link, Navigate } from "react-router-dom";
 import { AiChatLogsAdminBlockingScreen } from "./AiChatLogsAdminBlockingScreen/AiChatLogsAdminBlockingScreen";
 import { AiChatLogsAdminColumnBar } from "./AiChatLogsAdminColumnBar/AiChatLogsAdminColumnBar";
@@ -12,6 +13,7 @@ import "./AiChatLogsAdmin.scss";
 const LOGIN_REDIRECT_STATE = { from: { pathname: "/admin/ai-chat-logs", search: "" } };
 
 export function AiChatLogsAdmin() {
+  const { t } = useTranslation();
   const vm = useAiChatLogsAdmin();
 
   if (vm.phase === "redirect-login") {
@@ -26,7 +28,7 @@ export function AiChatLogsAdmin() {
     return (
       <AiChatLogsAdminBlockingScreen variant="forbidden">
         <Link className="ai-chat-logs-admin__editor-link" to="/editor">
-          ← РЕДАКТОР
+          {t("admin.common.editorShort")}
         </Link>
       </AiChatLogsAdminBlockingScreen>
     );
@@ -48,8 +50,8 @@ export function AiChatLogsAdmin() {
         />
 
         <div className="ai-chat-logs-admin__stats">
-          Всего: {vm.total}
-          {vm.isFetching ? " · загрузка…" : ""}
+          {t("admin.common.total", { count: vm.total })}
+          {vm.isFetching ? t("admin.common.loadingSuffix") : ""}
         </div>
 
         {vm.errMsg ? <div className="ai-chat-logs-admin__error">{vm.errMsg}</div> : null}

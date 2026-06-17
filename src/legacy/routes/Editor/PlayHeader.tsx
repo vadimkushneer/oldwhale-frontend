@@ -10,15 +10,17 @@
  * header rows; all still optional so existing callers keep working.
  */
 import React from "react";
+import { useTranslation } from "react-i18next";
 
 export function PlayHeaderEditor({ items, setItems, focKey, setFocKey, T1, T2, T3, SURF, BG, mc, SH_SM, docFont, arrowOffsetX=0, searchScope=null, renderSearchOverlay=null }) {
+  const { t } = useTranslation();
   const onChange = (key, field, val) =>
     setItems(ph => ph.map(item => item.key===key ? {...item,[field]:val} : item));
 
   const delItem = (key) => setItems(ph => ph.filter(i=>i.key!==key));
 
   const addItem = () => setItems(ph => [...ph, {
-    key:"h_"+Date.now(), label:"Новый блок", text:"", align:"left", font:"Times New Roman", size:14
+    key:"h_"+Date.now(), label:t("editor.newBlock"), text:"", align:"left", font:"Times New Roman", size:14
   }]);
 
   const addSpacer = () => setItems(ph => [...ph, {
@@ -60,7 +62,7 @@ export function PlayHeaderEditor({ items, setItems, focKey, setFocKey, T1, T2, T
           <div key={item.key} style={{display:"flex",alignItems:"center",padding:"2px 6px",marginBottom:"4px",marginLeft:`${arrowOffsetX}px`}}>
             <div style={{flex:1,height:`${item.size||24}px`,borderRadius:"4px",background:T3+"18",
               display:"flex",alignItems:"center",justifyContent:"center"}}>
-              <span style={{color:T3,fontSize:"9px",letterSpacing:"2px"}}>ОТСТУП</span>
+              <span style={{color:T3,fontSize:"9px",letterSpacing:"2px"}}>{t("editor.spacer")}</span>
             </div>
             <div style={{display:"flex",flexDirection:"column"}}>
               <button onMouseDown={e=>e.preventDefault()} onClick={()=>setItems(ph=>ph.map(i=>i.key===item.key?{...i,size:Math.min(120,(i.size||24)+8)}:i))}
@@ -202,13 +204,13 @@ export function PlayHeaderEditor({ items, setItems, focKey, setFocKey, T1, T2, T
         background:`${mc}11`, border:`1px solid ${mc}33`,
         borderRadius:"8px", color:mc, fontSize:"12px",
         cursor:"pointer", letterSpacing:"1px",
-      }}>+ ДОБАВИТЬ БЛОК</button>
+      }}>{t("editor.addBlock")}</button>
       <button onClick={addSpacer} style={{
         marginTop:"8px", marginLeft:"8px", padding:"8px 16px",
         background:T3+"18", border:`1px solid ${T3}33`,
         borderRadius:"8px", color:T2, fontSize:"12px",
         cursor:"pointer", letterSpacing:"1px",
-      }}>+ ОТСТУП</button>
+      }}>{t("editor.addSpacer")}</button>
     </div>
   );
 }

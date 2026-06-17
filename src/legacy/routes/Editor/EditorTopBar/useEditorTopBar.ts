@@ -1,5 +1,6 @@
 import { useCallback, useMemo, type MouseEventHandler, type ReactNode } from "react";
-import { MODES } from "../../../domain/blocks";
+import i18n from "../../../../i18n";
+import { getTranslatedModes } from "../../../domain/blocks";
 import { accentToneFromHex, type AccentTone } from "../../../ui/accentTone";
 
 function cx(...values: Array<string | false | null | undefined>) {
@@ -44,7 +45,10 @@ export function useEditorTopBar({
 }: Pick<EditorTopBarProps, "mode" | "stats" | "saved" | "sheetOn" | "aiOpen" | "accent">) {
   const accentTone = useMemo<AccentTone>(() => accentToneFromHex(accent), [accent]);
 
-  const modeOption = useMemo(() => MODES.find((item) => item.id === mode), [mode]);
+  const modeOption = useMemo(
+    () => getTranslatedModes(i18n.t.bind(i18n)).find((item) => item.id === mode),
+    [mode, i18n.language],
+  );
 
   const rootClassName = useMemo(
     () => cx("editor-top-bar", `editor-top-bar--accent-${accentTone}`),
@@ -54,15 +58,15 @@ export function useEditorTopBar({
   const modeIcon = useMemo<ReactNode>(() => modeOption?.icon ?? null, [modeOption]);
   const modeLabel = useMemo(() => String(modeOption?.label ?? mode).toUpperCase(), [mode, modeOption]);
 
-  const statsItems = useMemo<EditorTopBarStatItem[]>(
-    () => [
-      { label: "ХРН.", value: stats.timing },
-      { label: "СТР.", value: stats.pages },
-      { label: "СЛОВ", value: stats.words },
-      { label: "СИМВ.", value: stats.chars },
-    ],
-    [stats.chars, stats.pages, stats.timing, stats.words],
-  );
+  const statsItems = useMemo<EditorTopBarStatItem[]>(() => {
+    const t = i18n.t.bind(i18n);
+    return [
+      { label: t("topBar.timing"), value: stats.timing },
+      { label: t("topBar.pages"), value: stats.pages },
+      { label: t("topBar.words"), value: stats.words },
+      { label: t("topBar.chars"), value: stats.chars },
+    ];
+  }, [stats.chars, stats.pages, stats.timing, stats.words, i18n.language]);
 
   const saveStatusClassName = useMemo(
     () =>
@@ -92,10 +96,15 @@ export function useEditorTopBar({
     [aiOpen],
   );
 
-  const saveLabel = saved ? "СОХР." : "СОХР...";
-  const sheetTitle = sheetOn ? "Скрыть лист" : "Показать лист";
-  const aiTitle = aiOpen ? "Скрыть ИИ-панель" : "Открыть ИИ-панель";
-  const aiLabel = `ИИ ${aiOpen ? "▶" : "◀"}`;
+  const labels = useMemo(() => {
+    const t = i18n.t.bind(i18n);
+    return {
+      saveLabel: saved ? t("topBar.saved") : t("topBar.saving"),
+      sheetTitle: sheetOn ? t("topBar.hideSheet") : t("topBar.showSheet"),
+      aiTitle: aiOpen ? t("topBar.hideAi") : t("topBar.openAi"),
+      aiLabel: `${t("topBar.ai")} ${aiOpen ? "▶" : "◀"}`,
+    };
+  }, [aiOpen, saved, sheetOn, i18n.language]);
 
   const preventMouseDown = useCallback<MouseEventHandler<HTMLButtonElement>>((event) => {
     event.preventDefault();
@@ -110,10 +119,10 @@ export function useEditorTopBar({
     saveDotClassName,
     sheetToggleClassName,
     aiToggleClassName,
-    saveLabel,
-    sheetTitle,
-    aiTitle,
-    aiLabel,
+    saveLabel: labels.saveLabel,
+    sheetTitle: labels.sheetTitle,
+    aiTitle: labels.aiTitle,
+    aiLabel: labels.aiLabel,
     preventMouseDown,
   };
 }

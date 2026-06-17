@@ -1,5 +1,6 @@
 import type { FormEvent } from "react";
 import { useCallback, useMemo, useState } from "react";
+import i18n from "../../i18n";
 import type { AiModelVariantCreate } from "../AiModelVariantsPanel/useAiModelVariantsPanel";
 
 export type UseAiModelVariantCreateFormArgs = {
@@ -45,11 +46,11 @@ export function useAiModelVariantCreateForm({
       setError(null);
 
       if (slug.trim().length < 2) {
-        setError("slug варианта ≥2");
+        setError(i18n.t("admin.aiModels.variant.slugMinLength"));
         return;
       }
       if (!providerModelId.trim()) {
-        setError("укажите ID модели у провайдера");
+        setError(i18n.t("admin.aiModels.variant.providerModelIdRequired"));
         return;
       }
 

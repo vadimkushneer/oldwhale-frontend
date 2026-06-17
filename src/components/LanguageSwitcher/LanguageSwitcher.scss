@@ -1,0 +1,56 @@
+.language-switcher {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 10px;
+  background: rgba(31, 32, 64, 0.92);
+  box-shadow:
+    inset 2px 2px 6px rgba(0, 0, 0, 0.45),
+    inset -1px -1px 4px rgba(255, 255, 255, 0.03);
+  font-family: "Courier New", monospace;
+}
+
+.language-switcher--fixed {
+  position: fixed;
+  top: 24px;
+  right: 24px;
+  z-index: 10000;
+}
+
+.language-switcher--onboarding {
+  position: absolute;
+  top: 28px;
+  right: 28px;
+  z-index: 10;
+}
+
+.language-switcher__btn {
+  min-width: 36px;
+  padding: 6px 8px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: #5a587a;
+  font-size: 10px;
+  letter-spacing: 2px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: color 0.2s, box-shadow 0.2s;
+}
+
+.language-switcher__btn:hover {
+  color: #9896b8;
+}
+
+.language-switcher__btn--active {
+  color: #e4e1f5;
+  box-shadow:
+    inset 2px 2px 5px rgba(0, 0, 0, 0.5),
+    inset -1px -1px 3px rgba(255, 255, 255, 0.04);
+}
+
+.language-switcher__btn:focus-visible {
+  outline: 1px solid #7c6af7;
+  outline-offset: 1px;
+}

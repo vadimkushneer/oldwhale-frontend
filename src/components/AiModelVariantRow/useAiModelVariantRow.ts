@@ -1,5 +1,6 @@
 import type { DragEvent, FocusEvent } from "react";
 import { useCallback, useMemo } from "react";
+import i18n from "../../i18n";
 import type { AiVariantAdmin } from "../../api/types";
 import { reorderIdsMove, type AiModelVariantPatch } from "../AiModelVariantsPanel/useAiModelVariantsPanel";
 
@@ -17,7 +18,7 @@ export type UseAiModelVariantRowArgs = {
 };
 
 function confirmDeleteVariant(variant: AiVariantAdmin): boolean {
-  return window.confirm(`Удалить вариант ${variant.slug}?`);
+  return window.confirm(i18n.t("admin.aiModels.variant.confirmDelete", { slug: variant.slug }));
 }
 
 export function useAiModelVariantRow({

@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import type { AiVariantAdmin } from "../../api/types";
 import { useAiModelVariantRow, type UseAiModelVariantRowArgs } from "./useAiModelVariantRow";
 import "./AiModelVariantRow.scss";
@@ -7,6 +8,7 @@ export type AiModelVariantRowProps = UseAiModelVariantRowArgs & {
 };
 
 export function AiModelVariantRow(props: AiModelVariantRowProps) {
+  const { t } = useTranslation();
   const { variant, busy } = props;
   const c = useAiModelVariantRow(props);
 
@@ -25,28 +27,28 @@ export function AiModelVariantRow(props: AiModelVariantRowProps) {
         checked={variant.is_default}
         onChange={c.onSetDefault}
         disabled={busy}
-        aria-label={`Сделать ${variant.slug} вариантом по умолчанию`}
+        aria-label={t("admin.aiModels.variant.defaultAria", { slug: variant.slug })}
       />
       <input
         key={`${variant.uid}-slug`}
         defaultValue={variant.slug}
         className={c.inputSlugClassName}
         onBlur={c.onSlugBlur}
-        aria-label="Slug варианта"
+        aria-label={t("admin.aiModels.variant.slugEditAria")}
       />
       <input
         key={`${variant.uid}-provider-model-id`}
         defaultValue={variant.provider_model_id}
         className={c.inputProviderModelIdClassName}
         onBlur={c.onProviderModelIdBlur}
-        aria-label="ID модели у провайдера"
+        aria-label={t("admin.aiModels.variant.providerModelIdEditAria")}
       />
       <input
         key={`${variant.uid}-label`}
         defaultValue={variant.label}
         className={c.inputLabelClassName}
         onBlur={c.onLabelBlur}
-        aria-label="Label варианта"
+        aria-label={t("admin.aiModels.variant.labelEditAria")}
       />
       <button
         type="button"
@@ -61,7 +63,7 @@ export function AiModelVariantRow(props: AiModelVariantRowProps) {
         disabled={busy}
         onClick={c.onDelete}
         className={c.deleteButtonClassName}
-        aria-label={`Удалить вариант ${variant.slug}`}
+        aria-label={t("admin.aiModels.variant.deleteAria", { slug: variant.slug })}
       >
         ×
       </button>

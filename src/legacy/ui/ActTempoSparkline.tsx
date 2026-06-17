@@ -8,10 +8,12 @@
  * shared tokens module and matches the inline reference constant.
  */
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { SURF } from "./tokens";
 import { buildMetricPath } from "../domain/sceneCard";
 
 export function ActTempoSparkline({ items, accent, T3, compact=false }) {
+  const { t } = useTranslation();
   const height = compact ? 48 : 82;
   const padX = 12;
   const padY = compact ? 7 : 10;
@@ -46,11 +48,11 @@ export function ActTempoSparkline({ items, accent, T3, compact=false }) {
         <div style={{display:"flex", alignItems:"center", gap:compact?"8px":"12px", flexWrap:"wrap"}}>
           <span style={{display:"flex", alignItems:"center", gap:"5px", color:T3, fontSize:compact?"8px":"9px", letterSpacing:compact?"1.2px":"1.6px"}}>
             <span style={{width:compact?"8px":"10px", height:"2px", borderRadius:"999px", background:accent || "#d4af7f", display:"inline-block"}} />
-            ТЕМП
+            {t("sparkline.tempo")}
           </span>
           <span style={{display:"flex", alignItems:"center", gap:"5px", color:T3, fontSize:compact?"8px":"9px", letterSpacing:compact?"1.1px":"1.4px"}}>
             <span style={{width:compact?"8px":"10px", height:"2px", borderRadius:"999px", background:emotionColor, display:"inline-block"}} />
-            ЭМОЦИЯ
+            {t("sparkline.emotion")}
           </span>
         </div>
         <span style={{color:T3, fontSize:compact?"8px":"9px"}}>{items.length}</span>
@@ -86,16 +88,20 @@ export function ActTempoSparkline({ items, accent, T3, compact=false }) {
                   strokeWidth={1.4}
                 />
               )}
-              <title>{`${pt.item.label} · темп ${pt.item.tempo ?? "—"} · эмоция ${pt.item.emotion ?? "—"}`}</title>
+              <title>{t("sparkline.tooltip", {
+                label: pt.item.label,
+                tempo: pt.item.tempo ?? "—",
+                emotion: pt.item.emotion ?? "—",
+              })}</title>
             </g>
           ))}
           {!items.length && (
-            <text x="50%" y="50%" textAnchor="middle" dominantBaseline="middle" fill={T3} fontSize="10">нет сцен</text>
+            <text x="50%" y="50%" textAnchor="middle" dominantBaseline="middle" fill={T3} fontSize="10">{t("sparkline.noScenes")}</text>
           )}
         </svg>
       </div>
       {items.length > 0 && !hasTempo && !hasEmotion && (
-        <div style={{color:T3, fontSize:compact?"8px":"9px", marginTop:"4px", textAlign:"right"}}>задай темп или эмоцию сценам</div>
+        <div style={{color:T3, fontSize:compact?"8px":"9px", marginTop:"4px", textAlign:"right"}}>{t("sparkline.hint")}</div>
       )}
     </div>
   );

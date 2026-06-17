@@ -1,5 +1,6 @@
 import type { Ref } from "react";
 import { useId, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   AiModelVariantPicker,
   type AiModelVariantPickerVariant as PickerVariant,
@@ -31,6 +32,7 @@ export function AiModelSelector({
   variantsByProvider: Record<string, readonly AiModelVariantPickerVariant[]>;
   getVariantLabel: (providerId: string, variantId?: string) => string | undefined;
 }) {
+  const { t } = useTranslation();
   const { rows } = useAiModelSelector({ models, activeModelId, menuOpen });
   const [listExpanded, setListExpanded] = useState(true);
   const listRegionId = useId();
@@ -43,13 +45,13 @@ export function AiModelSelector({
       <button
         type="button"
         className="ai-model-selector__heading-toggle"
-        aria-label="Список ИИ-моделей: показать или скрыть"
+        aria-label={t("ai.modelsToggle")}
         aria-expanded={listExpanded}
         aria-controls={listRegionId}
         onClick={() => setListExpanded((v) => !v)}
         disabled={!rows.length}
       >
-        <span className="ai-model-selector__heading">ИИ МОДЕЛИ{!rows.length && " — Нет доступных ИИ-моделей"}</span>
+        <span className="ai-model-selector__heading">{t("ai.modelsHeading")}{!rows.length && t("ai.noModels")}</span>
         {rows.length && <span
           className={`ai-model-selector__section-chevron ${listExpanded ? "ai-model-selector__section-chevron--open" : ""}`}
           aria-hidden

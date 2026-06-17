@@ -1,5 +1,7 @@
+import { useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import {
-  NOTE_ALIGN_OPTIONS,
+  getTranslatedNoteAlignOptions,
   type EditorDocumentNoteAlignOption,
   type EditorDocumentNoteAlignment,
 } from "../editorDocumentNoteConstants";
@@ -71,6 +73,7 @@ function renderAlignIcon(align: EditorDocumentNoteAlignment) {
 }
 
 export function EditorDocumentNoteAlignControl({ applyAlignment }: EditorDocumentNoteAlignControlProps) {
+  const { t, i18n } = useTranslation();
   const {
     alignMenuOpen,
     noteAlign,
@@ -80,11 +83,16 @@ export function EditorDocumentNoteAlignControl({ applyAlignment }: EditorDocumen
     getOptionMouseDownHandler,
   } = useEditorDocumentNoteAlignControl({ applyAlignment });
 
+  const alignOptions = useMemo(
+    () => getTranslatedNoteAlignOptions(t),
+    [t, i18n.language],
+  );
+
   return (
     <div className="editor-document-note-align-control">
       <button
         type="button"
-        title="Выравнивание"
+        title={t("note.alignment")}
         className={triggerClassName}
         onMouseDown={handleTriggerMouseDown}
       >
@@ -93,7 +101,7 @@ export function EditorDocumentNoteAlignControl({ applyAlignment }: EditorDocumen
 
       {alignMenuOpen ? (
         <div className="editor-document-note-align-control__menu">
-          {NOTE_ALIGN_OPTIONS.map((option) => (
+          {alignOptions.map((option) => (
             <button
               key={option.align}
               type="button"

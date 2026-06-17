@@ -1,5 +1,7 @@
+import { useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { EditorActionCloseGlyph } from "../../../EditorActionButtons/EditorActionButtons";
-import { NOTE_COLORS } from "../editorDocumentNoteConstants";
+import { getTranslatedNoteColors } from "../editorDocumentNoteConstants";
 import { useEditorDocumentNoteColorPicker } from "./useEditorDocumentNoteColorPicker";
 import "./EditorDocumentNoteColorPicker.scss";
 
@@ -14,17 +16,23 @@ export function EditorDocumentNoteColorPicker({
   saveNoteSelection,
   getTooltipAnchorProps,
 }: EditorDocumentNoteColorPickerProps) {
+  const { t, i18n } = useTranslation();
   const { colorMenuOpen, handleTriggerMouseDown, handleCloseMouseDown, getSwatchMouseDownHandler } =
     useEditorDocumentNoteColorPicker({
       applyNoteColor,
       saveNoteSelection,
     });
 
+  const noteColors = useMemo(
+    () => getTranslatedNoteColors(t),
+    [t, i18n.language],
+  );
+
   return (
     <div className="editor-document-note-color-picker">
       <button
         type="button"
-        {...getTooltipAnchorProps("Цвет текста")}
+        {...getTooltipAnchorProps(t("note.textColor"))}
         className="editor-document-note-color-picker__trigger"
         onMouseDown={handleTriggerMouseDown}
       >
@@ -33,7 +41,7 @@ export function EditorDocumentNoteColorPicker({
 
       {colorMenuOpen ? (
         <div className="editor-document-note-color-picker__menu">
-          {NOTE_COLORS.map((color) => (
+          {noteColors.map((color) => (
             <button
               key={color.id}
               type="button"
@@ -46,7 +54,7 @@ export function EditorDocumentNoteColorPicker({
           <button
             type="button"
             className="editor-document-note-color-picker__close"
-            title="Закрыть"
+            title={t("note.close")}
             onMouseDown={handleCloseMouseDown}
           >
             <EditorActionCloseGlyph />

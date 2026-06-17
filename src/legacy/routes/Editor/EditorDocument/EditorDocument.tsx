@@ -1,5 +1,6 @@
 // @ts-nocheck
 import React, { useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { PlayHeaderEditor } from "../PlayHeader";
 import {
   buildBlockRowVars,
@@ -23,6 +24,7 @@ function ShortTitleHeader({
   renderSearchOverlay,
   theme,
 }: any) {
+  const { t } = useTranslation();
   return (
     <div>
       <div className="editor-document__short-logo">
@@ -39,11 +41,11 @@ function ShortTitleHeader({
         </button>
 
         <div className="editor-document__short-logo-copy">
-          <div className="editor-document__short-logo-label">ЛОГОТИП</div>
-          <div className="editor-document__short-logo-hint">56×56 · квадратный</div>
+          <div className="editor-document__short-logo-label">{t("editor.logo")}</div>
+          <div className="editor-document__short-logo-hint">{t("editor.logoHint")}</div>
           {contentLogo ? (
             <button type="button" className="editor-document__short-logo-remove" onClick={() => setContentLogo(null)}>
-              удалить
+              {t("editor.remove")}
             </button>
           ) : null}
         </div>
@@ -142,6 +144,7 @@ export function EditorDocument({
   blocksState,
   actions,
 }: any) {
+  const { t } = useTranslation();
   const { BG, SURF, T1, T2, T3, mc, SH_SM } = theme;
   const {
     noteEditorRef,
@@ -442,7 +445,7 @@ export function EditorDocument({
                             <React.Fragment key={isMeasuredSlice ? `${block.id}-${part}-${sliceIx}` : `${block.id}-${part}`}>
                               {showDialogueContd ? (
                                 <div className="editor-document__dialogue-meta editor-document__dialogue-meta--continued">
-                                  {charName} (ПРОД.)
+                                  {t("editor.contWithName", { name: charName })}
                                 </div>
                               ) : null}
 
@@ -499,8 +502,8 @@ export function EditorDocument({
 
                                       <EditorActionButtons
                                         variant="gutter"
-                                        duplicateLabel="Дублировать сцену"
-                                        deleteLabel="Удалить сцену"
+                                        duplicateLabel={t("editor.duplicateScene")}
+                                        deleteLabel={t("editor.deleteScene")}
                                         onDuplicate={() => dupScene(block.id)}
                                         onDelete={() => delScene(block.id)}
                                       />
@@ -579,8 +582,8 @@ export function EditorDocument({
 
                                       <EditorActionButtons
                                         variant="gutter"
-                                        duplicateLabel="Дублировать блок"
-                                        deleteLabel="Удалить блок"
+                                        duplicateLabel={t("editor.duplicateBlock")}
+                                        deleteLabel={t("editor.deleteBlock")}
                                         onDuplicate={() => {
                                           const nextBlock = { ...block, id: uid() };
                                           setBlocks((prev) => {
@@ -599,7 +602,7 @@ export function EditorDocument({
 
                                 {typeMenu === block.id && !isHead && !isCast ? (
                                   <div className="editor-document__type-menu">
-                                    <div className="editor-document__type-menu-title">ИЗМЕНИТЬ ТИП</div>
+                                    <div className="editor-document__type-menu-title">{t("editor.changeType")}</div>
                                     <div className="editor-document__type-menu-list">
                                       {defs
                                         .filter((item) => item.type !== "scene" && item.type !== "cast" && item.type !== "act")
@@ -638,7 +641,7 @@ export function EditorDocument({
                                     </div>
 
                                     <div className="editor-document__type-menu-section">
-                                      <div className="editor-document__type-menu-title">ДОБАВИТЬ ПОСЛЕ</div>
+                                      <div className="editor-document__type-menu-title">{t("editor.addAfter")}</div>
                                       {defs
                                         .filter((item) => item.type !== "scene" && item.type !== "act")
                                         .map((item) => (
@@ -674,7 +677,7 @@ export function EditorDocument({
                                           blockRefs.current[block.id]?.focus();
                                         }
                                       }}
-                                      placeholder="Имя"
+                                      placeholder={t("editor.namePlaceholder")}
                                       spellCheck={false}
                                       size={Math.max(3, (block.name || "").length + 1)}
                                       className="editor-document__play-name"
@@ -743,7 +746,7 @@ export function EditorDocument({
                                           }
                                         }}
                                         onContextMenu={(e) => handleMarkerContextMenu(e, block.id, sliceStartAbs)}
-                                        placeholder="текст реплики..."
+                                        placeholder={t("editor.linePlaceholder")}
                                         spellCheck={spellOn}
                                         rows={1}
                                         className={cx(
@@ -958,7 +961,7 @@ export function EditorDocument({
                               </div>
 
                               {showDialogueMore ? (
-                                <div className="editor-document__dialogue-meta editor-document__dialogue-meta--next">(ДАЛЬШЕ)</div>
+                                <div className="editor-document__dialogue-meta editor-document__dialogue-meta--next">{t("editor.more")}</div>
                               ) : null}
                             </React.Fragment>
                           );

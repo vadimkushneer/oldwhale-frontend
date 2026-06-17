@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import i18n from "../../../../i18n";
 import type { User, UserRole } from "../../../../api/types";
 import type { UsersAdminPatchBody } from "../../useUsersAdmin";
 
@@ -13,7 +14,7 @@ export type UseUsersAdminUserRowArgs = {
 };
 
 function defaultConfirmDelete(user: User): boolean {
-  return window.confirm(`Удалить пользователя ${user.login}?`);
+  return window.confirm(i18n.t("admin.users.row.confirmDelete", { login: user.login }));
 }
 
 function normalizeCredits(value: unknown): number {
@@ -29,14 +30,16 @@ function getPatchErrorMessage(error: unknown): string {
     const message = (error as { error?: string }).error;
     if (typeof message === "string" && message) return message;
   }
-  return "Не удалось сохранить изменения";
+  return i18n.t("admin.common.saveFailed");
 }
 
-/** Renders the row's `created_at` timestamp using the local Russian locale. */
+/** Renders the row's `created_at` timestamp using the active locale. */
 export function formatUserCreatedAt(iso: string): string {
   if (!iso) return "";
+  const locale =
+    i18n.language === "en" ? "en-US" : i18n.language === "kz" ? "kk-KZ" : "ru-RU";
   try {
-    return new Date(iso).toLocaleString("ru-RU");
+    return new Date(iso).toLocaleString(locale);
   } catch {
     return iso;
   }

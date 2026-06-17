@@ -41,6 +41,7 @@ setupIonicReact({
    */
   mode: "md",
 });
+import "./i18n";
 import App from "./app/App";
 import "./legacy/global.css";
 import "./legacy/textarea-scrollbars.scss";

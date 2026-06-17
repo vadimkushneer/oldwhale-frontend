@@ -1,5 +1,16 @@
 // @ts-nocheck
+import i18n from "../../i18n";
 import { ensureAiMessageId, newAiMessageId } from "./aiMessageTypes";
+
+type TranslateFn = (key: string, options?: { defaultValue?: string }) => string;
+
+const AI_PROVIDER_ROLE_KEYS = {
+  deepseek: "draft",
+  claude: "edit",
+  gpt: "ideas",
+  grok: "ideas",
+  gemini: "ideas",
+};
 
 export { aiMessageTypeFromRole, ensureAiMessageId, newAiMessageId } from "./aiMessageTypes";
 
@@ -151,22 +162,44 @@ export const getAiVariantGuid = (providerId=AI_DEFAULT_MODEL, variantId) => {
   return variant?.guid || (/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(variant?.id || "") ? variant.id : "");
 };
 export const getAiVariantMenuLabel = (providerId=AI_DEFAULT_MODEL, variant) => {
-  if (!variant) return getAiProvider(providerId)?.label || "ИИ";
+  if (!variant) return getAiProvider(providerId)?.label || i18n.t("ai.defaultLabel");
   if (providerId === "deepseek") return `Deepseek${variant.label ? ` ${variant.label}` : ""}`;
-  return variant.label || getAiProvider(providerId)?.label || "ИИ";
+  return variant.label || getAiProvider(providerId)?.label || i18n.t("ai.defaultLabel");
 };
 export const getAiModelDisplayLabel = (providerId=AI_DEFAULT_MODEL, variantId, opts={}) => {
   const provider = getAiProvider(providerId);
   const variant = getAiVariant(provider.id, variantId);
   const withProvider = opts.withProvider !== false;
-  if (!variant?.label) return provider?.label || "ИИ";
+  if (!variant?.label) return provider?.label || i18n.t("ai.defaultLabel");
   return withProvider ? `${provider.label} · ${variant.label}` : variant.label;
 };
 export const makeAiGreeting = () => ({
   id: newAiMessageId(),
   role: "sys",
-  text: "Привет. Готов помочь с твоим сценарием. Что хочешь улучшить?",
+  text: i18n.t("ai.greeting"),
 });
+
+export function getTranslatedAir(t: TranslateFn = i18n.t.bind(i18n)) {
+  const result = {};
+  for (const providerId of Object.keys(AIR)) {
+    result[providerId] = AIR[providerId].map((text, index) =>
+      t(`ai.suggestions.${providerId}.${index}`, { defaultValue: text }),
+    );
+  }
+  return result;
+}
+
+export function getTranslatedAiProviders(t: TranslateFn = i18n.t.bind(i18n)) {
+  return AIM.map((provider) => {
+    const roleKey = AI_PROVIDER_ROLE_KEYS[provider.id];
+    return {
+      ...provider,
+      role: roleKey
+        ? t(`ai.roles.${roleKey}`, { defaultValue: provider.role })
+        : provider.role,
+    };
+  });
+}
 export const makeAiChatId = () => `aichat_${Date.now().toString(36)}_${Math.random().toString(36).slice(2,8)}`;
 export const cloneAiMessages = (messages) => {
   const safe = Array.isArray(messages)
@@ -237,7 +270,7 @@ export const writeAiStore = ({ current, history }) => {
 };
 export const getAiChatTitle = (chat) => {
   const first = (chat?.messages || []).find(m => m && m.role !== "sys" && typeof m.text === "string" && m.text.trim());
-  const base = (first?.text || "Новый чат").replace(/\s+/g, " ").trim();
+  const base = (first?.text || i18n.t("ai.newChat")).replace(/\s+/g, " ").trim();
   return base.length > 42 ? base.slice(0, 42) + "…" : base;
 };
 export const formatAiChatStamp = (ts) => {
@@ -250,8 +283,8 @@ export const formatAiChatStamp = (ts) => {
   }
 };
 export const getAiSpeakerLabel = (msg, fallbackModel=AI_DEFAULT_MODEL, fallbackModelVariant) => {
-  if (msg?.role === "user") return "Ты";
-  if (msg?.role === "sys") return "Система";
+  if (msg?.role === "user") return i18n.t("ai.you");
+  if (msg?.role === "sys") return i18n.t("ai.system");
   const modelId = msg?.model || fallbackModel;
   const modelVariant = msg?.modelVariant || fallbackModelVariant;
   return getAiModelDisplayLabel(modelId, modelVariant);

@@ -1,5 +1,6 @@
 import { useMemo, type ChangeEventHandler, type ReactNode } from "react";
-import { MODES } from "../../../domain/blocks";
+import i18n from "../../../../i18n";
+import { getTranslatedModes } from "../../../domain/blocks";
 import { accentToneFromHex, type AccentTone } from "../../../ui/accentTone";
 
 function cx(...values: Array<string | false | null | undefined>) {
@@ -88,69 +89,71 @@ export function useEditorSideMenu({
   const openFormatsHint = mode === "film" ? ".whale / .fdx / .docx" : ".whale / .fdx";
 
   const projectRows = useMemo((): EditorSideMenuProjectRow[] => {
+    const t = i18n.t.bind(i18n);
     if (variant === "mobile") {
       return [
-        { key: "new", label: "Новый проект", onClick: onNewProject },
-        { key: "save", label: "Сохранить", onClick: onSave },
-        { key: "saveAs", label: "Сохранить как", onClick: onSaveAs },
-        { key: "history", label: "История", onClick: onOpenHistory },
-        { key: "myProjects", label: "Мои проекты", onClick: onOpenMyProjects ?? onOpenHistory },
+        { key: "new", label: t("sideMenu.newProject"), onClick: onNewProject },
+        { key: "save", label: t("sideMenu.save"), onClick: onSave },
+        { key: "saveAs", label: t("sideMenu.saveAs"), onClick: onSaveAs },
+        { key: "history", label: t("sideMenu.history"), onClick: onOpenHistory },
+        { key: "myProjects", label: t("sideMenu.myProjects"), onClick: onOpenMyProjects ?? onOpenHistory },
       ];
     }
     return [
-      { key: "new", label: "Новый проект", onClick: onNewProject },
-      { key: "save", label: "Сохранить", onClick: onSave },
-      { key: "saveAs", label: "Сохранить как", onClick: onSaveAs },
-      { key: "history", label: "История", onClick: onOpenHistory },
+      { key: "new", label: t("sideMenu.newProject"), onClick: onNewProject },
+      { key: "save", label: t("sideMenu.save"), onClick: onSave },
+      { key: "saveAs", label: t("sideMenu.saveAs"), onClick: onSaveAs },
+      { key: "history", label: t("sideMenu.history"), onClick: onOpenHistory },
     ];
-  }, [variant, onNewProject, onSave, onSaveAs, onOpenHistory, onOpenMyProjects]);
+  }, [variant, onNewProject, onSave, onSaveAs, onOpenHistory, onOpenMyProjects, i18n.language]);
 
   const exportRows = useMemo((): EditorSideMenuExportRow[] => {
+    const t = i18n.t.bind(i18n);
     return [
       {
         key: "pdf",
-        label: "Экспорт PDF",
-        sub: "Титульный лист + сценарий",
+        label: t("sideMenu.exportPdf"),
+        sub: t("sideMenu.exportPdfSub"),
         locked: false,
         hidden: false,
         onClick: onExportPdf,
       },
       {
         key: "docx",
-        label: "Экспорт DOCX",
-        sub: "Word документ",
+        label: t("sideMenu.exportDocx"),
+        sub: t("sideMenu.exportDocxSub"),
         locked: isGuest,
         hidden: mode === "note",
         onClick: onExportDocx,
       },
       {
         key: "fdx",
-        label: "Экспорт FDX",
-        sub: "Final Draft",
+        label: t("sideMenu.exportFdx"),
+        sub: t("sideMenu.exportFdxSub"),
         locked: isGuest,
         hidden: mode === "note" || mode === "media" || mode === "play" || mode === "short",
         onClick: onExportFdx,
       },
       {
         key: "txt",
-        label: "Экспорт TXT",
-        sub: "Простой текст",
+        label: t("sideMenu.exportTxt"),
+        sub: t("sideMenu.exportTxtSub"),
         locked: isGuest,
         hidden: false,
         onClick: onExportTxt,
       },
     ];
-  }, [isGuest, mode, onExportPdf, onExportDocx, onExportFdx, onExportTxt]);
+  }, [isGuest, mode, onExportPdf, onExportDocx, onExportFdx, onExportTxt, i18n.language]);
 
   const modeRows = useMemo((): EditorSideMenuModeRow[] => {
-    return MODES.map((m) => ({
+    return getTranslatedModes(i18n.t.bind(i18n)).map((m) => ({
       id: m.id,
       label: m.label,
       icon: m.icon,
       locked: isGuest && m.id !== "note",
       active: mode === m.id,
     }));
-  }, [isGuest, mode]);
+  }, [isGuest, mode, i18n.language]);
 
   const handleOverlayClick = () => {
     onClose();

@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import type { ChatMessageType } from "../../../../../domain/aiMessageTypes";
 import { useChatMessage, type UseChatMessageArgs } from "./useChatMessage";
 import "./ChatMessage.scss";
@@ -12,6 +13,7 @@ export type ChatMessageProps = Omit<UseChatMessageArgs, "onToggleSelect" | "onOp
 };
 
 export function ChatMessage({ id, type, selected, accentColor, children, onToggleSelect, onOpenContextMenu, onDelete }: ChatMessageProps) {
+  const { t } = useTranslation();
   const { rootClassName, rowClassName, bubbleClassName, onRowMouseDown, onContextMenu, onDeleteClick } = useChatMessage({
     id,
     type,
@@ -45,8 +47,8 @@ export function ChatMessage({ id, type, selected, accentColor, children, onToggl
           <div className={bubbleClassName}>
             <div className="chat-message__body">{children}</div>
             <div className="chat-message__toolbar">
-              <button type="button" className="chat-message__delete" onClick={onDeleteClick} aria-label="Удалить сообщение">
-                Удалить
+              <button type="button" className="chat-message__delete" onClick={onDeleteClick} aria-label={t("ai.deleteMessage")}>
+                {t("ai.delete")}
               </button>
             </div>
           </div>

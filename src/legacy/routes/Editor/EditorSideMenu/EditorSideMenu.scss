@@ -220,4 +220,10 @@
     @apply mr-3 flex w-5 shrink-0 items-center justify-center text-base;
     color: var(--esm-t2);
   }
+
+  &__language-row {
+    display: flex;
+    justify-content: center;
+    padding: 8px 12px 4px;
+  }
 }

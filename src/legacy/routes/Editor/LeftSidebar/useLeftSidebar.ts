@@ -1,5 +1,6 @@
 import { useCallback, useMemo, type CSSProperties, type KeyboardEvent, type ReactNode, type Ref } from "react";
-import { MODES } from "../../../domain/blocks";
+import i18n from "../../../../i18n";
+import { getTranslatedModes } from "../../../domain/blocks";
 import type { SceneItem, SceneListProps } from "../SceneList";
 
 const KNOWN_ACCENT_TONES = {
@@ -153,53 +154,54 @@ export function useLeftSidebar({
 
   const modeTabs = useMemo<LeftSidebarModeTab[]>(
     () =>
-      MODES.map((modeOption) => ({
+      getTranslatedModes(i18n.t.bind(i18n)).map((modeOption) => ({
         id: modeOption.id,
         label: modeOption.label,
         icon: modeOption.icon,
         active: mode === modeOption.id,
         onClick: () => onSwitchMode(modeOption.id),
       })),
-    [mode, onSwitchMode],
+    [mode, onSwitchMode, i18n.language],
   );
 
-  const statsItems = useMemo<LeftSidebarStatItem[]>(
-    () => [
-      { label: "ХРН", value: stats.timing },
-      { label: "СТР", value: stats.pages },
-      { label: "СЛВ", value: stats.words },
-    ],
-    [stats.pages, stats.timing, stats.words],
-  );
+  const statsItems = useMemo<LeftSidebarStatItem[]>(() => {
+    const t = i18n.t.bind(i18n);
+    return [
+      { label: t("leftSidebar.statsTiming"), value: stats.timing },
+      { label: t("leftSidebar.statsPages"), value: stats.pages },
+      { label: t("leftSidebar.statsWords"), value: stats.words },
+    ];
+  }, [stats.pages, stats.timing, stats.words, i18n.language]);
 
-  const quickActionRows = useMemo<LeftSidebarQuickAction[][]>(
-    () => [
+  const quickActionRows = useMemo<LeftSidebarQuickAction[][]>(() => {
+    const t = i18n.t.bind(i18n);
+    return [
       [
         {
           id: "projects",
-          ariaLabel: "Мои проекты",
-          tooltipLabel: "Мои проекты",
+          ariaLabel: t("leftSidebar.myProjects"),
+          tooltipLabel: t("leftSidebar.myProjects"),
           iconName: "projects",
           onClick: onOpenMyProjects,
         },
         {
           id: "new-project",
-          ariaLabel: "Новый проект",
-          tooltipLabel: "Новый проект",
+          ariaLabel: t("leftSidebar.newProject"),
+          tooltipLabel: t("leftSidebar.newProject"),
           iconName: "new-project",
           onClick: onCreateProject,
         },
         {
           id: "scene-cards",
-          ariaLabel: "Карточки сцен",
-          tooltipLabel: "Карточки сцен",
+          ariaLabel: t("leftSidebar.sceneCards"),
+          tooltipLabel: t("leftSidebar.sceneCards"),
           iconName: "scene-cards",
           onClick: onOpenSceneCards,
         },
         {
           id: "search",
-          ariaLabel: "Поиск в активном редакторе",
-          tooltipLabel: "Поиск в активном редакторе",
+          ariaLabel: t("leftSidebar.search"),
+          tooltipLabel: t("leftSidebar.search"),
           iconName: "search",
           onClick: onToggleEditorSearch,
         },
@@ -207,44 +209,44 @@ export function useLeftSidebar({
       [
         {
           id: "marker-mode",
-          ariaLabel: "Режим маркера",
-          tooltipLabel: "Режим маркера",
+          ariaLabel: t("leftSidebar.markerMode"),
+          tooltipLabel: t("leftSidebar.markerMode"),
           iconName: "marker",
           active: markerModeOn,
           onClick: onToggleMarkerMode,
         },
         {
           id: "extra-2",
-          ariaLabel: "Дополнительная кнопка 2",
-          tooltipLabel: "Доп. кнопка 2",
+          ariaLabel: t("leftSidebar.extra2Aria"),
+          tooltipLabel: t("leftSidebar.extra2"),
           iconName: "warning",
           onClick: () => undefined,
         },
         {
           id: "extra-3",
-          ariaLabel: "Дополнительная кнопка 3",
-          tooltipLabel: "Доп. кнопка 3",
+          ariaLabel: t("leftSidebar.extra3Aria"),
+          tooltipLabel: t("leftSidebar.extra3"),
           iconName: "waves",
           onClick: () => undefined,
         },
         {
           id: "extra-4",
-          ariaLabel: "Дополнительная кнопка 4",
-          tooltipLabel: "Доп. кнопка 4",
+          ariaLabel: t("leftSidebar.extra4Aria"),
+          tooltipLabel: t("leftSidebar.extra4"),
           iconName: "sparkle",
           onClick: () => undefined,
         },
       ],
-    ],
-    [
-      markerModeOn,
-      onCreateProject,
-      onOpenMyProjects,
-      onOpenSceneCards,
-      onToggleEditorSearch,
-      onToggleMarkerMode,
-    ],
-  );
+    ];
+  }, [
+    markerModeOn,
+    onCreateProject,
+    onOpenMyProjects,
+    onOpenSceneCards,
+    onToggleEditorSearch,
+    onToggleMarkerMode,
+    i18n.language,
+  ]);
 
   const selectedSceneIds = useMemo(() => Array.from(selectedScenes), [selectedScenes]);
 
@@ -268,26 +270,31 @@ export function useLeftSidebar({
   const sceneCount = useMemo(() => scenes.filter((scene) => scene.kind !== "act").length, [scenes]);
   const selectionCount = selectedSceneIds.length;
   const selectionVisible = selectionCount > 0;
-  const copyLabel = copyToast ? "✓ СКОПИРОВАНО" : `КОПИРОВАТЬ (${selectionCount})`;
+
+  const copyLabel = useMemo(() => {
+    const t = i18n.t.bind(i18n);
+    return copyToast ? t("leftSidebar.copied") : t("leftSidebar.copy", { count: selectionCount });
+  }, [copyToast, selectionCount, i18n.language]);
 
   const addActions = useMemo<LeftSidebarAddAction[]>(() => {
+    const t = i18n.t.bind(i18n);
     if (mode === "film") {
       return [
-        { id: "add-scene", label: "СЦЕНА", onClick: onAddSceneAfterLast },
-        { id: "add-act", label: "АКТ", onClick: onInsertFilmAct },
+        { id: "add-scene", label: t("leftSidebar.addScene"), onClick: onAddSceneAfterLast },
+        { id: "add-act", label: t("leftSidebar.addAct"), onClick: onInsertFilmAct },
       ];
     }
     if (mode === "play") {
       return [
-        { id: "add-scene", label: "+ СЦЕНА", onClick: onAddSceneAfterLast },
-        { id: "add-act", label: "+ АКТ", onClick: onInsertPlayAct },
+        { id: "add-scene", label: t("leftSidebar.addScenePlay"), onClick: onAddSceneAfterLast },
+        { id: "add-act", label: t("leftSidebar.addActPlay"), onClick: onInsertPlayAct },
       ];
     }
     if (mode === "note") {
       return [];
     }
-    return [{ id: "add-scene", label: "+ НОВАЯ СЦЕНА", onClick: onAddSceneAfterLast }];
-  }, [mode, onAddSceneAfterLast, onInsertFilmAct, onInsertPlayAct]);
+    return [{ id: "add-scene", label: t("leftSidebar.addNewScene"), onClick: onAddSceneAfterLast }];
+  }, [mode, onAddSceneAfterLast, onInsertFilmAct, onInsertPlayAct, i18n.language]);
 
   const creditsValue = useMemo(() => Math.max(0, Math.min(CREDITS_LIMIT, credits)), [credits]);
   const creditsLow = credits < 50;

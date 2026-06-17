@@ -2,6 +2,7 @@ import { createAsyncThunk } from "@reduxjs/toolkit";
 import { apiRequestBase } from "../../api/env";
 import type { PaymentCreateResponse, PaymentSyncResponse } from "../../api/types";
 import type { AuthState } from "../auth/authSlice";
+import i18n from "../../i18n";
 
 async function readJsonSafe(res: Response): Promise<unknown> {
   try {
@@ -22,7 +23,7 @@ export const createPaymentThunk = createAsyncThunk(
   "payments/create",
   async ({ credits }: { credits: number }, { getState, rejectWithValue }) => {
     const token = (getState() as { auth: AuthState }).auth.token;
-    if (!token) return rejectWithValue("Не авторизован");
+    if (!token) return rejectWithValue(i18n.t("auth.notAuthorized"));
     const base = apiRequestBase();
     if (!base) return rejectWithValue("API base URL unavailable");
 
@@ -46,7 +47,7 @@ export const syncPaymentThunk = createAsyncThunk(
   "payments/sync",
   async ({ paymentId }: { paymentId: string }, { getState, rejectWithValue }) => {
     const token = (getState() as { auth: AuthState }).auth.token;
-    if (!token) return rejectWithValue("Не авторизован");
+    if (!token) return rejectWithValue(i18n.t("auth.notAuthorized"));
     const base = apiRequestBase();
     if (!base) return rejectWithValue("API base URL unavailable");
 

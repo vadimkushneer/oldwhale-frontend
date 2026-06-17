@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { Link, Navigate } from "react-router-dom";
 import { UsersAdminBlockingScreen } from "./UsersAdminBlockingScreen/UsersAdminBlockingScreen";
 import { UsersAdminDeployBranches } from "./UsersAdminDeployBranches/UsersAdminDeployBranches";
@@ -11,6 +12,7 @@ import "./UsersAdmin.scss";
 const LOGIN_REDIRECT_STATE = { from: { pathname: "/admin", search: "" } };
 
 export function UsersAdmin() {
+  const { t } = useTranslation();
   const vm = useUsersAdmin();
 
   if (vm.phase === "redirect-login") {
@@ -25,7 +27,7 @@ export function UsersAdmin() {
     return (
       <UsersAdminBlockingScreen variant="forbidden">
         <Link className="users-admin-blocking-screen__editor-link" to="/editor">
-          ← К РЕДАКТОРУ
+          {t("admin.common.backToEditor")}
         </Link>
       </UsersAdminBlockingScreen>
     );

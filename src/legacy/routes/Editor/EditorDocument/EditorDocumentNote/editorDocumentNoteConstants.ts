@@ -68,3 +68,48 @@ export const NOTE_ALIGN_OPTIONS: EditorDocumentNoteAlignOption[] = [
   { cmd: "justifyCenter", align: "center", label: "По центру" },
   { cmd: "justifyRight", align: "right", label: "По правому краю" },
 ];
+
+type TranslateFn = (key: string, options?: { defaultValue?: string }) => string;
+
+export function getTranslatedNoteTextFormatItems(t: TranslateFn): EditorDocumentNoteCommandItem[] {
+  return NOTE_TEXT_FORMAT_ITEMS.map((item) => ({
+    ...item,
+    title: t(`note.format.${item.id === "remove-format" ? "removeFormat" : item.id}`, { defaultValue: item.title }),
+    tooltip: item.tooltip
+      ? t("note.format.resetFormat", { defaultValue: item.tooltip })
+      : undefined,
+  }));
+}
+
+export function getTranslatedNoteStructureFormatItems(t: TranslateFn): EditorDocumentNoteToolbarEntry[] {
+  return NOTE_STRUCTURE_FORMAT_ITEMS.map((entry) => {
+    if ("kind" in entry && entry.kind === "separator") return entry;
+    const item = entry as EditorDocumentNoteCommandItem;
+    const keyMap: Record<string, string> = {
+      "unordered-list": "list",
+      "ordered-list": "orderedList",
+      "heading-one": "heading1",
+      "heading-two": "heading2",
+      paragraph: "paragraph",
+    };
+    const key = keyMap[item.id] || item.id;
+    return {
+      ...item,
+      title: t(`note.format.${key}`, { defaultValue: item.title }),
+    };
+  });
+}
+
+export function getTranslatedNoteColors(t: TranslateFn): EditorDocumentNoteColor[] {
+  return NOTE_COLORS.map((color) => ({
+    ...color,
+    label: t(`note.colors.${color.id}`, { defaultValue: color.label }),
+  }));
+}
+
+export function getTranslatedNoteAlignOptions(t: TranslateFn): EditorDocumentNoteAlignOption[] {
+  return NOTE_ALIGN_OPTIONS.map((option) => ({
+    ...option,
+    label: t(`note.align.${option.align}`, { defaultValue: option.label }),
+  }));
+}

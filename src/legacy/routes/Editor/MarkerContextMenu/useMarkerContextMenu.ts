@@ -1,4 +1,5 @@
 import { useMemo, type CSSProperties } from "react";
+import i18n from "../../../../i18n";
 
 export type MarkerContextMenuState = {
   x: number;
@@ -28,13 +29,15 @@ export function useMarkerContextMenu({
   }, [accent, menu]);
 
   const clipboardActions = useMemo(
-    () =>
-      [
-        { label: "Копировать" as const, command: "copy" as const },
-        { label: "Вырезать" as const, command: "cut" as const },
-        { label: "Вставить" as const, command: "paste" as const },
-      ] as const,
-    [],
+    () => {
+      const t = i18n.t.bind(i18n);
+      return [
+        { label: t("marker.copy"), command: "copy" as const },
+        { label: t("marker.cut"), command: "cut" as const },
+        { label: t("marker.paste"), command: "paste" as const },
+      ];
+    },
+    [i18n.language],
   );
 
   return { cssVars, clipboardActions };

@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import {
   useUsersAdminBlockingScreen,
   type UsersAdminBlockingVariant,
@@ -14,22 +15,23 @@ export function UsersAdminBlockingScreen({
   variant,
   children,
 }: UsersAdminBlockingScreenProps) {
+  const { t } = useTranslation();
   const { rootClassName, titleClassName, descriptionClassName } =
     useUsersAdminBlockingScreen(variant);
 
   if (variant === "session-restore") {
     return (
       <div className={rootClassName}>
-        <div className={titleClassName}>ВОССТАНОВЛЕНИЕ СЕССИИ…</div>
+        <div className={titleClassName}>{t("admin.common.sessionRestore")}</div>
       </div>
     );
   }
 
   return (
     <div className={rootClassName}>
-      <div className={titleClassName}>НЕДОСТАТОЧНО ПРАВ</div>
+      <div className={titleClassName}>{t("admin.common.insufficientRights")}</div>
       <div className={descriptionClassName}>
-        Эта страница доступна только администраторам.
+        {t("admin.common.adminsOnly")}
       </div>
       {children}
     </div>

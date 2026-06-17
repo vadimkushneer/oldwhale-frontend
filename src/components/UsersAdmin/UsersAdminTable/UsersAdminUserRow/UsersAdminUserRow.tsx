@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import type { UserRole } from "../../../../api/types";
 import {
   useUsersAdminUserRow,
@@ -8,6 +9,7 @@ import "./UsersAdminUserRow.scss";
 export type UsersAdminUserRowProps = UseUsersAdminUserRowArgs;
 
 export function UsersAdminUserRow(props: UsersAdminUserRowProps) {
+  const { t } = useTranslation();
   const { user, patchBusy } = props;
   const c = useUsersAdminUserRow(props);
 
@@ -22,7 +24,7 @@ export function UsersAdminUserRow(props: UsersAdminUserRowProps) {
           value={c.role}
           disabled={c.isSelf || patchBusy}
           onChange={(event) => c.setRole(event.target.value as UserRole)}
-          aria-label={`Роль пользователя ${user.login}`}
+          aria-label={t("admin.users.row.roleAria", { login: user.login })}
         >
           <option value="user">user</option>
           <option value="admin">admin</option>
@@ -35,7 +37,7 @@ export function UsersAdminUserRow(props: UsersAdminUserRowProps) {
           checked={c.disabled}
           disabled={c.isSelf || patchBusy}
           onChange={(event) => c.setDisabled(event.target.checked)}
-          aria-label={`Отключить пользователя ${user.login}`}
+          aria-label={t("admin.users.row.disableAria", { login: user.login })}
         />
       </td>
       <td className={c.cellClassName}>
@@ -47,7 +49,7 @@ export function UsersAdminUserRow(props: UsersAdminUserRowProps) {
           value={c.credits}
           disabled={c.isSelf || patchBusy}
           onChange={(event) => c.setCredits(Math.max(0, Math.trunc(Number(event.target.value) || 0)))}
-          aria-label={`Кредиты (Krill) пользователя ${user.login}`}
+          aria-label={t("admin.users.row.creditsAria", { login: user.login })}
         />
       </td>
       <td className={c.cellMutedNowrapClassName}>{c.formattedCreatedAt}</td>
@@ -58,16 +60,16 @@ export function UsersAdminUserRow(props: UsersAdminUserRowProps) {
           onClick={() => void c.onSave()}
           className={c.saveButtonClassName}
         >
-          СОХРАНИТЬ
+          {t("admin.common.save")}
         </button>
         <button
           type="button"
           disabled={c.deleteDisabled}
           onClick={() => void c.onDelete()}
           className={c.deleteButtonClassName}
-          aria-label={`Удалить пользователя ${user.login}`}
+          aria-label={t("admin.users.row.deleteAria", { login: user.login })}
         >
-          УДАЛИТЬ
+          {t("admin.common.delete")}
         </button>
         {c.saveError ? (
           <span className={c.saveErrorClassName} role="alert" title={c.saveError}>

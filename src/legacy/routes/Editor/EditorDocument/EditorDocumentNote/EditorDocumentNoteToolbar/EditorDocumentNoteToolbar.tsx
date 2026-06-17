@@ -1,9 +1,11 @@
+import { useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { EditorDocumentNoteAlignControl } from "../EditorDocumentNoteAlignControl/EditorDocumentNoteAlignControl";
 import { EditorDocumentNoteColorPicker } from "../EditorDocumentNoteColorPicker/EditorDocumentNoteColorPicker";
 import { EditorDocumentNoteFontSizeControl } from "../EditorDocumentNoteFontSizeControl/EditorDocumentNoteFontSizeControl";
 import {
-  NOTE_STRUCTURE_FORMAT_ITEMS,
-  NOTE_TEXT_FORMAT_ITEMS,
+  getTranslatedNoteStructureFormatItems,
+  getTranslatedNoteTextFormatItems,
   type EditorDocumentNoteAlignOption,
   type EditorDocumentNoteCommandItem,
   type EditorDocumentNoteToolbarEntry,
@@ -30,11 +32,21 @@ export function EditorDocumentNoteToolbar({
   restoreNoteSelection,
   getTooltipAnchorProps,
 }: EditorDocumentNoteToolbarProps) {
+  const { t, i18n } = useTranslation();
   const { getCommandClassName, getCommandMouseDownHandler, getCommandTitle, getCommandTooltipProps } =
     useEditorDocumentNoteToolbar({
       execNoteCommand,
       getTooltipAnchorProps,
     });
+
+  const textFormatItems = useMemo(
+    () => getTranslatedNoteTextFormatItems(t),
+    [t, i18n.language],
+  );
+  const structureFormatItems = useMemo(
+    () => getTranslatedNoteStructureFormatItems(t),
+    [t, i18n.language],
+  );
 
   const renderCommand = (item: EditorDocumentNoteCommandItem) => (
     <button
@@ -58,8 +70,8 @@ export function EditorDocumentNoteToolbar({
   };
 
   return (
-    <div className="editor-document-note-toolbar" role="toolbar" aria-label="Форматирование заметки">
-      {NOTE_TEXT_FORMAT_ITEMS.map(renderCommand)}
+    <div className="editor-document-note-toolbar" role="toolbar" aria-label={t("note.toolbar")}>
+      {textFormatItems.map(renderCommand)}
 
       <EditorDocumentNoteColorPicker
         applyNoteColor={applyNoteColor}
@@ -67,7 +79,7 @@ export function EditorDocumentNoteToolbar({
         getTooltipAnchorProps={getTooltipAnchorProps}
       />
 
-      {NOTE_STRUCTURE_FORMAT_ITEMS.map(renderStructureEntry)}
+      {structureFormatItems.map(renderStructureEntry)}
 
       <div className="editor-document-note-toolbar__separator" />
 

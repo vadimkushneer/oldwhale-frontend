@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, Navigate, useParams, useSearchParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { syncPaymentThunk } from "../features/payments/paymentsThunks";
 import { formatCredits } from "../features/credits/credits";
 import { useAppDispatch, useAppSelector } from "../hooks";
@@ -8,6 +9,7 @@ import "./PaymentReturnPage.scss";
 type ReturnPhase = "redirect-login" | "syncing" | "paid" | "pending" | "failed" | "error";
 
 export function PaymentReturnPage() {
+  const { t } = useTranslation();
   const { paymentId = "" } = useParams<{ paymentId: string }>();
   const [searchParams] = useSearchParams();
   const dispatch = useAppDispatch();
@@ -23,7 +25,7 @@ export function PaymentReturnPage() {
   const runSync = useCallback(async () => {
     if (!paymentId) {
       setPhase("error");
-      setError("Некорректная ссылка возврата");
+      setError(t("payment.invalidLink"));
       return;
     }
     setPhase("syncing");
@@ -40,9 +42,9 @@ export function PaymentReturnPage() {
       }
     } catch (e: unknown) {
       setPhase("error");
-      setError(typeof e === "string" ? e : "Не удалось проверить статус платежа");
+      setError(typeof e === "string" ? e : t("payment.syncFailed"));
     }
-  }, [dispatch, paymentId]);
+  }, [dispatch, paymentId, t]);
 
   useEffect(() => {
     if (!token) return;
@@ -58,60 +60,60 @@ export function PaymentReturnPage() {
   return (
     <div className="payment-return ow-app-scrollbar">
       <div className="payment-return__inner">
-        <h1 className="payment-return__title">ОПЛАТА</h1>
+        <h1 className="payment-return__title">{t("payment.title")}</h1>
 
         {phase === "syncing" ? (
-          <p className="payment-return__message">ПРОВЕРКА СТАТУСА ПЛАТЕЖА…</p>
+          <p className="payment-return__message">{t("payment.syncing")}</p>
         ) : null}
 
         {phase === "paid" ? (
           <div className="payment-return__card payment-return__card--success">
-            <p className="payment-return__headline">ПЛАТЁЖ УСПЕШЕН</p>
+            <p className="payment-return__headline">{t("payment.success")}</p>
             {creditsGranted != null ? (
-              <p className="payment-return__detail">Зачислено: {formatCredits(creditsGranted)}</p>
+              <p className="payment-return__detail">
+                {t("payment.credited", { amount: formatCredits(creditsGranted) })}
+              </p>
             ) : null}
-            <p className="payment-return__detail">Текущий баланс: {balanceText}</p>
+            <p className="payment-return__detail">{t("payment.balance", { amount: balanceText })}</p>
           </div>
         ) : null}
 
         {phase === "pending" ? (
           <div className="payment-return__card">
-            <p className="payment-return__headline">ОЖИДАНИЕ ПОДТВЕРЖДЕНИЯ</p>
-            <p className="payment-return__detail">
-              Платёж ещё обрабатывается. Если вы уже оплатили, подождите немного и обновите статус.
-            </p>
+            <p className="payment-return__headline">{t("payment.pending")}</p>
+            <p className="payment-return__detail">{t("payment.pendingHint")}</p>
             {gatewayOrderId ? (
-              <p className="payment-return__meta">Заказ: {gatewayOrderId}</p>
+              <p className="payment-return__meta">{t("payment.order", { id: gatewayOrderId })}</p>
             ) : null}
             <button type="button" className="payment-return__button" onClick={() => void runSync()}>
-              ОБНОВИТЬ СТАТУС
+              {t("payment.refreshStatus")}
             </button>
           </div>
         ) : null}
 
         {phase === "failed" ? (
           <div className="payment-return__card payment-return__card--failed">
-            <p className="payment-return__headline">ПЛАТЁЖ НЕ ВЫПОЛНЕН</p>
-            <p className="payment-return__detail">Оплата отменена или отклонена. Средства не списаны.</p>
+            <p className="payment-return__headline">{t("payment.failed")}</p>
+            <p className="payment-return__detail">{t("payment.failedHint")}</p>
           </div>
         ) : null}
 
         {phase === "error" ? (
           <div className="payment-return__card payment-return__card--failed">
-            <p className="payment-return__headline">ОШИБКА</p>
-            <p className="payment-return__detail">{error ?? "Неизвестная ошибка"}</p>
+            <p className="payment-return__headline">{t("payment.error")}</p>
+            <p className="payment-return__detail">{error ?? t("payment.unknownError")}</p>
             <button type="button" className="payment-return__button" onClick={() => void runSync()}>
-              ПОВТОРИТЬ
+              {t("payment.retry")}
             </button>
           </div>
         ) : null}
 
         <nav className="payment-return__nav">
           <Link className="payment-return__link" to="/profile">
-            ПРОФИЛЬ
+            {t("payment.profile")}
           </Link>
           <Link className="payment-return__link payment-return__link--accent" to="/editor">
-            РЕДАКТОР →
+            {t("payment.editor")}
           </Link>
         </nav>
       </div>

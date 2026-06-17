@@ -22,10 +22,12 @@
  * snapshots remaining green.
  */
 import React, { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { BG, SURF, SH_OUT, SH_IN, SH_SM, ACCENT, T1, T2, T3 } from "../../ui/tokens";
 import { Whale } from "../../ui/Whale";
 import {
   BLOCK_DEFS,
+  getTranslatedBlockDefs,
   MODES,
   NOTEBOOK_INIT,
   INIT,
@@ -428,7 +430,7 @@ function buildFilmDocxTitleParagraphs(tp, projectName, docx) {
     tp.author
       ? new Paragraph({
           style: "OWTitle",
-          children: [txt("Автор")],
+          children: [txt(t("editorScreen.author"))],
           spacing: { before: 240, after: 120 },
         })
       : null,
@@ -544,7 +546,7 @@ function buildFilmDocxPageParagraphs(pageBlocks, blocks, docx, { pageBreakBefore
       paras.push(
         new Paragraph({
           style: "OWDialogueMeta",
-          children: [txt("(ДАЛЬШЕ)")],
+          children: [txt(t("editorScreen.cont"))],
           spacing: metaSpacing,
         }),
       );
@@ -767,6 +769,7 @@ const normalizeTitlePage = (raw, fallbackTitle = "") => {
 };
 
 function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, onOpenProfile, routeMode, onModeRouteChange, routeAiVariantGuid, onAiVariantRouteStateChange, showAdminLink }) {
+  const { t } = useTranslation();
   const dispatch = useAppDispatch();
   const aiCatalogRevision = useAppSelector((s) => s.aiCatalog.revision);
   const authToken = useAppSelector((s) => s.auth.token);
@@ -835,9 +838,9 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, onOpenPro
   const [aiOpen, setAiOpen]           = useState(_lay.aiOpen !== undefined ? _lay.aiOpen : true);
   const [saved, setSaved]             = useState(true);
   const [mobileTab, setMobileTab]     = useState("editor");
-  const [projectName, setProjectName] = useState("Без названия");
+  const [projectName, setProjectName] = useState(t("editorScreen.untitled"));
   const [editingName, setEditingName] = useState(false);
-  const [nameDraft, setNameDraft]     = useState("Без названия");
+  const [nameDraft, setNameDraft]     = useState(t("editorScreen.untitled"));
   const [menuOpen,    setMenuOpen]    = useState(false);
   const [projectId,   setProjectId]   = useState(()=>"proj_"+Date.now());
   const [projectsOpen,setProjectsOpen]= useState(false);
@@ -864,27 +867,27 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, onOpenPro
   const [sceneAlign, setSceneAlign] = useState("left");
   const [docFontOpen, setDocFontOpen] = useState(false);
   const [playHeader, setPlayHeader] = useState([
-    { key:"author", label:"Имя",      text:"", align:"left", font:"Times New Roman", size:14 },
-    { key:"title",  label:"Название", text:"", align:"left", font:"Times New Roman", size:18 },
-    { key:"genre",  label:"Жанр",     text:"", align:"left", font:"Times New Roman", size:13 },
-    { key:"remark", label:"Ремарка",  text:"", align:"left", font:"Times New Roman", size:13 },
+    { key:"author", label:t("editorScreen.titleFields.author"),      text:"", align:"left", font:"Times New Roman", size:14 },
+    { key:"title",  label:t("editorScreen.titleFields.title"), text:"", align:"left", font:"Times New Roman", size:18 },
+    { key:"genre",  label:t("editorScreen.titleFields.genre"),     text:"", align:"left", font:"Times New Roman", size:13 },
+    { key:"remark", label:t("editorScreen.titleFields.remark"),  text:"", align:"left", font:"Times New Roman", size:13 },
   ]);
   const [playHeaderFoc, setPlayHeaderFoc] = useState(null);
   const [mediaHeader, setMediaHeader] = useState([
-    { key:"show",    label:"Программа",  text:"", align:"left", font:"Arial", size:18, bold:true },
-    { key:"episode", label:"Выпуск",     text:"", align:"left", font:"Arial", size:13 },
-    { key:"date",    label:"Дата эфира", text:"", align:"left", font:"Arial", size:13 },
-    { key:"channel", label:"Канал",      text:"", align:"left", font:"Arial", size:13 },
-    { key:"host",    label:"Ведущий",    text:"", align:"left", font:"Arial", size:13 },
+    { key:"show",    label:t("editorScreen.titleFields.show"),  text:"", align:"left", font:"Arial", size:18, bold:true },
+    { key:"episode", label:t("editorScreen.titleFields.episode"),     text:"", align:"left", font:"Arial", size:13 },
+    { key:"date",    label:t("editorScreen.titleFields.date"), text:"", align:"left", font:"Arial", size:13 },
+    { key:"channel", label:t("editorScreen.titleFields.channel"),      text:"", align:"left", font:"Arial", size:13 },
+    { key:"host",    label:t("editorScreen.titleFields.host"),    text:"", align:"left", font:"Arial", size:13 },
   ]);
   const [mediaHeaderFoc, setMediaHeaderFoc] = useState(null);
   const [contentHeader, setContentHeader] = useState([
-    { key:"title",    label:"Тема",       text:"", align:"left", font:"Arial", size:18, bold:true },
-    { key:"platform", label:"Платформа",  text:"", align:"left", font:"Arial", size:13 },
-    { key:"format",   label:"Формат",     text:"", align:"left", font:"Arial", size:13 },
-    { key:"account",  label:"Аккаунт",    text:"", align:"left", font:"Arial", size:13 },
-    { key:"reach",    label:"Охват",      text:"", align:"left", font:"Arial", size:13 },
-    { key:"pubdate",  label:"Дата выхода",text:"", align:"left", font:"Arial", size:13 },
+    { key:"title",    label:t("editorScreen.titleFields.theme"),       text:"", align:"left", font:"Arial", size:18, bold:true },
+    { key:"platform", label:t("editorScreen.titleFields.platform"),  text:"", align:"left", font:"Arial", size:13 },
+    { key:"format",   label:t("editorScreen.titleFields.format"),     text:"", align:"left", font:"Arial", size:13 },
+    { key:"account",  label:t("editorScreen.titleFields.account"),    text:"", align:"left", font:"Arial", size:13 },
+    { key:"reach",    label:t("editorScreen.titleFields.reach"),      text:"", align:"left", font:"Arial", size:13 },
+    { key:"pubdate",  label:t("editorScreen.titleFields.pubdate"),text:"", align:"left", font:"Arial", size:13 },
   ]);
   const [contentHeaderFoc, setContentHeaderFoc] = useState(null);
   const [contentLogo, setContentLogo] = useState(null);
@@ -978,25 +981,25 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, onOpenPro
   // активного редактора, не смешивая редакторы между собой.
   useEffect(()=>{
     if ((modeRef.current || mode) !== "film") return;
-    const nextName = (titlePage.title || "").trim() || "Без названия";
+    const nextName = (titlePage.title || "").trim() || t("editorScreen.untitled");
     setProjectName(prev => prev === nextName ? prev : nextName);
   }, [mode, titlePage.title]);
 
   useEffect(()=>{
     if ((modeRef.current || mode) !== "play") return;
-    const nextName = (playHeader.find(h=>h.key === "title")?.text || "").trim() || "Без названия";
+    const nextName = (playHeader.find(h=>h.key === "title")?.text || "").trim() || t("editorScreen.untitled");
     setProjectName(prev => prev === nextName ? prev : nextName);
   }, [mode, playHeader]);
 
   useEffect(()=>{
     if ((modeRef.current || mode) !== "short") return;
-    const nextName = (contentHeader.find(h=>h.key === "title")?.text || "").trim() || "Без названия";
+    const nextName = (contentHeader.find(h=>h.key === "title")?.text || "").trim() || t("editorScreen.untitled");
     setProjectName(prev => prev === nextName ? prev : nextName);
   }, [mode, contentHeader]);
 
   useEffect(()=>{
     if ((modeRef.current || mode) !== "media") return;
-    const nextName = (mediaHeader.find(h=>h.key === "show")?.text || "").trim() || "Без названия";
+    const nextName = (mediaHeader.find(h=>h.key === "show")?.text || "").trim() || t("editorScreen.untitled");
     setProjectName(prev => prev === nextName ? prev : nextName);
   }, [mode, mediaHeader]);
   const [exportName,  setExportName]  = useState("");
@@ -1049,7 +1052,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, onOpenPro
   const getSceneCardEmotion = (id) => clampSceneCardEmotion(getSceneCardMetaById(id).emotion);
   const getSceneCardTempoSeries = (actNum) => scenes.filter(s=>s.kind==="scene"&&s.actNum===actNum).map(s => ({
     id: s.id,
-    label: `Сцена ${s.subNum || s.num || ""}`.trim(),
+    label: t("editorScreen.sceneLabel", { num: s.subNum || s.num || "" }).trim(),
     tempo: getSceneCardTempo(s.id),
     emotion: getSceneCardEmotion(s.id),
   }));
@@ -1143,7 +1146,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, onOpenPro
   });
   const promptSceneCardTag = (id) => {
     const current = normalizeSceneCardTagValue(getSceneCardMetaById(id).tag);
-    const next = window.prompt("Хэштег карточки", current);
+    const next = window.prompt(t("editorScreen.cardHashtagPrompt"), current);
     if (next === null) return;
     setSceneCardTag(id, next);
     setSceneCardMenu(null);
@@ -1222,7 +1225,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, onOpenPro
         if (b.type==="act" && mode==="film") continue;
         curActNum++;
         const hasSelected = [...selectedIds].some(id=>sceneNumMap[id]&&sceneNumMap[id].actNum===curActNum);
-        if (hasSelected) text += "\n\n" + (mode==="play" && b.type==="act" ? getPlayActDisplayText(b.text, curActNum) : (b.text||(b.type==="segment"?"БЛОК":b.type==="video"?"ВИДЕО":"АКТ"))).toUpperCase();
+        if (hasSelected) text += "\n\n" + (mode==="play" && b.type==="act" ? getPlayActDisplayText(b.text, curActNum) : (b.text||(b.type==="segment"?t("editorScreen.blockFallback.segment"):b.type==="video"?t("editorScreen.blockFallback.video"):t("editorScreen.blockFallback.act")))).toUpperCase();
         continue;
       }
       // scene — всегда заголовок; action — заголовок только в short/media
@@ -1232,7 +1235,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, onOpenPro
       if (isHeader) {
         currentSelected = selectedIds.has(b.id);
         if (currentSelected) {
-          const MEDIA_LABELS = {anchor:"Подводка",sync:"Синхрон",vtr:"ВТР",offscreen:"Закадр",lower3:"Плашка",question:"Вопрос"};
+          const MEDIA_LABELS = {anchor:t("editorScreen.mediaLabels.anchor"),sync:t("editorScreen.mediaLabels.sync"),vtr:t("editorScreen.mediaLabels.vtr"),offscreen:t("editorScreen.mediaLabels.offscreen"),lower3:t("editorScreen.mediaLabels.lower3"),question:t("editorScreen.mediaLabels.question")};
           const n = sceneNumMap[b.id];
           const num = n ? (((mode==="play"||mode==="short"||mode==="media") && n.actNum) ? `${n.actNum}.${n.subNum}` : String(n.num)) : "";
           const typeLabel = MEDIA_LABELS[b.type] || "";
@@ -1910,7 +1913,8 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, onOpenPro
   const isMobile = winW < 768;
 
   // ── Derived ──────────────────────────────────
-  const defs   = BLOCK_DEFS[mode];
+  const translatedBlockDefs = useMemo(() => getTranslatedBlockDefs(t), [t]);
+  const defs   = translatedBlockDefs[mode] || BLOCK_DEFS[mode];
   const scenes = getScenes(blocks, mode);
   const st     = mode === "note" ? noteDocStats(noteText) : docStats(blocks);
   const mc     = AIM.find(x=>x.id===aiMod)?.color || ACCENT;
@@ -2138,7 +2142,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, onOpenPro
       const nextBlocks = Array.isArray(proj.blocks) ? proj.blocks.map(b=>({...b})) : [];
       const meta = {
         id: proj.id,
-        name: proj.name || "Без названия",
+        name: proj.name || t("editorScreen.untitled"),
         mode: nextMode,
         updatedAt: Date.now(),
         blocksCount: nextBlocks.filter(b=>b.type==="scene").length,
@@ -2309,7 +2313,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, onOpenPro
     modeSceneCardMetaCache.current = {};
     resetModeHistories(nextMode, nextBlocks);
     setProjectId(nid);
-    setProjectName("Без названия");
+    setProjectName(t("editorScreen.untitled"));
     setBlocks(nextBlocks);
     updateSceneCardMeta({}, { autosave:false });
     setSceneCardMenu(null);
@@ -2413,7 +2417,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, onOpenPro
   useEffect(()=>{ saveNowRef.current = saveNow; }, [saveNow]);
 
   const confirmSaveAs = (name) => {
-    const finalName = name.trim() || "Без названия";
+    const finalName = name.trim() || t("editorScreen.untitled");
     setProjectName(finalName);
     saveProject(projectId, finalName, blocks, mode);
     setSaved(true);
@@ -2617,7 +2621,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, onOpenPro
     let mammoth;
     try { mammoth = await loadMammothLib(); }
     catch(e) {
-      alert("Не удалось загрузить библиотеку Mammoth для DOCX-импорта.");
+      alert(t("editorScreen.import.mammothLoadFailed"));
       return null;
     }
 
@@ -2666,7 +2670,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, onOpenPro
     const allParas = Array.from(tmp.querySelectorAll("p, h1, h2, h3, h4, h5, h6, li"));
     const paras = allParas.map(el => ({ el, text: getText(el) })).filter(x => x.text);
     if (paras.length === 0) {
-      alert("Не удалось извлечь текст из DOCX-файла");
+      alert(t("editorScreen.import.docxExtractFailed"));
       return null;
     }
 
@@ -2706,7 +2710,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, onOpenPro
     });
 
     if (semanticBlocks.length === 0) {
-      alert("Не удалось собрать блоки из DOCX-файла");
+      alert(t("editorScreen.import.docxBlocksFailed"));
       return null;
     }
 
@@ -2824,7 +2828,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, onOpenPro
               });
             }
 
-            if (newBlocks.length === 0) { alert("Не удалось собрать блоки из DOCX-файла"); return; }
+            if (newBlocks.length === 0) { alert(t("editorScreen.import.docxBlocksFailed")); return; }
             const nid = "proj_" + Date.now();
             setProjectId(nid);
             setProjectName(importedTitle || file.name.replace(/\.docx$/i, ""));
@@ -2841,12 +2845,12 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, onOpenPro
           } else if (currentMode === "note") {
             let mammoth;
             try { mammoth = await loadMammothLib(); }
-            catch(err) { alert("Не удалось загрузить библиотеку Mammoth для DOCX-импорта."); return; }
+            catch(err) { alert(t("editorScreen.import.mammothLoadFailed")); return; }
 
             const result = await mammoth.convertToHtml({ arrayBuffer: ev.target.result });
             const html = normalizeNoteHtml(result.value || "");
             if (!html.replace(/<[^>]*>/g, "").replace(/&nbsp;/gi, " ").trim()) {
-              alert("Не удалось извлечь текст из DOCX-файла");
+              alert(t("editorScreen.import.docxExtractFailed"));
               return;
             }
 
@@ -2860,7 +2864,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, onOpenPro
             setFocId(null); setToolbarBlockId(null); lastFocId.current = null;
             setSaved(true); setMenuOpen(false);
           } else {
-            alert("DOCX не поддерживается в этом режиме");
+            alert(t("editorScreen.docxUnsupported"));
             return;
           }
         } else if (ext === "fdx") {
@@ -2868,7 +2872,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, onOpenPro
           const parser = new DOMParser();
           const doc = parser.parseFromString(ev.target.result, "application/xml");
           const content = doc.querySelector("Content");
-          if (!content) { alert("Не удалось найти <Content> в FDX-файле"); return; }
+          if (!content) { alert(t("editorScreen.import.fdxContentNotFound")); return; }
           const paragraphs = content.querySelectorAll("Paragraph");
           const currentMode = modeRef.current || mode;
 
@@ -2907,7 +2911,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, onOpenPro
                 newBlocks.push({ id: uid(), type: blockType, text: fullText });
               }
             });
-            if (newBlocks.length === 0) { alert("Не удалось найти содержимое в FDX-файле"); return; }
+            if (newBlocks.length === 0) { alert(t("editorScreen.import.fdxEmpty")); return; }
             const nid = "proj_" + Date.now();
             setProjectId(nid);
             setProjectName(importedTitle || file.name.replace(/\.fdx$/i, ""));
@@ -2939,7 +2943,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, onOpenPro
                 pendingChar = "";
               }
             });
-            if (newBlocks.length === 0) { alert("Не удалось найти содержимое в FDX-файле"); return; }
+            if (newBlocks.length === 0) { alert(t("editorScreen.import.fdxEmpty")); return; }
             const nid = "proj_" + Date.now();
             setProjectId(nid);
             setProjectName(importedTitle || file.name.replace(/\.fdx$/i, ""));
@@ -2981,7 +2985,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, onOpenPro
                 pendingChar = "";
               }
             });
-            if (newBlocks.length === 0) { alert("Не удалось найти содержимое в FDX-файле"); return; }
+            if (newBlocks.length === 0) { alert(t("editorScreen.import.fdxEmpty")); return; }
             const nid = "proj_" + Date.now();
             setProjectId(nid);
             setProjectName(importedTitle || file.name.replace(/\.fdx$/i, ""));
@@ -3014,7 +3018,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, onOpenPro
                 pendingChar = "";
               }
             });
-            if (newBlocks.length === 0) { alert("Не удалось найти содержимое в FDX-файле"); return; }
+            if (newBlocks.length === 0) { alert(t("editorScreen.import.fdxEmpty")); return; }
             const nid = "proj_" + Date.now();
             setProjectId(nid);
             setProjectName(importedTitle || file.name.replace(/\.fdx$/i, ""));
@@ -3045,7 +3049,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, onOpenPro
               parasHtml.push(html);
             });
             const html = normalizeNoteHtml(parasHtml.join(""));
-            if (!html.replace(/<[^>]*>/g, "").replace(/&nbsp;/gi, " ").trim()) { alert("Не удалось найти содержимое в FDX-файле"); return; }
+            if (!html.replace(/<[^>]*>/g, "").replace(/&nbsp;/gi, " ").trim()) { alert(t("editorScreen.import.fdxEmpty")); return; }
             const nid = "proj_" + Date.now();
             setProjectId(nid);
             setProjectName(importedTitle || file.name.replace(/\.fdx$/i, ""));
@@ -3056,7 +3060,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, onOpenPro
             setFocId(null); setToolbarBlockId(null); lastFocId.current = null;
             setSaved(true); setMenuOpen(false);
           } else {
-            alert("FDX не поддерживается в этом режиме");
+            alert(t("editorScreen.fdxUnsupported"));
           }
         } else {
           /* ─── .whale JSON-импорт (без изменений) ─── */
@@ -3099,7 +3103,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, onOpenPro
           setSaved(true);
           setMenuOpen(false);
         }
-      } catch(err) { alert("Ошибка чтения файла: " + err.message); }
+      } catch(err) { alert(t("editorScreen.import.fileReadError", { message: err.message })); }
     };
     if (ext === "docx") reader.readAsArrayBuffer(file);
     else reader.readAsText(file);
@@ -3131,7 +3135,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, onOpenPro
   };
   const whaleDataToPlainText = (data, fallbackName="") => {
     const parts = [];
-    const projectTitle = data?.name || fallbackName.replace(/\.whale$/i, "") || "Документ";
+    const projectTitle = data?.name || fallbackName.replace(/\.whale$/i, "") || t("editorScreen.document");
     parts.push(`Название: ${projectTitle}`);
     if (data?.mode) parts.push(`Режим: ${data.mode}`);
 
@@ -3142,14 +3146,14 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, onOpenPro
         .map(h => {
           const label = String(h?.label || h?.key || "").trim();
           const value = String(h?.text || "").trim();
-          return value ? `${label || "Поле"}: ${value}` : "";
+          return value ? `${label || t("editorScreen.export.field")}: ${value}` : "";
         })
         .filter(Boolean);
       if (lines.length) headerLines.push(`${title}:\n${lines.join("\n")}`);
     };
-    pushHeader(data?.playHeader, "Заголовок пьесы");
-    pushHeader(data?.mediaHeader, "Заголовок медиа");
-    pushHeader(data?.contentHeader, "Заголовок контента");
+    pushHeader(data?.playHeader, t("editorScreen.export.playHeader"));
+    pushHeader(data?.mediaHeader, t("editorScreen.export.mediaHeader"));
+    pushHeader(data?.contentHeader, t("editorScreen.export.contentHeader"));
     if (headerLines.length) parts.push(headerLines.join("\n\n"));
 
     if (Array.isArray(data?.blocks) && data.blocks.length) {
@@ -3194,7 +3198,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, onOpenPro
   const docxToPlainText = async (file) => {
     let mammoth;
     try { mammoth = await loadMammothLib(); }
-    catch(err) { throw new Error("Не удалось загрузить библиотеку Mammoth для DOCX."); }
+    catch(err) { throw new Error(t("editorScreen.import.mammothLoadFailedShort")); }
     const arrayBuffer = await readAsArrayBufferFile(file);
     const result = await mammoth.convertToHtml({ arrayBuffer });
     return htmlToPlainText(result.value || "");
@@ -3241,7 +3245,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, onOpenPro
         return next;
       });
     } catch (err) {
-      alert(err?.message || "Не удалось добавить файл в ИИ-чат.");
+      alert(err?.message || t("editorScreen.ai.attachFailed"));
     }
   };
   const importAiFiles = async (e) => {
@@ -3624,7 +3628,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, onOpenPro
           scriptHtml += `<p style="margin:32px 0 16px;font-weight:bold;text-transform:uppercase;font-size:13pt;text-align:center;letter-spacing:2px;">${getPlayActDisplayText(b.text, actNum)}</p>`;
         } else if (b.type === "scene") {
           sceneInAct++;
-          scriptHtml += `<p style="margin:24px 0 4px;font-weight:bold;font-size:12pt;">${b.text||("Сцена "+sceneInAct)}</p>`;
+          scriptHtml += `<p style="margin:24px 0 4px;font-weight:bold;font-size:12pt;">${b.text||(t("editorScreen.sceneLabel", { num: sceneInAct }))}</p>`;
         } else if (b.type === "cast") {
           scriptHtml += `<p style="margin:0 0 16px;font-style:italic;">${b.text||""}</p>`;
         } else if (b.type === "stage") {
@@ -4183,7 +4187,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, onOpenPro
     let docx;
     try { docx = await loadDocxLib(); }
     catch(e) {
-      alert("Не удалось загрузить библиотеку docx.js.\n\nЕсли вы открываете файл локально (file://) — это ограничение браузера.\nРазверните приложение на сервере (Vercel) и экспорт заработает.");
+      alert(t("editorScreen.export.docxLoadFailed"));
       return;
     }
 
@@ -4444,7 +4448,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, onOpenPro
 
   const exportTXT = () => {
     if (mode === "note") {
-      const fname = (projectName||"блокнот")+".txt";
+      const fname = (projectName||t("editorScreen.notebook"))+".txt";
       const tmp = document.createElement("div");
       tmp.innerHTML = noteTextRef.current || noteText || "";
       const plain = (tmp.innerText || tmp.textContent || "").trim();
@@ -4496,9 +4500,9 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, onOpenPro
       lines.push(center((tp.title||projectName).toUpperCase()));
       if (tp.genre) lines.push(center(tp.genre));
       lines.push("");
-      if (tp.author) { lines.push(center("Автор")); lines.push(center(tp.author)); }
+      if (tp.author) { lines.push(center(t("editorScreen.author"))); lines.push(center(tp.author)); }
       lines.push("","","","","","","","","","","","","","","","","","","");
-      if (tp.phone) lines.push("Тел.: "+tp.phone);
+      if (tp.phone) lines.push(t("editorScreen.export.phone")+tp.phone);
       if (tp.email) lines.push("Email: "+tp.email);
       if (tp.year)  lines.push(tp.year);
       lines.push("","");
@@ -4567,7 +4571,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, onOpenPro
           lines.push("",""); lines.push(center(getPlayActDisplayText(b.text, actNum).toUpperCase())); lines.push("","");
         } else if (b.type==="scene") {
           sceneInAct++;
-          lines.push(""); lines.push((b.text||("Сцена "+sceneInAct)));
+          lines.push(""); lines.push((b.text||(t("editorScreen.sceneLabel", { num: sceneInAct }))));
         } else if (b.type==="cast") {
           lines.push("("+b.text+")"); lines.push("");
         } else if (b.type==="stage") {
@@ -5466,7 +5470,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, onOpenPro
       setMsgs((p)=>[
         ...p,
         { id: newAiMessageId(), role: "user", text: userText },
-        { id: newAiMessageId(), role: "ai", text: "Недостаточно кредитов.", model: aiMod, modelVariant: aiModelVariant },
+        { id: newAiMessageId(), role: "ai", text: t("editorScreen.ai.insufficientCredits"), model: aiMod, modelVariant: aiModelVariant },
       ]);
       setAiIn("");
       setAiPendingFiles([]);
@@ -5498,7 +5502,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, onOpenPro
         {
           id: newAiMessageId(),
           role: "ai",
-          text: "Каталог моделей ещё не загрузился. Проверьте сеть и обновите страницу.",
+          text: t("editorScreen.ai.catalogNotLoaded"),
           model: modelAtSend,
           modelVariant: modelVariantAtSend,
         },
@@ -5537,7 +5541,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, onOpenPro
       });
       if (chatIdAtSend !== aiChatIdRef.current) return;
       if (!res.ok) {
-        let errMsg = "Ошибка сервера.";
+        let errMsg = t("editorScreen.ai.serverError");
         try {
           const j = await res.json();
           if (j && j.error) errMsg = String(j.error);
@@ -5605,7 +5609,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, onOpenPro
       });
       if (chatIdAtSend !== aiChatIdRef.current) return;
       if (!eventRes.ok) {
-        let errMsg = "Ошибка сервера.";
+        let errMsg = t("editorScreen.ai.serverError");
         try {
           const j = await eventRes.json();
           if (j && j.error) errMsg = String(j.error);
@@ -5625,7 +5629,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, onOpenPro
       const aiEvent = await readAiChatSseEvent(eventRes);
       if (chatIdAtSend !== aiChatIdRef.current) return;
       if (aiEvent.event === "error") {
-        const errMsg = typeof aiEvent.data?.error === "string" && aiEvent.data.error ? aiEvent.data.error : "Ошибка сервера.";
+        const errMsg = typeof aiEvent.data?.error === "string" && aiEvent.data.error ? aiEvent.data.error : t("editorScreen.ai.serverError");
         setMsgs((p) => [
           ...p,
           {
@@ -5667,7 +5671,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, onOpenPro
         {
           id: newAiMessageId(),
           role: "ai",
-          text: "Не удалось связаться с сервером.",
+          text: t("editorScreen.ai.networkError"),
           model: modelAtSend,
           modelVariant: modelVariantAtSend,
         },
@@ -5701,7 +5705,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, onOpenPro
           onMouseDown={e=>{e.stopPropagation(); e.preventDefault();}}
           onClick={e=>{e.stopPropagation(); clearAiHistory();}}
           aria-label="Очистить историю чатов"
-          {...getTooltipAnchorProps("Очистить историю")}
+          {...getTooltipAnchorProps(t("editorScreen.clearHistory"))}
           style={{
             background:"transparent",
             border:"none",
@@ -5751,7 +5755,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, onOpenPro
                     onMouseDown={e=>{e.stopPropagation(); e.preventDefault();}}
                     onClick={e=>{e.stopPropagation(); deleteAiHistoryChat(chat.id);}}
                     aria-label="Удалить чат из истории"
-                    {...getTooltipAnchorProps("Удалить чат")}
+                    {...getTooltipAnchorProps(t("editorScreen.deleteChat"))}
                     style={{
                       background:"transparent",
                       border:"none",
@@ -6578,7 +6582,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, onOpenPro
               return (
                 <div style={{display:"flex",alignItems:"center",marginRight:"6px"}}>
                   {fmtCfg.bold && fmtBtn("bold","Ж",{fontWeight:"bold",fontFamily:"serif"})}
-                  <button onMouseDown={e=>e.preventDefault()} onClick={resetFmt} {...getTooltipAnchorProps("Сбросить формат")}
+                  <button onMouseDown={e=>e.preventDefault()} onClick={resetFmt} {...getTooltipAnchorProps(t("editorScreen.resetFormat"))}
                     style={{width:"24px",height:"24px",borderRadius:"6px",marginRight:"3px",background:BG,border:`1px solid ${mc}33`,color:T2,fontSize:"11px",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",WebkitAppearance:"none"}}>Н</button>
                   {fmtCfg.italic && fmtBtn("italic","К",{fontStyle:"italic",fontFamily:"serif"})}
                   {fmtCfg.underline && fmtBtn("underline","Ч",{textDecoration:"underline"})}
@@ -6587,7 +6591,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, onOpenPro
             })()}
             {(mode==="play" || mode==="media" || mode==="short") && (
               <div style={{position:"relative"}}>
-                <button onMouseDown={e=>e.preventDefault()} onClick={()=>setDocFontOpen(o=>!o)} {...getTooltipAnchorProps("Шрифт")}
+                <button onMouseDown={e=>e.preventDefault()} onClick={()=>setDocFontOpen(o=>!o)} {...getTooltipAnchorProps(t("editorScreen.font"))}
                   style={{padding:"5px 10px",background:BG,boxShadow:SH_SM,border:`1px solid ${mc}44`,borderRadius:"8px",
                     color:mc,fontSize:"9px",cursor:"pointer",fontFamily:"inherit",letterSpacing:"1px"}}>Аа</button>
                 {docFontOpen && (
@@ -6608,7 +6612,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, onOpenPro
                 )}
               </div>
             )}
-            <button onMouseDown={e=>e.preventDefault()} onClick={()=>setSpellOn(v=>!v)} {...getTooltipAnchorProps("Орфография")}
+            <button onMouseDown={e=>e.preventDefault()} onClick={()=>setSpellOn(v=>!v)} {...getTooltipAnchorProps(t("editorScreen.spellcheck"))}
               style={{padding:"5px 10px",background:spellOn?`${mc}22`:BG,boxShadow:SH_SM,
                 border:`1px solid ${spellOn?mc:mc+"44"}`,borderRadius:"8px",
                 color:spellOn?mc:mc+"77",fontSize:"9px",cursor:"pointer",
@@ -6619,7 +6623,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, onOpenPro
               <button onMouseDown={e=>e.preventDefault()}
                 onClick={()=>{const last=blocksRef.current[blocksRef.current.length-1];if(!last)return; if(mode==="media"){addAfter(last.id,"segment");}else if(mode==="short"){addAfter(last.id,"video");}else{addAfter(last.id,"scene");}}}
                 style={{padding:"5px 10px",background:BG,boxShadow:SH_SM,border:"none",borderRadius:"8px",color:mc,fontSize:"9px",cursor:"pointer",fontFamily:"inherit",letterSpacing:"1px"}}>
-                {mode==="media" ? "+ БЛОК" : "+ СЦЕНА"}
+                {mode==="media" ? t("editorScreen.addBlock") : t("editorScreen.addScene")}
               </button>
               {mode==="film" && (
                 <button onMouseDown={e=>e.preventDefault()}
@@ -6778,8 +6782,8 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, onOpenPro
           {/* Строка 2: вкладки */}
           <div style={{display:"flex",borderTop:`1px solid ${T3}22`}}>
             {[
-              {id:"scenes", label: mode==="media" ? "Блоки" : mode==="short" ? "Видео" : "Сцены", guestLocked:true},
-              {id:"editor", label:"Редактор", guestLocked:false},
+              {id:"scenes", label: mode==="media" ? t("editorScreen.blocks") : mode==="short" ? "Видео" : t("editorScreen.scenes"), guestLocked:true},
+              {id:"editor", label:t("editorScreen.editor"), guestLocked:false},
               {id:"ai",     label:"ИИ",       guestLocked:true},
             ].map(t=>{
               const locked = isGuest && t.guestLocked;
@@ -6857,14 +6861,14 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, onOpenPro
           <div style={{position:"absolute",inset:0,zIndex:300,background:BG,display:"flex",flexDirection:"column"}}>
             <div style={{padding:"16px 20px",display:"flex",alignItems:"center",borderBottom:`1px solid ${T3}22`,flexShrink:0}}>
               <button onClick={()=>{ setNewProjectOverlay(false); setTitlePageOpen(false); }} style={{background:"transparent",border:"none",color:T2,fontSize:"20px",cursor:"pointer",padding:"0",lineHeight:1}}>←</button>
-              <span style={{color:T1,fontSize:"11px",letterSpacing:"3px"}}>{mode==="note" ? "ЭКСПОРТ" : "ТИТУЛЬНЫЙ ЛИСТ"}</span>
+              <span style={{color:T1,fontSize:"11px",letterSpacing:"3px"}}>{mode==="note" ? t("editorScreen.export") : t("editorScreen.titlePage")}</span>
             </div>
             <div style={{flex:1,overflow:"auto",padding:"20px"}}>
               {mode==="note" ? (
                 <div>
                   <div style={{color:T3,fontSize:"9px",letterSpacing:"3px",marginBottom:"12px"}}>ПРЕДПРОСМОТР</div>
                   <div style={{padding:"16px",background:"#fff",borderRadius:"12px",color:"#000",fontFamily:"Arial,sans-serif",fontSize:"12px",lineHeight:"1.8",maxHeight:"60vh",overflow:"auto",wordBreak:"break-word"}}
-                    dangerouslySetInnerHTML={{__html: noteTextRef.current || noteText || "<span style='color:#aaa'>Блокнот пуст</span>"}}
+                    dangerouslySetInnerHTML={{__html: noteTextRef.current || noteText || t("editorScreen.notebookEmpty")}}
                   />
                 </div>
               ) : (mode==="short" ? [
@@ -6981,7 +6985,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, onOpenPro
                   borderRadius:"12px",color:mc,fontSize:"12px",cursor:"pointer",
                   fontFamily:"inherit",letterSpacing:"2px",boxShadow:SH_SM,
                   opacity:newProjectOverlay?0:1,pointerEvents:newProjectOverlay?"none":"auto",
-                }}>{titlePageOpen==="pdf"?"⎙ ЭКСПОРТ PDF":titlePageOpen==="docx"?"W ЭКСПОРТ DOCX":titlePageOpen==="fdx"?"F ЭКСПОРТ FDX":"T ЭКСПОРТ TXT"}</button>
+                }}>{titlePageOpen==="pdf"?t("editorScreen.exportPdf"):titlePageOpen==="docx"?t("editorScreen.exportDocx"):titlePageOpen==="fdx"?t("editorScreen.exportFdx"):t("editorScreen.exportTxt")}</button>
                 {newProjectOverlay && (
                   <div style={{position:"absolute",inset:0,background:BG,display:"flex",alignItems:"center",justifyContent:"center",padding:"6px",boxSizing:"border-box"}}>
                     <button onClick={finishNewProjectOverlay} style={{
@@ -7002,14 +7006,14 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, onOpenPro
             <div onClick={e=>e.stopPropagation()} style={{width:"100%",maxWidth:"860px",display:"flex",flexDirection:"column",height:"100%"}}>
               <div style={{display:"flex",alignItems:"center",flexShrink:0}}>
                 <span style={{color:"#fff",fontSize:"11px",letterSpacing:"3px",flex:1}}>ПРЕДПРОСМОТР</span>
-                <button onClick={()=>{ const f=document.querySelector('iframe[title="Предпросмотр"]'); if(f){f.contentWindow.focus();f.contentWindow.print();} }} style={{padding:"7px 14px",background:"transparent",border:"1px solid #ffffff44",borderRadius:"12px",color:"#fff",fontSize:"14px",cursor:"pointer",lineHeight:1}}>⎙</button>
+                <button onClick={()=>{ const f=document.querySelector('iframe[title={t("editorScreen.preview")]'); if(f){f.contentWindow.focus();f.contentWindow.print();} }} style={{padding:"7px 14px",background:"transparent",border:"1px solid #ffffff44",borderRadius:"12px",color:"#fff",fontSize:"14px",cursor:"pointer",lineHeight:1}}>⎙</button>
                 <button onClick={()=>{ setPreviewOpen(false); setTitlePageOpen("pdf"); }} style={{padding:"7px 20px",background:"#fff",border:"none",borderRadius:"12px",color:"#000",fontSize:"10px",letterSpacing:"2px",cursor:"pointer",fontFamily:"inherit"}}>⎙ СОХРАНИТЬ PDF</button>
                 <button onClick={()=>setPreviewOpen(false)} style={{padding:"7px 16px",background:"transparent",border:"1px solid #ffffff44",borderRadius:"12px",color:"#fff",fontSize:"10px",letterSpacing:"2px",cursor:"pointer",fontFamily:"inherit"}}>✕</button>
               </div>
               <iframe
                 srcDoc={previewHtml}
                 style={{flex:1,width:"100%",border:"none",borderRadius:"12px",background:"#fff"}}
-                title="Предпросмотр"
+                title={t("editorScreen.preview")}
               />
             </div>
           </div>
@@ -7058,7 +7062,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, onOpenPro
                 value={saveAsName}
                 onChange={e=>setSaveAsName(e.target.value)}
                 onKeyDown={e=>{if(e.key==="Enter")confirmSaveAs(saveAsName);if(e.key==="Escape")setSaveAsOpen(false);}}
-                placeholder="Название проекта"
+                placeholder={t("editorScreen.projectName")}
                 style={{
                   width:"100%",background:BG,border:`1px solid ${T3}44`,borderRadius:"10px",
                   padding:"12px 14px",color:T1,fontSize:"14px",fontFamily:"inherit",
@@ -7104,7 +7108,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, onOpenPro
                       if (data) loadProject(data);
                     } catch(e) {}
                   }}>
-                    <div style={{color:T1,fontSize:"14px",marginBottom:"4px"}}>{p.name||"Без названия"}</div>
+                    <div style={{color:T1,fontSize:"14px",marginBottom:"4px"}}>{p.name||t("editorScreen.untitled")}</div>
                     <div style={{color:T3,fontSize:"10px",letterSpacing:"1px"}}>
                       {new Date(p.updatedAt).toLocaleDateString("ru",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"})}
                       {" · "}{p.blocksCount||0} сц.
@@ -7149,7 +7153,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, onOpenPro
                     pointerEvents:selectedScenes.size>0?"auto":"none",
                     WebkitAppearance:"none",
                     transition:"background .3s",
-                  }}>{copyToast ? "✓ СКОПИРОВАНО" : `КОПИРОВАТЬ (${selectedScenes.size})`}</button>
+                  }}>{copyToast ? t("editorScreen.copied") : `КОПИРОВАТЬ (${selectedScenes.size})`}</button>
                   <button onClick={()=>setSelectedScenes(new Set())} style={{
                     padding:"10px 16px",background:selectedScenes.size>0?SURF:"transparent",border:"none",borderRadius:"12px",
                     color:selectedScenes.size>0?T2:"transparent",fontSize:"11px",cursor:selectedScenes.size>0?"pointer":"default",fontFamily:"inherit",
@@ -7372,7 +7376,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, onOpenPro
                   onClick={()=>{const last=blocksRef.current[blocksRef.current.length-1];if(!last)return; if(mode==="media"){addAfter(last.id,"segment");}else if(mode==="short"){addAfter(last.id,"video");}else{addAfter(last.id,"scene");}}} style={{
                   flex:1,padding:"14px",background:BG,boxShadow:SH_SM,
                   border:"none",borderRadius:"14px",color:T2,fontSize:"11px",cursor:"pointer",fontFamily:"inherit",letterSpacing:"2px",
-                }}>{mode==="media" ? "+ БЛОК" : mode==="short" ? "+ ВИДЕО" : "+ СЦЕНА"}</button>
+                }}>{mode==="media" ? t("editorScreen.addBlock") : mode==="short" ? t("editorScreen.addVideo") : t("editorScreen.addScene")}</button>
                 {mode==="play" && (
                   <button onMouseDown={e=>e.preventDefault()}
                     onClick={()=>{insertPlayAct();}} style={{
@@ -7562,7 +7566,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, onOpenPro
                       </div>
                     )}
                     <div style={{display:"flex",gap:"10px",alignItems:"center",flexShrink:0,marginRight:"2px",position:"relative",zIndex:3}}>
-                      <button onClick={startNewAiChat} aria-label="Новый чат" {...getTooltipAnchorProps("Новый чат")} style={{
+                      <button onClick={startNewAiChat} aria-label={t("editorScreen.newChat")} {...getTooltipAnchorProps(t("editorScreen.newChat"))} style={{
                         width:"30px",height:"30px",padding:0,
                         display:"flex",alignItems:"center",justifyContent:"center",
                         background:SURF,
@@ -7576,7 +7580,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, onOpenPro
                           <path d="M5 12h14"/>
                         </svg>
                       </button>
-                      <button onClick={()=>{setAiHistoryOpen(v=>!v); setAiPreviewChat(null);}} aria-label="Просмотреть историю" {...getTooltipAnchorProps("История чатов")} style={{
+                      <button onClick={()=>{setAiHistoryOpen(v=>!v); setAiPreviewChat(null);}} aria-label="Просмотреть историю" {...getTooltipAnchorProps(t("editorScreen.history"))} style={{
                         width:"30px",height:"30px",padding:0,
                         display:"flex",alignItems:"center",justifyContent:"center",
                         background:SURF,
@@ -7601,7 +7605,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, onOpenPro
                           {aiPendingFiles.map(file => (
                             <div key={file.id} style={{display:"inline-flex",alignItems:"center",maxWidth:"100%",gap:"6px",padding:"4px 8px",borderRadius:"999px",background:SURF,boxShadow:SH_SM,color:T2,fontSize:"11px"}}>
                               <span style={{whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:"180px"}}>📎 {file.name}</span>
-                              <button onClick={()=>removeAiAttachment(file.id)} title="Убрать файл" style={{border:"none",background:"transparent",color:mc,cursor:"pointer",padding:0,fontSize:"12px",lineHeight:"1"}}>×</button>
+                              <button onClick={()=>removeAiAttachment(file.id)} title={t("editorScreen.removeFile")} style={{border:"none",background:"transparent",color:mc,cursor:"pointer",padding:0,fontSize:"12px",lineHeight:"1"}}>×</button>
                             </div>
                           ))}
                         </div>
@@ -7614,11 +7618,11 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, onOpenPro
                         onTouchStart={e=>e.stopPropagation()}
                         onTouchMove={e=>e.stopPropagation()}
                         data-ai-scrollable="true"
-                        placeholder={aiPendingFiles.length ? "Файл добавлен. Напишите сообщение или отправьте." : `${getAiModelDisplayLabel(aiMod, aiModelVariant, { withProvider:false })}...`}
+                        placeholder={aiPendingFiles.length ? t("editorScreen.ai.fileAdded") : `${getAiModelDisplayLabel(aiMod, aiModelVariant, { withProvider:false })}...`}
                         style={{flex:1,minWidth:0,background:"transparent",border:"none",outline:"none",color:T1,fontSize:"13px",fontFamily:"inherit"}}
                       />
                     </div>
-                    <button onClick={()=>openAiFilePicker("ai-file-import-mobile")} title="Добавить файл" style={{
+                    <button onClick={()=>openAiFilePicker("ai-file-import-mobile")} title={t("editorScreen.attachFile")} style={{
                       width:"30px",height:"30px",padding:0,
                       display:"flex",alignItems:"center",justifyContent:"center",
                       background:SURF,boxShadow:SH_SM,
@@ -7717,7 +7721,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, onOpenPro
                           </div>
                           <div style={{color:T3,fontSize:"9px",letterSpacing:"1.4px",textTransform:"uppercase"}}>{p.mode||"film"}</div>
                         </div>
-                        <div style={{color:T1,fontSize:"12px",lineHeight:1.35,marginBottom:"8px",wordBreak:"break-word"}}>{p.name||"Без названия"}</div>
+                        <div style={{color:T1,fontSize:"12px",lineHeight:1.35,marginBottom:"8px",wordBreak:"break-word"}}>{p.name||t("editorScreen.untitled")}</div>
                         <div style={{marginTop:"auto", color:T3,fontSize:"9px",lineHeight:1.45}}>
                           <div>{new Date((p.updatedAt || p.ts || 0)).toLocaleDateString("ru", { day:"numeric", month:"short" })}</div>
                           <div>{(p.blocksCount||0)} сц.</div>
@@ -7740,7 +7744,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, onOpenPro
                       if (data) { loadProject(data); setProjectsOpen(false); }
                     } catch(e) {}
                   }}>
-                    <div style={{color:T1,fontSize:"13px",marginBottom:"3px"}}>{p.name||"Без названия"}</div>
+                    <div style={{color:T1,fontSize:"13px",marginBottom:"3px"}}>{p.name||t("editorScreen.untitled")}</div>
                     <div style={{color:T3,fontSize:"10px"}}>{p.mode||"film"} · {new Date((p.updatedAt || p.ts || 0)).toLocaleDateString("ru")}</div>
                   </div>
                   <button onClick={()=>deleteProject(p.id)} style={{
@@ -7818,7 +7822,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, onOpenPro
                 <div>
                   <div style={{color:T3,fontSize:"9px",letterSpacing:"3px",marginBottom:"12px"}}>ПРЕДПРОСМОТР</div>
                   <div style={{padding:"20px",background:"#fff",borderRadius:"12px",color:"#000",fontFamily:"Arial,sans-serif",fontSize:"13px",lineHeight:"1.8",maxHeight:"60vh",overflow:"auto",wordBreak:"break-word"}}
-                    dangerouslySetInnerHTML={{__html: noteTextRef.current || noteText || "<span style='color:#aaa'>Блокнот пуст</span>"}}
+                    dangerouslySetInnerHTML={{__html: noteTextRef.current || noteText || t("editorScreen.notebookEmpty")}}
                   />
                 </div>
               ) : (mode==="short" ? [
@@ -7915,7 +7919,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, onOpenPro
                 borderRadius:"12px",color:mc,fontSize:"12px",cursor:"pointer",
                 fontFamily:"inherit",letterSpacing:"2px",boxShadow:SH_SM,
                 opacity:newProjectOverlay?0:1,pointerEvents:newProjectOverlay?"none":"auto",
-              }}>{titlePageOpen==="pdf"?"⎙ ЭКСПОРТ PDF":titlePageOpen==="docx"?"W ЭКСПОРТ DOCX":titlePageOpen==="fdx"?"F ЭКСПОРТ FDX":"T ЭКСПОРТ TXT"}</button>
+              }}>{titlePageOpen==="pdf"?t("editorScreen.exportPdf"):titlePageOpen==="docx"?t("editorScreen.exportDocx"):titlePageOpen==="fdx"?t("editorScreen.exportFdx"):t("editorScreen.exportTxt")}</button>
               {newProjectOverlay && (
                 <div style={{position:"absolute",inset:0,background:BG,display:"flex",alignItems:"center",justifyContent:"center",padding:"6px",boxSizing:"border-box"}}>
                   <button onClick={finishNewProjectOverlay} style={{
@@ -7956,7 +7960,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, onOpenPro
           >
             <div style={{flex:1,minWidth:0}}>
               <div style={{color:T1,fontSize:"11px",letterSpacing:"3px"}}>КАРТОЧКИ СЦЕН</div>
-              <div style={{color:T3,fontSize:"9px",letterSpacing:"1px",marginTop:"2px"}}>{mode === "film" ? "АКТЫ И СЦЕНЫ" : "СЦЕНЫ"} — {scenes.length}</div>
+              <div style={{color:T3,fontSize:"9px",letterSpacing:"1px",marginTop:"2px"}}>{mode === "film" ? t("editorScreen.actsAndScenes") : t("editorScreen.scenesUpper")} — {scenes.length}</div>
             </div>
             <div style={{display:"flex",alignItems:"center",gap:"8px",flexShrink:0}}>
               <div
@@ -8274,7 +8278,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, onOpenPro
                           display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer",
                           boxShadow:"none", fontSize:"9px", lineHeight:1, padding:0, opacity:0.92,
                         }}
-                        aria-label="Меню карточки"
+                        aria-label={t("editorScreen.cardMenu")}
                       >☰</button>
                     </div>
 
@@ -8584,7 +8588,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, onOpenPro
                 }}>
                   <div style={{flex:1, minWidth:0}}>
                     <div style={{color:T2, fontSize:"10px", letterSpacing:"1.5px", textTransform:"uppercase"}}>Заметки</div>
-                    <div style={{color:T3, fontSize:"10px", marginTop:"3px", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis"}}>{sceneCardNoteEditor.label || "Карточка"}</div>
+                    <div style={{color:T3, fontSize:"10px", marginTop:"3px", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis"}}>{sceneCardNoteEditor.label || t("editorScreen.card")}</div>
                   </div>
                   <button
                     type="button"
@@ -8603,7 +8607,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, onOpenPro
                       padding:0,
                       flexShrink:0,
                     }}
-                    aria-label="Закрыть заметки"
+                    aria-label={t("editorScreen.closeNotes")}
                   >✕</button>
                 </div>
                 <div style={{padding:"14px", display:"flex", flexDirection:"column", gap:"10px", flex:1, minHeight:0}}>
@@ -8614,7 +8618,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, onOpenPro
                     ref={sceneCardNoteInputRef}
                     value={sceneCardNoteDraft}
                     onChange={e=>setSceneCardNoteDraft(e.target.value)}
-                    placeholder="Подробные заметки к сцене..."
+                    placeholder={t("editorScreen.sceneNotesPlaceholder")}
                     spellCheck={false}
                     style={{
                       width:"100%",
@@ -9188,7 +9192,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, onOpenPro
                   <div style={{display:"flex", alignItems:"center", marginRight:"6px"}}>
                     {fmtCfg.bold && <button onMouseDown={e=>e.preventDefault()} onClick={()=>toggle("bold")}
                       style={{...btnStyle(curBlock?.bold), fontWeight:"bold", fontFamily:"serif", color: fmtGlyphColor}}>Ж</button>}
-                    <button onMouseDown={e=>e.preventDefault()} onClick={()=>{if(!activeId)return;setBlocks(bs=>bs.map(b=>b.id===activeId?{...b,bold:false,italic:false,underline:false,semibold:false,color:null,_colorOpen:false}:b));markDirty();}} {...getTooltipAnchorProps("Сбросить формат")}
+                    <button onMouseDown={e=>e.preventDefault()} onClick={()=>{if(!activeId)return;setBlocks(bs=>bs.map(b=>b.id===activeId?{...b,bold:false,italic:false,underline:false,semibold:false,color:null,_colorOpen:false}:b));markDirty();}} {...getTooltipAnchorProps(t("editorScreen.resetFormat"))}
                       style={{...btnStyle(false), color: fmtGlyphColor}}>Н</button>
                     {fmtCfg.italic && <button onMouseDown={e=>e.preventDefault()} onClick={()=>toggle("italic")}
                       style={{...btnStyle(curBlock?.italic), fontStyle:"italic", fontFamily:"serif"}}>К</button>}
@@ -9196,7 +9200,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, onOpenPro
                       style={{...btnStyle(curBlock?.underline), textDecoration:"underline"}}>Ч</button>}
                     {/* Цвет */}
                     <div style={{position:"relative", display:"flex", alignItems:"center"}}>
-                      <button onMouseDown={e=>e.preventDefault()} onClick={()=>{ const id = activeId || colorOpenBlock?.id; if(!id) return; setBlocks(bs=>bs.map(b=>b.id===id?{...b,_colorOpen:!b._colorOpen}:b)); }} {...getTooltipAnchorProps("Цвет текста")}
+                      <button onMouseDown={e=>e.preventDefault()} onClick={()=>{ const id = activeId || colorOpenBlock?.id; if(!id) return; setBlocks(bs=>bs.map(b=>b.id===id?{...b,_colorOpen:!b._colorOpen}:b)); }} {...getTooltipAnchorProps(t("editorScreen.textColor"))}
                         style={{...btnStyle(!!colorOpenBlock), marginRight: mode==="film" ? 0 : undefined, ...(mode!=="film" ? {
                           background: (colorOpenBlock||curBlock)?.color && (colorOpenBlock||curBlock).color!=="inherit" ? (colorOpenBlock||curBlock).color+"22" : BG,
                           border:`2px solid ${(colorOpenBlock||curBlock)?.color||mc+"33"}`,
@@ -9227,7 +9231,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, onOpenPro
               })()}
               {(mode==="play"||mode==="media"||mode==="short") && (
               <div style={{position:"relative"}}>
-                <button onMouseDown={e=>e.preventDefault()} onClick={()=>setDocFontOpen(o=>!o)} {...getTooltipAnchorProps("Шрифт")}
+                <button onMouseDown={e=>e.preventDefault()} onClick={()=>setDocFontOpen(o=>!o)} {...getTooltipAnchorProps(t("editorScreen.font"))}
                   style={{padding:"4px 10px",background:BG,boxShadow:SH_SM,border:`1px solid ${mc}44`,borderRadius:"8px",
                     color:mc,fontSize:"10px",cursor:"pointer",fontFamily:"inherit",letterSpacing:"1px",WebkitAppearance:"none"}}>Аа</button>
                 {docFontOpen && (
@@ -9250,7 +9254,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, onOpenPro
               )}
             </div>
           )}
-          <button onMouseDown={e=>e.preventDefault()} onClick={()=>setSpellOn(v=>!v)} {...getTooltipAnchorProps("Орфография")}
+          <button onMouseDown={e=>e.preventDefault()} onClick={()=>setSpellOn(v=>!v)} {...getTooltipAnchorProps(t("editorScreen.spellcheck"))}
             style={mode==="film" ? {
               padding:"4px 10px", background:BG, boxShadow:SH_SM,
               border:`1px solid ${mc}44`, borderRadius:"8px",
@@ -9442,7 +9446,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, onOpenPro
           onClearMessageSelection={clearAiMessageSelection}
           onDeleteSelectedMessages={deleteSelectedAiMessages}
           accent={mc}
-          creditsLabel={getAiProvider(aiMod).free ? "БЕСПЛАТНО" : `≈ ${CREDITS_PER_PAID_REQUEST} OWK`}
+          creditsLabel={getAiProvider(aiMod).free ? t("editorScreen.free") : `≈ ${CREDITS_PER_PAID_REQUEST} OWK`}
           composer={
             <AiComposer
               layerRef={aiHistoryLayerRef}
@@ -9452,7 +9456,7 @@ function EditorScreen({ onLogout, onGoHome, profile, isGuest, onLogin, onOpenPro
               pendingFiles={aiPendingFiles}
               input={aiIn}
               placeholder={aiPendingFiles.length
-                ? "Файл добавлен. Напишите сообщение или отправьте."
+                ? t("editorScreen.ai.fileAdded")
                 : `${getAiModelDisplayLabel(aiMod, aiModelVariant, { withProvider:false })}...`}
               fileInputId="ai-file-import-desk"
               fileAccept={AI_FILE_ACCEPT}

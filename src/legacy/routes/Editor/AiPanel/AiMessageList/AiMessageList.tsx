@@ -1,4 +1,5 @@
 import { useCallback, useLayoutEffect, useRef, useState, type MouseEvent, type Ref } from "react";
+import { useTranslation } from "react-i18next";
 import { Whale } from "../../../../ui/Whale";
 import { ChatMessage } from "./ChatMessage";
 import {
@@ -34,6 +35,7 @@ export function AiMessageList({
   onSelectAllMessages: () => void;
   onDeleteMessage: (id: string) => void;
 }) {
+  const { t } = useTranslation();
   const { rows } = useAiMessageList({ messages, getProviderColor });
   const scrollRootRef = useRef<HTMLDivElement>(null);
   const [contextMenu, setContextMenu] = useState<AiMessageContextMenuState | null>(null);
@@ -82,7 +84,7 @@ export function AiMessageList({
       {loading && (
         <div className="ai-message-list__loading">
           <Whale size={20} />
-          <span className="ai-message-list__loading-label">ДУМАЕТ...</span>
+          <span className="ai-message-list__loading-label">{t("ai.thinking")}</span>
         </div>
       )}
       <div ref={endRef} className="ai-message-list__end-anchor" />

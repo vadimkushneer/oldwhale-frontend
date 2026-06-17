@@ -1,10 +1,8 @@
+import { useTranslation } from "react-i18next";
 import type { User } from "../../../api/types";
 import type { UsersAdminPatchBody } from "../useUsersAdmin";
 import { UsersAdminUserRow } from "./UsersAdminUserRow/UsersAdminUserRow";
-import {
-  USERS_ADMIN_TABLE_COLUMNS,
-  useUsersAdminTable,
-} from "./useUsersAdminTable";
+import { useUsersAdminTable } from "./useUsersAdminTable";
 import "./UsersAdminTable.scss";
 
 export type UsersAdminTableProps = {
@@ -26,17 +24,18 @@ export function UsersAdminTable({
   deleteBusy,
   onDeleteUser,
 }: UsersAdminTableProps) {
+  const { t } = useTranslation();
   const c = useUsersAdminTable();
 
   return (
     <div className={c.shellClassName}>
       {isLoading ? (
-        <div className={c.loadingClassName}>ЗАГРУЗКА…</div>
+        <div className={c.loadingClassName}>{t("admin.common.loading")}</div>
       ) : (
         <table className={c.tableClassName}>
           <thead>
             <tr className={c.headRowClassName}>
-              {USERS_ADMIN_TABLE_COLUMNS.map((column) => (
+              {c.columns.map((column) => (
                 <th key={column.key} className={c.headCellClassName}>
                   {column.label}
                 </th>

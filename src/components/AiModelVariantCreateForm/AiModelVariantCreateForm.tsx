@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import {
   useAiModelVariantCreateForm,
   type UseAiModelVariantCreateFormArgs,
@@ -7,33 +8,34 @@ import "./AiModelVariantCreateForm.scss";
 export type AiModelVariantCreateFormProps = UseAiModelVariantCreateFormArgs;
 
 export function AiModelVariantCreateForm(props: AiModelVariantCreateFormProps) {
+  const { t } = useTranslation();
   const c = useAiModelVariantCreateForm(props);
 
   return (
     <form onSubmit={c.onSubmit} className={c.rootClassName}>
       <input
         className={c.inputSlugClassName}
-        placeholder="slug варианта"
+        placeholder={t("admin.aiModels.variant.slugPlaceholder")}
         value={c.slug}
         onChange={(event) => c.setSlug(event.target.value)}
-        aria-label="Slug нового варианта"
+        aria-label={t("admin.aiModels.variant.slugAria")}
       />
       <input
         className={c.inputProviderModelIdClassName}
-        placeholder="provider model id"
+        placeholder={t("admin.aiModels.variant.providerModelIdPlaceholder")}
         value={c.providerModelId}
         onChange={(event) => c.setProviderModelId(event.target.value)}
-        aria-label="ID модели у провайдера (новый вариант)"
+        aria-label={t("admin.aiModels.variant.providerModelIdAria")}
       />
       <input
         className={c.inputLabelClassName}
-        placeholder="label"
+        placeholder={t("admin.aiModels.variant.labelPlaceholder")}
         value={c.label}
         onChange={(event) => c.setLabel(event.target.value)}
-        aria-label="Label нового варианта"
+        aria-label={t("admin.aiModels.variant.labelAria")}
       />
       <button type="submit" disabled={c.busy} className={c.buttonClassName}>
-        + ВАРИАНТ
+        {t("admin.aiModels.variant.add")}
       </button>
       {c.error ? <div className={c.errorClassName}>{c.error}</div> : null}
     </form>

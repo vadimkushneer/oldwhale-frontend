@@ -2,6 +2,7 @@ import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
 import type { PayloadAction } from "@reduxjs/toolkit";
 import type { User } from "../../api/types";
 import { apiRequestBase } from "../../api/env";
+import i18n from "../../i18n";
 import { syncPaymentThunk } from "../payments/paymentsThunks";
 
 const TOKEN_KEY = "ow_token";
@@ -107,7 +108,7 @@ export const loginThunk = createAsyncThunk(
     if (!res.ok) {
       return rejectWithValue(data?.error || res.statusText);
     }
-    if (!data.token || !data.user) return rejectWithValue("Некорректный ответ сервера");
+    if (!data.token || !data.user) return rejectWithValue(i18n.t("auth.invalidServerResponse"));
     return { token: data.token, user: data.user };
   },
 );
@@ -150,7 +151,7 @@ export const verifyRegistrationOtpThunk = createAsyncThunk(
     if (!res.ok) {
       return rejectWithValue(data?.error || res.statusText);
     }
-    if (!data.setupToken) return rejectWithValue("Некорректный ответ сервера");
+    if (!data.setupToken) return rejectWithValue(i18n.t("auth.invalidServerResponse"));
     return { setupToken: data.setupToken, expiresInSeconds: data.expiresInSeconds ?? 900 };
   },
 );
@@ -172,7 +173,7 @@ export const completeRegistrationThunk = createAsyncThunk(
     if (!res.ok) {
       return rejectWithValue(data?.error || res.statusText);
     }
-    if (!data.token || !data.user) return rejectWithValue("Некорректный ответ сервера");
+    if (!data.token || !data.user) return rejectWithValue(i18n.t("auth.invalidServerResponse"));
     return { token: data.token, user: data.user };
   },
 );
@@ -223,7 +224,7 @@ export const topUpCreditsThunk = createAsyncThunk(
   "auth/credits/topup",
   async ({ amount }: { amount: number }, { getState, rejectWithValue }) => {
     const token = (getState() as { auth: AuthState }).auth.token;
-    if (!token) return rejectWithValue("Не авторизован");
+    if (!token) return rejectWithValue(i18n.t("auth.notAuthorized"));
     const base = apiRequestBase();
     if (!base) return rejectWithValue("API base URL unavailable");
     const res = await fetch(`${base}/api/me/credits/topup`, {
@@ -317,7 +318,7 @@ export const authSlice = createSlice({
       })
       .addCase(loginThunk.rejected, (state, action) => {
         state.loginLoading = false;
-        state.lastError = String(action.payload || action.error.message || "Ошибка входа");
+        state.lastError = String(action.payload || action.error.message || i18n.t("auth.loginError"));
       })
       .addCase(requestRegistrationOtpThunk.pending, (state) => {
         state.registerLoading = true;
@@ -328,7 +329,7 @@ export const authSlice = createSlice({
       })
       .addCase(requestRegistrationOtpThunk.rejected, (state, action) => {
         state.registerLoading = false;
-        state.lastError = String(action.payload || action.error.message || "Ошибка регистрации");
+        state.lastError = String(action.payload || action.error.message || i18n.t("auth.registerError"));
       })
       .addCase(verifyRegistrationOtpThunk.pending, (state) => {
         state.registerLoading = true;
@@ -339,7 +340,7 @@ export const authSlice = createSlice({
       })
       .addCase(verifyRegistrationOtpThunk.rejected, (state, action) => {
         state.registerLoading = false;
-        state.lastError = String(action.payload || action.error.message || "Ошибка подтверждения кода");
+        state.lastError = String(action.payload || action.error.message || i18n.t("auth.otpError"));
       })
       .addCase(completeRegistrationThunk.pending, (state) => {
         state.registerLoading = true;
@@ -354,7 +355,7 @@ export const authSlice = createSlice({
       })
       .addCase(completeRegistrationThunk.rejected, (state, action) => {
         state.registerLoading = false;
-        state.lastError = String(action.payload || action.error.message || "Ошибка регистрации");
+        state.lastError = String(action.payload || action.error.message || i18n.t("auth.registerError"));
       })
       .addCase(requestPasswordResetThunk.pending, (state) => {
         state.passwordResetLoading = true;
@@ -365,7 +366,7 @@ export const authSlice = createSlice({
       })
       .addCase(requestPasswordResetThunk.rejected, (state, action) => {
         state.passwordResetLoading = false;
-        state.lastError = String(action.payload || action.error.message || "Ошибка восстановления пароля");
+        state.lastError = String(action.payload || action.error.message || i18n.t("auth.passwordResetError"));
       })
       .addCase(completePasswordResetThunk.pending, (state) => {
         state.passwordResetLoading = true;
@@ -376,7 +377,7 @@ export const authSlice = createSlice({
       })
       .addCase(completePasswordResetThunk.rejected, (state, action) => {
         state.passwordResetLoading = false;
-        state.lastError = String(action.payload || action.error.message || "Ошибка восстановления пароля");
+        state.lastError = String(action.payload || action.error.message || i18n.t("auth.passwordResetError"));
       })
       .addCase(topUpCreditsThunk.fulfilled, (state, action) => {
         state.user = action.payload;

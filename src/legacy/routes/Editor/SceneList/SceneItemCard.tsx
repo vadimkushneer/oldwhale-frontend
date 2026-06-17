@@ -1,4 +1,5 @@
 import type { DesktopSceneCardMeta, SceneItem } from "./useSceneList";
+import { useTranslation } from "react-i18next";
 import { EditorActionButtons } from "../EditorActionButtons/EditorActionButtons";
 import { SceneCheckbox } from "./SceneCheckbox";
 
@@ -23,6 +24,7 @@ export function SceneItemCard({
   onDup,
   onDel,
 }: SceneItemCardProps) {
+  const { t } = useTranslation();
   const previewMod =
     meta.previewLines === 2 ? "scene-item-card__preview--lines-2" : "scene-item-card__preview--lines-1";
 
@@ -65,8 +67,8 @@ export function SceneItemCard({
       <div className="scene-item-card__actions">
         <EditorActionButtons
           variant="scene-card"
-          duplicateLabel="Дублировать сцену"
-          deleteLabel="Удалить сцену"
+          duplicateLabel={t("editor.duplicateScene")}
+          deleteLabel={t("editor.deleteScene")}
           onDuplicate={() => onDup(scene.id)}
           onDelete={() => onDel(scene.id)}
         />

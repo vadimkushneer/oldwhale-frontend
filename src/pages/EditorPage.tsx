@@ -1,4 +1,5 @@
 import { useCallback, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { Navigate, useLocation, useNavigate, useParams } from "react-router-dom";
 import { MODES } from "../legacy/domain/blocks";
 import { EditorScreen } from "../legacy/routes/Editor";
@@ -35,6 +36,7 @@ function readProfile(): Profile | null {
 }
 
 function RestoringSessionScreen() {
+  const { t } = useTranslation();
   return (
     <div
       style={{
@@ -50,7 +52,7 @@ function RestoringSessionScreen() {
         fontSize: "11px",
       }}
     >
-      ВОССТАНОВЛЕНИЕ СЕССИИ…
+      {t("editor.sessionRestore")}
     </div>
   );
 }

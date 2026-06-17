@@ -1,5 +1,7 @@
 import type { Dispatch, FormEvent, SetStateAction } from "react";
-import { AI_CHAT_LOG_FILTER_FIELDS } from "../aiChatLogsAdminQuery";
+import { useMemo } from "react";
+import { useTranslation } from "react-i18next";
+import { getAiChatLogFilterFields } from "../aiChatLogsAdminQuery";
 import { useAiChatLogsAdminFilters } from "./useAiChatLogsAdminFilters";
 import "./AiChatLogsAdminFilters.scss";
 
@@ -18,6 +20,8 @@ export function AiChatLogsAdminFilters({
   onReset,
   onRefetch,
 }: AiChatLogsAdminFiltersProps) {
+  const { t, i18n } = useTranslation();
+  const filterFields = useMemo(() => getAiChatLogFilterFields(), [i18n.language]);
   const {
     formClassName,
     fieldClassName,
@@ -31,7 +35,7 @@ export function AiChatLogsAdminFilters({
 
   return (
     <form className={formClassName} onSubmit={onApply}>
-      {AI_CHAT_LOG_FILTER_FIELDS.map(({ key, label, placeholder }) => (
+      {filterFields.map(({ key, label, placeholder }) => (
         <div key={key} className={fieldClassName}>
           <div className={labelClassName}>{label}</div>
           <input
@@ -49,13 +53,13 @@ export function AiChatLogsAdminFilters({
       ))}
       <div className={actionsClassName}>
         <button className={primaryBtnClassName} type="submit">
-          ПРИМЕНИТЬ
+          {t("admin.common.apply")}
         </button>
         <button className={neutralBtnClassName} type="button" onClick={onReset}>
-          СБРОС
+          {t("admin.common.reset")}
         </button>
         <button className={refreshBtnClassName} type="button" onClick={() => void onRefetch()}>
-          ОБНОВИТЬ
+          {t("admin.common.refresh")}
         </button>
       </div>
     </form>

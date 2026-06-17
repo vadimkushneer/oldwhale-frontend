@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { clearFormError, completePasswordResetThunk } from "../features/auth/authSlice";
 import { useAppDispatch, useAppSelector } from "../hooks";
@@ -6,6 +7,7 @@ import { ACCENT, BG, SH_IN, SH_OUT, SH_SM, SURF, T1, T3 } from "../legacy/ui/tok
 import { Whale } from "../legacy/ui/Whale";
 
 export function ResetPasswordPage() {
+  const { t } = useTranslation();
   const [params] = useSearchParams();
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
@@ -25,15 +27,15 @@ export function ResetPasswordPage() {
   const submit = async () => {
     setLocalError("");
     if (!email || !token) {
-      setLocalError("Ссылка восстановления некорректна или устарела.");
+      setLocalError(t("admin.resetPassword.invalidLink"));
       return;
     }
     if (password.length < 4) {
-      setLocalError("Пароль должен быть не короче 4 символов.");
+      setLocalError(t("admin.resetPassword.passwordTooShort"));
       return;
     }
     if (password !== confirmPassword) {
-      setLocalError("Пароли не совпадают.");
+      setLocalError(t("admin.resetPassword.passwordMismatch"));
       return;
     }
 
@@ -96,7 +98,7 @@ export function ResetPasswordPage() {
             <Whale size={52} />
           </div>
           <div style={{ color: T1, fontSize: "20px", letterSpacing: "7px", marginBottom: "6px" }}>OLD WHALE</div>
-          <div style={{ color: T3, fontSize: "10px", letterSpacing: "4px" }}>НОВЫЙ ПАРОЛЬ</div>
+          <div style={{ color: T3, fontSize: "10px", letterSpacing: "4px" }}>{t("admin.resetPassword.subtitle")}</div>
         </div>
 
         <div
@@ -110,7 +112,7 @@ export function ResetPasswordPage() {
           {done ? (
             <>
               <div style={{ color: T3, fontSize: "12px", lineHeight: 1.6, letterSpacing: "1px", textAlign: "center" }}>
-                Пароль обновлен. Теперь можно войти с новым паролем.
+                {t("admin.resetPassword.success")}
               </div>
               <button
                 type="button"
@@ -130,7 +132,7 @@ export function ResetPasswordPage() {
                   letterSpacing: "3px",
                 }}
               >
-                ВОЙТИ
+                {t("admin.resetPassword.login")}
               </button>
             </>
           ) : (
@@ -142,7 +144,7 @@ export function ResetPasswordPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && submit()}
                   style={nmInput}
-                  placeholder="новый пароль"
+                  placeholder={t("admin.resetPassword.newPasswordPlaceholder")}
                   type="password"
                 />
               </div>
@@ -153,7 +155,7 @@ export function ResetPasswordPage() {
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && submit()}
                   style={nmInput}
-                  placeholder="повторите пароль"
+                  placeholder={t("admin.resetPassword.confirmPasswordPlaceholder")}
                   type="password"
                 />
               </div>
@@ -177,7 +179,7 @@ export function ResetPasswordPage() {
                   letterSpacing: "3px",
                 }}
               >
-                {loading ? "СОХРАНЯЕМ..." : "СМЕНИТЬ ПАРОЛЬ"}
+                {loading ? t("admin.resetPassword.saving") : t("admin.resetPassword.submit")}
               </button>
               {feedback ? (
                 <div style={{ textAlign: "center", marginTop: "14px", color: "#f472b6", fontSize: "11px", letterSpacing: "1px", lineHeight: 1.4 }}>

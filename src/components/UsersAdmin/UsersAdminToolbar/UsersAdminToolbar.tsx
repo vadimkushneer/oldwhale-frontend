@@ -1,8 +1,10 @@
+import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { useUsersAdminToolbar } from "./useUsersAdminToolbar";
 import "./UsersAdminToolbar.scss";
 
 export function UsersAdminToolbar() {
+  const { t } = useTranslation();
   const {
     rootClassName,
     titleClassName,
@@ -13,16 +15,16 @@ export function UsersAdminToolbar() {
 
   return (
     <div className={rootClassName}>
-      <div className={titleClassName}>АДМИН · ПОЛЬЗОВАТЕЛИ</div>
+      <div className={titleClassName}>{t("admin.users.title")}</div>
       <div className={navClassName}>
         <Link className={linkMutedClassName} to="/admin/ai-chat-logs">
-          ЖУРНАЛ ИИ‑ЧАТА →
+          {t("admin.common.aiChatLogs")}
         </Link>
         <Link className={linkMutedClassName} to="/admin/ai-models">
-          ИИ · МОДЕЛИ →
+          {t("admin.common.aiModels")}
         </Link>
         <Link className={linkAccentClassName} to="/editor">
-          РЕДАКТОР →
+          {t("admin.common.editor")}
         </Link>
       </div>
     </div>

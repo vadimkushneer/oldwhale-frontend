@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { IonSpinner, IonText } from "@ionic/react";
 import { Login } from "../legacy/routes/Login";
 import { useAppDispatch, useAppSelector } from "../hooks";
@@ -15,8 +16,6 @@ import { buildLoginTarget } from "../features/auth/loginRedirect";
 import type { LoginRedirectState } from "../features/auth/loginRedirect";
 import { useOnlineStatus } from "../hooks/useOnlineStatus";
 
-const OFFLINE_MESSAGE = "Нет подключения к сети — вход и регистрация недоступны.";
-
 function ensureEditorProfileIfMissing() {
   try {
     if (!localStorage.getItem("ow_profile")) {
@@ -28,6 +27,7 @@ function ensureEditorProfileIfMissing() {
 }
 
 export function LoginPage() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation() as { state?: LoginRedirectState };
   const dispatch = useAppDispatch();
@@ -36,16 +36,12 @@ export function LoginPage() {
   const user = useAppSelector((s) => s.auth.user);
   const restoreStatus = useAppSelector((s) => s.auth.restoreStatus);
   const online = useOnlineStatus();
-  const displayError = online ? lastError : OFFLINE_MESSAGE;
+  const displayError = online ? lastError : t("login.offline");
+  const offlineMessage = t("login.offline");
 
   const from = location.state?.from;
   const target = buildLoginTarget(from);
 
-  /**
-   * Do not trap a still-authenticated user on the login form. As soon as the
-   * persisted session is confirmed (restore finished with a user), bounce back
-   * to the original destination.
-   */
   useEffect(() => {
     if (token && user && restoreStatus === "ready") {
       ensureEditorProfileIfMissing();
@@ -53,11 +49,6 @@ export function LoginPage() {
     }
   }, [token, user, restoreStatus, navigate, target]);
 
-  /**
-   * While the app is revalidating an existing token against `/api/me`, show a
-   * restoring indicator instead of the login form — otherwise a logged-in user
-   * briefly sees (and could accidentally re-submit to) the credentials screen.
-   */
   if (token && restoreStatus !== "ready") {
     return (
       <div
@@ -81,7 +72,7 @@ export function LoginPage() {
             fontSize: "11px",
           }}
         >
-          ВОССТАНОВЛЕНИЕ СЕССИИ…
+          {t("common.sessionRestore")}
         </IonText>
       </div>
     );
@@ -91,23 +82,23 @@ export function LoginPage() {
     <Login
       authError={displayError}
       submitLogin={async (login, password) => {
-        if (!navigator.onLine) throw new Error(OFFLINE_MESSAGE);
+        if (!navigator.onLine) throw new Error(offlineMessage);
         await dispatch(loginThunk({ login, password })).unwrap();
       }}
       submitRegisterEmail={async (email) => {
-        if (!navigator.onLine) throw new Error(OFFLINE_MESSAGE);
+        if (!navigator.onLine) throw new Error(offlineMessage);
         await dispatch(requestRegistrationOtpThunk({ email })).unwrap();
       }}
       submitVerifyRegistrationOtp={async (email, otp) => {
-        if (!navigator.onLine) throw new Error(OFFLINE_MESSAGE);
+        if (!navigator.onLine) throw new Error(offlineMessage);
         return await dispatch(verifyRegistrationOtpThunk({ email, otp })).unwrap();
       }}
       submitCompleteRegistration={async (email, setupToken, password) => {
-        if (!navigator.onLine) throw new Error(OFFLINE_MESSAGE);
+        if (!navigator.onLine) throw new Error(offlineMessage);
         await dispatch(completeRegistrationThunk({ email, setupToken, password })).unwrap();
       }}
       submitPasswordReset={async (login) => {
-        if (!navigator.onLine) throw new Error(OFFLINE_MESSAGE);
+        if (!navigator.onLine) throw new Error(offlineMessage);
         await dispatch(requestPasswordResetThunk({ login })).unwrap();
       }}
       onLogin={() => {

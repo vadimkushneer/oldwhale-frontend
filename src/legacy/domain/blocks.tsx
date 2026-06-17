@@ -200,6 +200,36 @@ export function makeScene(sceneText, castText, extraBlocks = []) {
   ];
 }
 
+type TranslateFn = (key: string, options?: { defaultValue?: string }) => string;
+
+function translateBlockDef(
+  t: TranslateFn,
+  mode: string,
+  def: { type: string; label: string; ph: string; [key: string]: unknown },
+) {
+  const keyBase = `blocks.${mode}.${def.type}`;
+  return {
+    ...def,
+    label: t(`${keyBase}.label`, { defaultValue: def.label }),
+    ph: t(`${keyBase}.ph`, { defaultValue: def.ph }),
+  };
+}
+
+export function getTranslatedBlockDefs(t: TranslateFn) {
+  const result: Record<string, ReturnType<typeof translateBlockDef>[]> = {};
+  for (const mode of Object.keys(BLOCK_DEFS)) {
+    result[mode] = BLOCK_DEFS[mode].map((def) => translateBlockDef(t, mode, def));
+  }
+  return result;
+}
+
+export function getTranslatedModes(t: TranslateFn) {
+  return MODES.map((mode) => ({
+    ...mode,
+    label: t(`modes.${mode.id}.label`, { defaultValue: mode.label }),
+  }));
+}
+
 export const INIT = {
   film: [
     ...makeScene("ИНТ. КОФЕЙНЯ. ДЕНЬ.", "МАРИНА (28)", [

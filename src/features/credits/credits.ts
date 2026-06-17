@@ -4,11 +4,17 @@
  * editor sidebar, the profile page and the admin control panel so the wording
  * stays consistent everywhere.
  */
+import i18n from "../../i18n";
 
 /** Full unit name (latin), as defined by the product. */
 export const CREDITS_UNIT_NAME = "Krill";
 
-/** Localized unit name for the Russian UI. */
+/** Localized unit name for UI labels. */
+export function getCreditsUnitName(): string {
+  return i18n.t("credits.unitName");
+}
+
+/** @deprecated Use getCreditsUnitName() for locale-aware labels. */
 export const CREDITS_UNIT_NAME_RU = "Криль";
 
 /** Compact ticker shown next to amounts. */

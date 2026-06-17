@@ -1,4 +1,5 @@
 import type { KeyboardEventHandler } from "react";
+import { useTranslation } from "react-i18next";
 import { Whale } from "../../../ui/Whale";
 import { CREDITS_UNIT_NAME, CREDITS_UNIT_SHORT } from "../../../../features/credits/credits";
 import { SceneList } from "../SceneList";
@@ -104,6 +105,7 @@ function QuickActionIcon({ name }: { name: LeftSidebarQuickActionIconName }) {
 }
 
 function SidebarBrand({ onToggleMenu }: Pick<LeftSidebarProps, "onToggleMenu">) {
+  const { t } = useTranslation();
   return (
     <div className="left-sidebar__brand">
       <div className="left-sidebar__brand-logo">
@@ -111,14 +113,14 @@ function SidebarBrand({ onToggleMenu }: Pick<LeftSidebarProps, "onToggleMenu">) 
       </div>
       <div className="left-sidebar__brand-copy">
         <div className="left-sidebar__brand-title">OLD WHALE</div>
-        <div className="left-sidebar__brand-subtitle">РЕДАКТОР</div>
+        <div className="left-sidebar__brand-subtitle">{t("editor.subtitle")}</div>
       </div>
       <button
         type="button"
         className="left-sidebar__menu-button"
         onClick={onToggleMenu}
-        aria-label="Открыть меню проекта"
-        title="Открыть меню проекта"
+        aria-label={t("leftSidebar.openMenu")}
+        title={t("leftSidebar.openMenu")}
       >
         <MenuIcon />
       </button>
@@ -215,6 +217,7 @@ function SearchPanel({
   onClose: () => void;
   onKeyDown: KeyboardEventHandler<HTMLInputElement>;
 }) {
+  const { t } = useTranslation();
   return (
     <div
       className="left-sidebar__search-panel"
@@ -233,14 +236,14 @@ function SearchPanel({
           onFocus={(event) => event.stopPropagation()}
           onChange={(event) => onChange(event.target.value)}
           onKeyDown={onKeyDown}
-          placeholder="Поиск / #тег"
+          placeholder={t("leftSidebar.searchPlaceholder")}
           spellCheck={false}
         />
         <button
           type="button"
           className="left-sidebar__search-close"
-          title="Свернуть поиск"
-          aria-label="Свернуть поиск"
+          title={t("leftSidebar.collapseSearch")}
+          aria-label={t("leftSidebar.collapseSearch")}
           onClick={onClose}
         >
           <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden>
@@ -256,9 +259,9 @@ function SearchPanel({
             matchesCount > 0 && "left-sidebar__search-count--matched",
           )}
         >
-          {matchesCount > 0 ? `НАЙДЕНО: ${matchesCount}` : "НАЙДЕНО: 0"}
+          {matchesCount > 0 ? t("leftSidebar.found", { count: matchesCount }) : t("leftSidebar.foundZero")}
         </div>
-        <div className="left-sidebar__search-caption">ПОДСВЕТКА В АКТИВНОМ РЕДАКТОРЕ</div>
+        <div className="left-sidebar__search-caption">{t("leftSidebar.highlightCaption")}</div>
       </div>
     </div>
   );
@@ -277,6 +280,7 @@ function SelectionBar({
   onCopy: () => void;
   onDelete: () => void;
 }) {
+  const { t } = useTranslation();
   return (
     <div
       className={cx(
@@ -284,7 +288,7 @@ function SelectionBar({
         selectionVisible && "left-sidebar__selection-bar--visible",
       )}
     >
-      {copyToast ? <div className="left-sidebar__copy-toast">✓ СКОПИРОВАНО</div> : null}
+      {copyToast ? <div className="left-sidebar__copy-toast">{copyLabel}</div> : null}
       <button
         type="button"
         className={cx(
@@ -300,8 +304,8 @@ function SelectionBar({
         type="button"
         className="left-sidebar__selection-delete"
         onClick={onDelete}
-        aria-label="Удалить выбранные сцены"
-        title="Удалить выбранные сцены"
+        aria-label={t("leftSidebar.deleteSelectedScenes")}
+        title={t("leftSidebar.deleteSelectedScenes")}
       >
         🗑
       </button>
@@ -338,10 +342,11 @@ function CreditsPanel({
   onTopUp,
   onLogout,
 }: Pick<LeftSidebarProps, "credits" | "onTopUp" | "onLogout"> & { creditsLow: boolean; creditsValue: number }) {
+  const { t } = useTranslation();
   return (
     <div className="left-sidebar__credits">
       <div className="left-sidebar__credits-header">
-        <span className="left-sidebar__credits-title">КРЕДИТЫ</span>
+        <span className="left-sidebar__credits-title">{t("leftSidebar.credits")}</span>
         <span className={cx("left-sidebar__credits-value", creditsLow && "left-sidebar__credits-value--low")}>
           {credits} <span className="left-sidebar__credits-unit">{CREDITS_UNIT_SHORT}</span>
         </span>
@@ -350,7 +355,7 @@ function CreditsPanel({
         className={cx("left-sidebar__credits-meter", creditsLow && "left-sidebar__credits-meter--low")}
         max={500}
         value={creditsValue}
-        aria-label={`Кредиты (${CREDITS_UNIT_NAME})`}
+        aria-label={t("leftSidebar.creditsAria", { unit: CREDITS_UNIT_NAME })}
       />
       <div className="left-sidebar__credits-actions">
         <button
@@ -358,14 +363,14 @@ function CreditsPanel({
           className="left-sidebar__credits-button left-sidebar__credits-button--primary"
           onClick={onTopUp}
         >
-          ПОПОЛНИТЬ
+          {t("leftSidebar.topUp")}
         </button>
         <button
           type="button"
           className="left-sidebar__credits-button left-sidebar__credits-button--logout"
           onClick={onLogout}
-          title="Выйти"
-          aria-label="Выйти"
+          title={t("leftSidebar.logout")}
+          aria-label={t("leftSidebar.logout")}
         >
           ⏻
         </button>
@@ -375,6 +380,7 @@ function CreditsPanel({
 }
 
 export function LeftSidebar(props: LeftSidebarProps) {
+  const { t } = useTranslation();
   const {
     accentTone,
     rootStyle,
@@ -435,8 +441,8 @@ export function LeftSidebar(props: LeftSidebarProps) {
         className="left-sidebar__collapse-tab"
         onMouseDown={(event) => event.preventDefault()}
         onClick={onCollapse}
-        title="Свернуть левое меню"
-        aria-label="Свернуть левое меню"
+        title={t("leftSidebar.collapse")}
+        aria-label={t("leftSidebar.collapse")}
       >
         <LeftSidebarChevron dir="left" />
       </button>
@@ -466,7 +472,7 @@ export function LeftSidebar(props: LeftSidebarProps) {
           onDelete={deleteSelectedScenes}
         />
 
-        <div className="left-sidebar__scene-count">СЦЕНЫ — {sceneCount}</div>
+        <div className="left-sidebar__scene-count">{t("leftSidebar.scenes", { count: sceneCount })}</div>
 
         <SceneList
           scenes={scenes}

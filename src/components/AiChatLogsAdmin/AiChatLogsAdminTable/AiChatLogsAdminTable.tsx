@@ -1,5 +1,7 @@
+import { useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import type { AiChatLogColumnKey, AiChatLogItem } from "../../../api/types";
-import { COLUMN_LABELS, clipText, isVisible } from "../aiChatLogsAdminQuery";
+import { clipText, getColumnLabels, isVisible } from "../aiChatLogsAdminQuery";
 import { useAiChatLogsAdminTable } from "./useAiChatLogsAdminTable";
 import "./AiChatLogsAdminTable.scss";
 
@@ -10,12 +12,14 @@ export type AiChatLogsAdminTableProps = {
 };
 
 export function AiChatLogsAdminTable({ rows, columnVisibility, isLoading }: AiChatLogsAdminTableProps) {
+  const { t, i18n } = useTranslation();
+  const COLUMN_LABELS = useMemo(() => getColumnLabels(), [i18n.language]);
   const c = useAiChatLogsAdminTable();
 
   return (
     <div className={`${c.scrollClassName} ow-app-scrollbar`}>
       {isLoading ? (
-        <div className={c.loadingClassName}>ЗАГРУЗКА…</div>
+        <div className={c.loadingClassName}>{t("admin.common.loading")}</div>
       ) : (
         <table className={c.tableClassName}>
           <thead>
@@ -57,7 +61,7 @@ export function AiChatLogsAdminTable({ rows, columnVisibility, isLoading }: AiCh
               const noteTitle =
                 row.note_context != null ? JSON.stringify(row.note_context) : "";
               const notePreview =
-                row.note_context != null ? clipText(JSON.stringify(row.note_context), 160) : "—";
+                row.note_context != null ? clipText(JSON.stringify(row.note_context), 160) : t("admin.common.emDash");
               return (
                 <tr key={row.id} className={c.bodyRowClassName}>
                   {isVisible(columnVisibility, "id") ? (
@@ -79,7 +83,7 @@ export function AiChatLogsAdminTable({ rows, columnVisibility, isLoading }: AiCh
                       ) : row.user_id != null ? (
                         `id:${row.user_id}`
                       ) : (
-                        "—"
+                        t("admin.common.emDash")
                       )}
                     </td>
                   ) : null}
@@ -121,14 +125,14 @@ export function AiChatLogsAdminTable({ rows, columnVisibility, isLoading }: AiCh
                       className={`${c.tdClassName} ${c.tdIpClassName} ${c.tdMutedClassName}`}
                       title={[row.client_ip ?? "", row.user_agent ?? ""].filter(Boolean).join(" · ")}
                     >
-                      {row.client_ip ?? "—"}
+                      {row.client_ip ?? t("admin.common.emDash")}
                       <br />
                       {clipText(row.user_agent ?? "", 80)}
                     </td>
                   ) : null}
                   {isVisible(columnVisibility, "editor_mode") ? (
                     <td className={`${c.tdClassName} ${c.tdSecondaryClassName}`}>
-                      {row.editor_mode ?? "—"}
+                      {row.editor_mode ?? t("admin.common.emDash")}
                     </td>
                   ) : null}
                   {isVisible(columnVisibility, "note_context") ? (

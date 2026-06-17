@@ -1,26 +1,29 @@
+import { useTranslation } from "react-i18next";
 import { useUsersAdminDeployBranches } from "./useUsersAdminDeployBranches";
 import "./UsersAdminDeployBranches.scss";
 
-function formatUpdatedAt(value: string | null): string | null {
+function formatUpdatedAt(value: string | null, locale: string): string | null {
   if (!value) return null;
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return null;
-  return date.toLocaleString("ru-RU");
+  const dateLocale = locale === "en" ? "en-US" : locale === "kz" ? "kk-KZ" : "ru-RU";
+  return date.toLocaleString(dateLocale);
 }
 
 export function UsersAdminDeployBranches() {
+  const { t, i18n } = useTranslation();
   const vm = useUsersAdminDeployBranches();
-  const updatedLabel = formatUpdatedAt(vm.updatedAt);
+  const updatedLabel = formatUpdatedAt(vm.updatedAt, i18n.language);
 
   return (
     <section className={vm.rootClassName} aria-labelledby="users-admin-deploy-branches-title">
       <h2 id="users-admin-deploy-branches-title" className={vm.titleClassName}>
-        АВТОДЕПЛОЙ · ВЕТКИ ХОСТИНГА
+        {t("admin.deployBranches.title")}
       </h2>
 
       {!vm.online ? (
         <p className={vm.offlineClassName}>
-          Нет сети — список веток и сохранение недоступны.
+          {t("admin.deployBranches.offline")}
         </p>
       ) : null}
 
@@ -32,7 +35,7 @@ export function UsersAdminDeployBranches() {
             value={vm.backendBranch}
             onChange={(event) => vm.setBackendBranch(event.target.value)}
             disabled={!vm.online || vm.isLoading || vm.backendBranches.length === 0}
-            aria-label="Ветка oldwhale-backend для автодеплоя"
+            aria-label={t("admin.deployBranches.backendAria")}
           >
             {(vm.backendBranches.length > 0 ? vm.backendBranches : [vm.backendBranch]).map((branch) => (
               <option key={branch} value={branch}>
@@ -41,7 +44,7 @@ export function UsersAdminDeployBranches() {
             ))}
           </select>
           <span className={vm.hintClassName}>
-            Пуши в эту ветку запускают сборку и выкладку API на хостинге.
+            {t("admin.deployBranches.backendHint")}
           </span>
         </label>
 
@@ -52,7 +55,7 @@ export function UsersAdminDeployBranches() {
             value={vm.frontendBranch}
             onChange={(event) => vm.setFrontendBranch(event.target.value)}
             disabled={!vm.online || vm.isLoading || vm.frontendBranches.length === 0}
-            aria-label="Ветка oldwhale-frontend для автодеплоя"
+            aria-label={t("admin.deployBranches.frontendAria")}
           >
             {(vm.frontendBranches.length > 0 ? vm.frontendBranches : [vm.frontendBranch]).map((branch) => (
               <option key={branch} value={branch}>
@@ -61,7 +64,7 @@ export function UsersAdminDeployBranches() {
             ))}
           </select>
           <span className={vm.hintClassName}>
-            Пуши в эту ветку запускают сборку и выкладку фронтенда на хостинге.
+            {t("admin.deployBranches.frontendHint")}
           </span>
         </label>
       </div>
@@ -73,10 +76,10 @@ export function UsersAdminDeployBranches() {
           onClick={() => void vm.onSave()}
           disabled={!vm.online || vm.isLoading || !vm.isDirty || vm.saveBusy}
         >
-          {vm.saveBusy ? "СОХРАНЕНИЕ…" : "СОХРАНИТЬ ВЕТКИ"}
+          {vm.saveBusy ? t("admin.common.saving") : t("admin.deployBranches.saveBranches")}
         </button>
         {updatedLabel ? (
-          <span className={vm.metaClassName}>Обновлено: {updatedLabel}</span>
+          <span className={vm.metaClassName}>{t("admin.common.updatedAt", { date: updatedLabel })}</span>
         ) : null}
       </div>
 

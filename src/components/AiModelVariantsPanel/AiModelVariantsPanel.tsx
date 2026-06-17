@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import type { AiGroupAdmin, AiVariantAdmin } from "../../api/types";
 import { AiModelVariantCreateForm } from "../AiModelVariantCreateForm/AiModelVariantCreateForm";
 import { AiModelVariantRow } from "../AiModelVariantRow/AiModelVariantRow";
@@ -33,6 +34,7 @@ export function AiModelVariantsPanel({
   onReorderVariantIds,
   confirmDelete,
 }: AiModelVariantsPanelProps) {
+  const { t } = useTranslation();
   const c = useAiModelVariantsPanel({
     groupUid: group.uid,
     onCreateVariant,
@@ -43,7 +45,8 @@ export function AiModelVariantsPanel({
   return (
     <div className={c.rootClassName}>
       <div className={c.groupClassName}>
-        Группа: <span className={c.groupLabelClassName}>{group.label}</span> ({group.slug})
+        {t("admin.aiModels.groupPrefix")}{" "}
+        <span className={c.groupLabelClassName}>{group.label}</span> ({group.slug})
       </div>
       <div className={`${c.listClassName} ow-app-scrollbar`}>
         {variants.map((variant) => (

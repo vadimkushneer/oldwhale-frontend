@@ -1,7 +1,9 @@
+import { useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import type { AiChatLogColumnKey } from "../../../api/types";
 import {
   CHAT_LOG_COLUMNS,
-  COLUMN_LABELS,
+  getColumnLabels,
   isVisible,
 } from "../aiChatLogsAdminQuery";
 import { useAiChatLogsAdminColumnBar } from "./useAiChatLogsAdminColumnBar";
@@ -65,6 +67,8 @@ export function AiChatLogsAdminColumnBar({
   columnVisibility,
   onToggleColumn,
 }: AiChatLogsAdminColumnBarProps) {
+  const { t, i18n } = useTranslation();
+  const columnLabels = useMemo(() => getColumnLabels(), [i18n.language]);
   const {
     rootClassName,
     legendClassName,
@@ -79,7 +83,7 @@ export function AiChatLogsAdminColumnBar({
 
   return (
     <div className={rootClassName}>
-      <span className={legendClassName}>КОЛОНКИ</span>
+      <span className={legendClassName}>{t("admin.common.columns")}</span>
       <div className={itemsClassName}>
         {CHAT_LOG_COLUMNS.map((col) => {
           const visible = isVisible(columnVisibility, col);
@@ -100,7 +104,7 @@ export function AiChatLogsAdminColumnBar({
               <span className={eyeWrapClassName}>
                 {visible ? <EyeOpenIcon /> : <EyeSlashIcon />}
               </span>
-              <span className={textClassName}>{COLUMN_LABELS[col]}</span>
+              <span className={textClassName}>{columnLabels[col]}</span>
             </label>
           );
         })}

@@ -1,12 +1,14 @@
 import type { MouseEventHandler, ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import { useEditorTopBar, type EditorTopBarProps, type EditorTopBarStatItem } from "./useEditorTopBar";
 import "./EditorTopBar.scss";
 
 export type { EditorTopBarProps, EditorTopBarStats } from "./useEditorTopBar";
 
 function ModeBadge({ icon, label }: { icon: ReactNode; label: string }) {
+  const { t } = useTranslation();
   return (
-    <div className="editor-top-bar__mode" aria-label={`Режим: ${label}`}>
+    <div className="editor-top-bar__mode" aria-label={t("topBar.mode", { label })}>
       <span className="editor-top-bar__mode-icon" aria-hidden>
         {icon}
       </span>
@@ -16,8 +18,9 @@ function ModeBadge({ icon, label }: { icon: ReactNode; label: string }) {
 }
 
 function StatsGroup({ items }: { items: readonly EditorTopBarStatItem[] }) {
+  const { t } = useTranslation();
   return (
-    <div className="editor-top-bar__stats" aria-label="Статистика документа">
+    <div className="editor-top-bar__stats" aria-label={t("topBar.docStats")}>
       {items.map((item) => (
         <span key={item.label} className="editor-top-bar__stat">
           <span className="editor-top-bar__stat-label">{item.label}</span>
@@ -58,6 +61,7 @@ function SheetToggle({
   onMouseDown: MouseEventHandler<HTMLButtonElement>;
   onClick: () => void;
 }) {
+  const { t } = useTranslation();
   return (
     <button
       type="button"
@@ -68,7 +72,7 @@ function SheetToggle({
       aria-label={title}
       aria-pressed={active}
     >
-      ЛИСТ
+      {t("topBar.sheet")}
     </button>
   );
 }
@@ -122,14 +126,15 @@ function HistoryControls({
   onUndo: () => void;
   onRedo: () => void;
 }) {
+  const { t } = useTranslation();
   return (
-    <div className="editor-top-bar__history-controls" role="group" aria-label="История документа">
+    <div className="editor-top-bar__history-controls" role="group" aria-label={t("topBar.docHistory")}>
       <button
         type="button"
         className="editor-top-bar__icon-button editor-top-bar__icon-button--undo"
         onMouseDown={onMouseDown}
         onClick={onUndo}
-        aria-label="Отменить"
+        aria-label={t("topBar.undo")}
       >
         <UndoIcon />
       </button>
@@ -138,7 +143,7 @@ function HistoryControls({
         className="editor-top-bar__icon-button editor-top-bar__icon-button--redo"
         onMouseDown={onMouseDown}
         onClick={onRedo}
-        aria-label="Повторить"
+        aria-label={t("topBar.redo")}
       >
         <RedoIcon />
       </button>
@@ -157,14 +162,15 @@ function ZoomControls({
   onZoomOut: () => void;
   onZoomIn: () => void;
 }) {
+  const { t } = useTranslation();
   return (
-    <div className="editor-top-bar__zoom-controls" role="group" aria-label="Масштаб документа">
+    <div className="editor-top-bar__zoom-controls" role="group" aria-label={t("topBar.zoom")}>
       <button
         type="button"
         className="editor-top-bar__zoom-button editor-top-bar__zoom-button--decrease"
         onMouseDown={onMouseDown}
         onClick={onZoomOut}
-        aria-label="Уменьшить масштаб"
+        aria-label={t("topBar.zoomOut")}
       >
         −
       </button>
@@ -174,7 +180,7 @@ function ZoomControls({
         className="editor-top-bar__zoom-button editor-top-bar__zoom-button--increase"
         onMouseDown={onMouseDown}
         onClick={onZoomIn}
-        aria-label="Увеличить масштаб"
+        aria-label={t("topBar.zoomIn")}
       >
         +
       </button>
@@ -209,6 +215,7 @@ function AiToggle({
 }
 
 export function EditorTopBar(props: EditorTopBarProps) {
+  const { t } = useTranslation();
   const {
     rootClassName,
     modeIcon,
@@ -226,7 +233,7 @@ export function EditorTopBar(props: EditorTopBarProps) {
   } = useEditorTopBar(props);
 
   return (
-    <div className={rootClassName} role="toolbar" aria-label="Верхняя панель редактора">
+    <div className={rootClassName} role="toolbar" aria-label={t("topBar.toolbar")}>
       <ModeBadge icon={modeIcon} label={modeLabel} />
       <div className="editor-top-bar__spacer" />
       <StatsGroup items={statsItems} />

@@ -9,6 +9,10 @@
  * helpers).
  */
 
+import i18n from "../../i18n";
+
+type TranslateFn = (key: string, options?: { defaultValue?: string; [key: string]: unknown }) => string;
+
 export function autoH(el) {
   if (!el) return;
   el.style.height = "auto";
@@ -56,21 +60,25 @@ export const PLAY_ACT_TENS_ORDINAL = {
   80: "ВОСЬМИДЕСЯТЫЙ",
   90: "ДЕВЯНОСТЫЙ"
 };
-export function getPlayActOrdinalWord(n) {
+export function getPlayActOrdinalWord(n, t: TranslateFn = i18n.t.bind(i18n)) {
   const num = Number(n);
   if (!Number.isFinite(num) || num <= 0) return "";
-  if (PLAY_ACT_ORDINAL_1_TO_19[num]) return PLAY_ACT_ORDINAL_1_TO_19[num];
-  if (PLAY_ACT_TENS_ORDINAL[num]) return PLAY_ACT_TENS_ORDINAL[num];
+  const ones = PLAY_ACT_ORDINAL_1_TO_19[num];
+  if (ones) return t(`doc.ordinals.${num}`, { defaultValue: ones });
+  const tensOrd = PLAY_ACT_TENS_ORDINAL[num];
+  if (tensOrd) return t(`doc.tensOrdinal.${num}`, { defaultValue: tensOrd });
   const tens = Math.floor(num / 10) * 10;
-  const ones = num % 10;
-  if (PLAY_ACT_TENS_CARDINAL[tens] && PLAY_ACT_ORDINAL_1_TO_19[ones]) {
-    return PLAY_ACT_TENS_CARDINAL[tens] + " " + PLAY_ACT_ORDINAL_1_TO_19[ones];
+  const remainder = num % 10;
+  const tensCard = PLAY_ACT_TENS_CARDINAL[tens];
+  const onesOrd = PLAY_ACT_ORDINAL_1_TO_19[remainder];
+  if (tensCard && onesOrd) {
+    return `${t(`doc.tensCardinal.${tens}`, { defaultValue: tensCard })} ${t(`doc.ordinals.${remainder}`, { defaultValue: onesOrd })}`;
   }
   return String(num);
 }
-export function getPlayActTitle(n) {
-  const word = getPlayActOrdinalWord(n);
-  return word ? ("АКТ " + word) : "АКТ";
+export function getPlayActTitle(n, t: TranslateFn = i18n.t.bind(i18n)) {
+  const word = getPlayActOrdinalWord(n, t);
+  return word ? t("doc.actWithOrdinal", { ordinal: word, defaultValue: `АКТ ${word}` }) : t("doc.act", { defaultValue: "АКТ" });
 }
 export function isPlayAutoActTitle(text) {
   const value = String(text || "").trim();
@@ -81,7 +89,7 @@ export function getPlayActDisplayText(text, actNum) {
   return isPlayAutoActTitle(value) ? getPlayActTitle(actNum) : value;
 }
 
-export function getScenes(blocks, mode) {
+export function getScenes(blocks, mode, t: TranslateFn = i18n.t.bind(i18n)) {
   const scenes = [];
   let actNum = 0;
   let sceneNum = 0;
@@ -96,7 +104,7 @@ export function getScenes(blocks, mode) {
         sceneNum++;
         sceneInAct++;
         const cast = blocks[i+1]?.type === "cast" ? blocks[i+1].text : "";
-        const label = b.text || ("Сцена " + sceneInAct);
+        const label = b.text || t("doc.scene", { num: sceneInAct, defaultValue: `Сцена ${sceneInAct}` });
         scenes.push({ id: b.id, actNum, subNum: sceneInAct, num: sceneNum, text: label, cast, index: i, kind: "scene" });
       }
     } else if (mode === "media") {
@@ -113,7 +121,7 @@ export function getScenes(blocks, mode) {
       if (b.type === "act") {
         actNum++;
         sceneInAct = 0;
-        scenes.push({ id: b.id, actNum, num: null, text: b.text || ("АКТ " + actNum), cast: "", index: i, kind: "act" });
+        scenes.push({ id: b.id, actNum, num: null, text: b.text || t("doc.actNum", { num: actNum, defaultValue: `АКТ ${actNum}` }), cast: "", index: i, kind: "act" });
       } else if (b.type === "scene") {
         sceneNum++;
         sceneInAct++;
@@ -128,7 +136,7 @@ export function getScenes(blocks, mode) {
       } else if (b.type === "video") {
         actNum++;
         sceneInAct = 0;
-        scenes.push({ id: b.id, actNum, num: actNum, text: b.text||("ВИДЕО "+actNum), cast: "", index: i, kind: "act" });
+        scenes.push({ id: b.id, actNum, num: actNum, text: b.text||t("doc.video", { num: actNum, defaultValue: `ВИДЕО ${actNum}` }), cast: "", index: i, kind: "act" });
       } else if (["hook","body","cta"].includes(b.type)) {
         sceneNum++;
         sceneInAct++;

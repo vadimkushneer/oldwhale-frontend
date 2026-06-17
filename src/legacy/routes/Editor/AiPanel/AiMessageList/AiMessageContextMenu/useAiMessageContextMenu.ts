@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, type CSSProperties } from "react";
+import i18n from "../../../../../../i18n";
 
 export type AiMessageContextMenuState =
   | {
@@ -33,7 +34,10 @@ export function useAiMessageContextMenu({
     } as CSSProperties;
   }, [menu]);
 
-  const itemLabel = menu.kind === "message" ? "Выбрать" : "Выбрать все сообщения";
+  const itemLabel = useMemo(() => {
+    const t = i18n.t.bind(i18n);
+    return menu.kind === "message" ? t("ai.select") : t("ai.selectAll");
+  }, [menu.kind, i18n.language]);
 
   const onItemClick = useCallback(() => {
     if (menu.kind === "message") onSelectMessage(menu.messageId);

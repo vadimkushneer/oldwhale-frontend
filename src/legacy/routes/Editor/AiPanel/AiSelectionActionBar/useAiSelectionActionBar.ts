@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import i18n from "../../../../../i18n";
 
 export function useAiSelectionActionBar({ selectedCount }: { selectedCount: number }) {
   const classNames = useMemo(
@@ -13,9 +14,14 @@ export function useAiSelectionActionBar({ selectedCount }: { selectedCount: numb
     [],
   );
 
+  const selectedLabel = useMemo(
+    () => i18n.t("ai.selectedCount", { count: selectedCount }),
+    [selectedCount, i18n.language],
+  );
+
   return {
     ...classNames,
     visible: selectedCount > 0,
-    selectedLabel: `Выбрано: ${selectedCount}`,
+    selectedLabel,
   };
 }

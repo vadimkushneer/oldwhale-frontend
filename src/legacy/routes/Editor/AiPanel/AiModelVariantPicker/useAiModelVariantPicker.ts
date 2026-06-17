@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import i18n from "../../../../../i18n";
 
 export type AiModelVariantPickerVariant = {
   id: string;
@@ -40,11 +41,11 @@ export function useAiModelVariantPicker({
           }`,
           labelClassName: "ai-model-variant-picker__label",
           statusClassName: "ai-model-variant-picker__status",
-          statusLabel: active ? "ВЫБРАНО" : "",
+          statusLabel: active ? i18n.t("ai.selected") : "",
           onSelect: () => onSelectVariant(providerId, variant.id),
         };
       }),
-    [activeModelId, activeVariantId, onSelectVariant, providerId, variants],
+    [activeModelId, activeVariantId, onSelectVariant, providerId, variants, i18n.language],
   );
 
   return {

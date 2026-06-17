@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import i18n from "../../../i18n";
 import {
   useGetHostingDeployBranchesQuery,
   useListHostingRepoBranchesQuery,
@@ -8,10 +9,10 @@ import { useAppSelector } from "../../../hooks";
 import { useOnlineStatus } from "../../../hooks/useOnlineStatus";
 
 function extractErrorMessage(error: unknown): string {
-  if (!error || typeof error !== "object") return "Не удалось сохранить ветки";
+  if (!error || typeof error !== "object") return i18n.t("admin.deployBranches.saveFailed");
   const data = (error as { data?: { error?: string } }).data;
   if (data?.error) return data.error;
-  return "Не удалось сохранить ветки";
+  return i18n.t("admin.deployBranches.saveFailed");
 }
 
 export function useUsersAdminDeployBranches() {

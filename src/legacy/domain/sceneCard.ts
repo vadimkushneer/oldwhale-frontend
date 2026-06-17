@@ -42,6 +42,29 @@ export const SCENE_CARD_FUNCTION_OPTIONS = [
   { id:"epilogue", label:"эпилог" },
 ];
 
+type TranslateFn = (key: string, options?: { defaultValue?: string }) => string;
+
+export function getTranslatedSceneCardColorOptions(t: TranslateFn) {
+  return SCENE_CARD_COLOR_OPTIONS.map((opt) => ({
+    ...opt,
+    label: t(`sceneCard.colors.${opt.id}`, { defaultValue: opt.label }),
+  }));
+}
+
+export function getTranslatedSceneCardStatusOptions(t: TranslateFn) {
+  return SCENE_CARD_STATUS_OPTIONS.map((opt) => ({
+    ...opt,
+    label: t(`sceneCard.status.${opt.id}`, { defaultValue: opt.label }),
+  }));
+}
+
+export function getTranslatedSceneCardFunctionOptions(t: TranslateFn) {
+  return SCENE_CARD_FUNCTION_OPTIONS.map((opt) => ({
+    ...opt,
+    label: t(`sceneCard.function.${opt.id}`, { defaultValue: opt.label }),
+  }));
+}
+
 export const cloneSceneCardMetaMap = (meta) => Object.fromEntries(
   Object.entries(meta || {}).map(([id, value]) => [id, { ...(value || {}) }])
 );

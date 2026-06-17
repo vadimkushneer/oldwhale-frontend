@@ -1,19 +1,10 @@
 // @ts-nocheck
 /**
  * Login / register screen. Extracted from legacyUiBundle.tsx:375-557.
- *
- * In the generated bundle this component was further patched by the
- * generator to wire up the `submitLogin / submitRegister / authError` props
- * (see the `Wire login/register to app-level async handlers` block that
- * used to live in scripts/prepare-legacy.mjs). Now that Login is split out
- * those props ship as part of this hand-written module and the generator
- * no longer touches it.
- *
- * Colors / shadows / text tokens come from src/legacy/ui/tokens, the whale
- * logo from src/legacy/ui/Whale. `@ts-nocheck` mirrors the rest of the
- * legacy UI until the whole folder is typed.
  */
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
+import { LanguageSwitcher } from "../../../components/LanguageSwitcher/LanguageSwitcher";
 import {
   BG,
   SURF,
@@ -43,6 +34,7 @@ export function Login({
   submitPasswordReset?: (login: string) => Promise<void>;
   authError?: string | null;
 }) {
+  const { t } = useTranslation();
   const [tab, setTab] = useState("in");
   const [registerStep, setRegisterStep] = useState("email");
   const [login, setLogin] = useState("");
@@ -107,7 +99,7 @@ export function Login({
     const identifier = login.trim();
     if (!identifier) {
       setResetError(true);
-      setResetMessage("Введите логин или email, чтобы получить ссылку.");
+      setResetMessage(t("login.resetNeedLogin"));
       return;
     }
 
@@ -120,10 +112,10 @@ export function Login({
       } else {
         await new Promise((r) => setTimeout(r, 800));
       }
-      setResetMessage("Если аккаунт найден, ссылка отправлена на email.");
+      setResetMessage(t("login.resetSent"));
     } catch (error) {
       setResetError(true);
-      setResetMessage(typeof error === "string" ? error : error?.message || "Не удалось отправить ссылку.");
+      setResetMessage(typeof error === "string" ? error : error?.message || t("login.resetFailed"));
     } finally {
       setResetLoading(false);
     }
@@ -131,21 +123,21 @@ export function Login({
 
   const submitLabel =
     tab === "in"
-      ? "ВОЙТИ"
+      ? t("login.submitSignIn")
       : registerStep === "email"
-        ? "ПОЛУЧИТЬ КОД"
+        ? t("login.submitGetCode")
         : registerStep === "otp"
-          ? "ПОДТВЕРДИТЬ EMAIL"
-          : "СОЗДАТЬ АККАУНТ";
+          ? t("login.submitVerifyEmail")
+          : t("login.submitCreateAccount");
 
   const loadingLabel =
     tab === "in"
-      ? "ВХОДИМ..."
+      ? t("login.loadingSignIn")
       : registerStep === "email"
-        ? "ОТПРАВЛЯЕМ..."
+        ? t("login.loadingSend")
         : registerStep === "otp"
-          ? "ПРОВЕРЯЕМ..."
-          : "СОЗДАЕМ...";
+          ? t("login.loadingVerify")
+          : t("login.loadingCreate");
 
   const nmCard = {
     background: SURF,
@@ -155,110 +147,224 @@ export function Login({
   };
 
   const nmInput = {
-    width:"100%", padding:"13px 16px 13px 52px",
+    width: "100%",
+    padding: "13px 16px 13px 52px",
     background: BG,
     boxShadow: SH_IN,
-    border:"none", borderRadius:"12px",
-    color: T1, fontSize:"16px",
-    fontFamily:"'Courier New',monospace",
-    outline:"none", boxSizing:"border-box",
-    letterSpacing:"0.5px",
+    border: "none",
+    borderRadius: "12px",
+    color: T1,
+    fontSize: "16px",
+    fontFamily: "'Courier New',monospace",
+    outline: "none",
+    boxSizing: "border-box",
+    letterSpacing: "0.5px",
   };
 
   const nmBtn = (active) => ({
-    flex:1, padding:"10px 8px", border:"none",
+    flex: 1,
+    padding: "10px 8px",
+    border: "none",
     background: "transparent",
     boxShadow: active ? SH_IN : "none",
-    borderRadius:"10px",
+    borderRadius: "10px",
     color: active ? T1 : T3,
-    fontSize:"11px", cursor:"pointer",
-    fontFamily:"'Courier New',monospace",
-    letterSpacing:"2px", transition:"all .2s",
+    fontSize: "11px",
+    cursor: "pointer",
+    fontFamily: "'Courier New',monospace",
+    letterSpacing: "2px",
+    transition: "all .2s",
   });
 
   return (
-    <div style={{
-      background: BG, minHeight:"100vh",
-      display:"flex", alignItems:"center", justifyContent:"center",
-      fontFamily:"'Courier New',monospace", padding:"24px", boxSizing:"border-box",
-    }}>
-      <div style={{width:"100%", maxWidth:"360px"}}>
+    <div
+      style={{
+        background: BG,
+        minHeight: "100vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        fontFamily: "'Courier New',monospace",
+        padding: "24px",
+        boxSizing: "border-box",
+        position: "relative",
+      }}
+    >
+      <LanguageSwitcher variant="fixed" />
 
-        {/* Header */}
-        <div style={{textAlign:"center", marginBottom:"40px"}}>
-          <div style={{
-            display:"inline-flex", alignItems:"center", justifyContent:"center",
-            width:"88px", height:"88px", borderRadius:"50%",
-            background: SURF, boxShadow: SH_OUT,
-            marginBottom:"24px",
-          }}>
-            <Whale size={52}/>
+      <div style={{ width: "100%", maxWidth: "360px" }}>
+        <div style={{ textAlign: "center", marginBottom: "40px" }}>
+          <div
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: "88px",
+              height: "88px",
+              borderRadius: "50%",
+              background: SURF,
+              boxShadow: SH_OUT,
+              marginBottom: "24px",
+            }}
+          >
+            <Whale size={52} />
           </div>
-          <div style={{color:T1, fontSize:"20px", letterSpacing:"7px", marginBottom:"6px"}}>OLD WHALE</div>
-          <div style={{color:T3, fontSize:"10px", letterSpacing:"4px"}}>РЕДАКТОР ИСТОРИЙ</div>
+          <div style={{ color: T1, fontSize: "20px", letterSpacing: "7px", marginBottom: "6px" }}>OLD WHALE</div>
+          <div style={{ color: T3, fontSize: "10px", letterSpacing: "4px" }}>{t("login.subtitle")}</div>
         </div>
 
-        {/* Card */}
         <div style={nmCard}>
-
-          {/* Tabs */}
-          <div style={{
-            display:"flex", marginBottom:"28px",
-            background: BG, borderRadius:"12px", padding:"4px",
-            boxShadow: SH_IN,
-          }}>
-            {[["in","ВОЙТИ"],["reg","РЕГИСТРАЦИЯ"]].map(([id,l])=>(
-              <button key={id} onClick={()=>switchTab(id)} style={nmBtn(tab===id)}>{l}</button>
+          <div
+            style={{
+              display: "flex",
+              marginBottom: "28px",
+              background: BG,
+              borderRadius: "12px",
+              padding: "4px",
+              boxShadow: SH_IN,
+            }}
+          >
+            {[
+              ["in", t("login.tabSignIn")],
+              ["reg", t("login.tabRegister")],
+            ].map(([id, l]) => (
+              <button key={id} onClick={() => switchTab(id)} style={nmBtn(tab === id)}>
+                {l}
+              </button>
             ))}
           </div>
 
-          {/* Fields */}
-          <div style={{display:"flex", flexDirection:"column"}}>
-            {tab==="in" && (
-              <div style={{position:"relative", marginBottom:"8px"}}>
-                <span style={{position:"absolute",left:"18px",top:"50%",transform:"translateY(-50%)",width:"16px",display:"flex",alignItems:"center",justifyContent:"center",color:T3,fontSize:"13px",lineHeight:1,pointerEvents:"none"}}>◉</span>
-                <input value={login} onChange={e=>setLogin(e.target.value)}
-                  onKeyDown={e=>e.key==="Enter"&&submit()}
-                  style={nmInput} placeholder="логин или email"/>
+          <div style={{ display: "flex", flexDirection: "column" }}>
+            {tab === "in" && (
+              <div style={{ position: "relative", marginBottom: "8px" }}>
+                <span
+                  style={{
+                    position: "absolute",
+                    left: "18px",
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    width: "16px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: T3,
+                    fontSize: "13px",
+                    lineHeight: 1,
+                    pointerEvents: "none",
+                  }}
+                >
+                  ◉
+                </span>
+                <input
+                  value={login}
+                  onChange={(e) => setLogin(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && submit()}
+                  style={nmInput}
+                  placeholder={t("login.placeholderLogin")}
+                />
               </div>
             )}
 
-            {tab==="reg" && (
+            {tab === "reg" && (
               <>
-                <div style={{position:"relative", marginBottom:"8px"}}>
-                  <span style={{position:"absolute",left:"18px",top:"50%",transform:"translateY(-50%)",width:"16px",display:"flex",alignItems:"center",justifyContent:"center",color:T3,fontSize:"13px",lineHeight:1,pointerEvents:"none"}}>✉</span>
-                  <input value={email} onChange={e=>setEmail(e.target.value)}
-                    onKeyDown={e=>e.key==="Enter"&&submit()}
-                    style={{...nmInput, opacity: registerStep === "email" ? 1 : 0.72}}
-                    placeholder="email" type="email" disabled={registerStep !== "email"}/>
+                <div style={{ position: "relative", marginBottom: "8px" }}>
+                  <span
+                    style={{
+                      position: "absolute",
+                      left: "18px",
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      width: "16px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      color: T3,
+                      fontSize: "13px",
+                      lineHeight: 1,
+                      pointerEvents: "none",
+                    }}
+                  >
+                    ✉
+                  </span>
+                  <input
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && submit()}
+                    style={{ ...nmInput, opacity: registerStep === "email" ? 1 : 0.72 }}
+                    placeholder={t("login.placeholderEmail")}
+                    type="email"
+                    disabled={registerStep !== "email"}
+                  />
                 </div>
 
-                {registerStep==="otp" && (
-                  <div style={{position:"relative", marginBottom:"8px"}}>
-                    <span style={{position:"absolute",left:"18px",top:"50%",transform:"translateY(-50%)",width:"16px",display:"flex",alignItems:"center",justifyContent:"center",color:T3,fontSize:"13px",lineHeight:1,pointerEvents:"none"}}>✦</span>
-                    <input value={otp} onChange={e=>setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                      onKeyDown={e=>e.key==="Enter"&&submit()}
-                      style={nmInput} placeholder="код из email" inputMode="numeric"/>
+                {registerStep === "otp" && (
+                  <div style={{ position: "relative", marginBottom: "8px" }}>
+                    <span
+                      style={{
+                        position: "absolute",
+                        left: "18px",
+                        top: "50%",
+                        transform: "translateY(-50%)",
+                        width: "16px",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        color: T3,
+                        fontSize: "13px",
+                        lineHeight: 1,
+                        pointerEvents: "none",
+                      }}
+                    >
+                      ✦
+                    </span>
+                    <input
+                      value={otp}
+                      onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                      onKeyDown={(e) => e.key === "Enter" && submit()}
+                      style={nmInput}
+                      placeholder={t("login.placeholderOtp")}
+                      inputMode="numeric"
+                    />
                   </div>
                 )}
               </>
             )}
 
-            {(tab==="in" || registerStep==="password") && (
-              <div style={{position:"relative", marginBottom:"8px"}}>
-                <span style={{position:"absolute",left:"18px",top:"50%",transform:"translateY(-50%)",width:"16px",display:"flex",alignItems:"center",justifyContent:"center",color:T3,fontSize:"13px",lineHeight:1,pointerEvents:"none"}}>◈</span>
-                <input value={pass} onChange={e=>setPass(e.target.value)}
-                  onKeyDown={e=>e.key==="Enter"&&submit()}
-                  style={nmInput} placeholder={tab==="reg" ? "придумайте пароль" : "пароль"} type="password"/>
+            {(tab === "in" || registerStep === "password") && (
+              <div style={{ position: "relative", marginBottom: "8px" }}>
+                <span
+                  style={{
+                    position: "absolute",
+                    left: "18px",
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    width: "16px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: T3,
+                    fontSize: "13px",
+                    lineHeight: 1,
+                    pointerEvents: "none",
+                  }}
+                >
+                  ◈
+                </span>
+                <input
+                  value={pass}
+                  onChange={(e) => setPass(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && submit()}
+                  style={nmInput}
+                  placeholder={tab === "reg" ? t("login.placeholderNewPassword") : t("login.placeholderPassword")}
+                  type="password"
+                />
               </div>
             )}
           </div>
 
-          {tab==="reg" && registerStep !== "email" && (
-            <div style={{marginTop:"6px", color:T3, fontSize:"10px", letterSpacing:"1px", lineHeight:1.5}}>
-              {registerStep==="otp"
-                ? "Введите 6-значный код, отправленный на email."
-                : "Email подтвержден. Теперь задайте пароль для аккаунта."}
+          {tab === "reg" && registerStep !== "email" && (
+            <div style={{ marginTop: "6px", color: T3, fontSize: "10px", letterSpacing: "1px", lineHeight: 1.5 }}>
+              {registerStep === "otp" ? t("login.otpHint") : t("login.passwordHint")}
               <button
                 type="button"
                 onClick={() => {
@@ -267,51 +373,89 @@ export function Login({
                   setSetupToken("");
                   setPass("");
                 }}
-                style={{marginLeft:"8px", border:"none", background:"transparent", color:ACCENT, cursor:"pointer", fontFamily:"inherit", fontSize:"10px", letterSpacing:"1px", padding:0}}
+                style={{
+                  marginLeft: "8px",
+                  border: "none",
+                  background: "transparent",
+                  color: ACCENT,
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                  fontSize: "10px",
+                  letterSpacing: "1px",
+                  padding: 0,
+                }}
               >
-                изменить email
+                {t("login.changeEmail")}
               </button>
             </div>
           )}
 
-          {/* Forgot */}
-          {tab==="in" && (
-            <div style={{textAlign:"right", marginTop:"10px"}}>
+          {tab === "in" && (
+            <div style={{ textAlign: "right", marginTop: "10px" }}>
               <button
                 type="button"
                 onClick={requestPasswordReset}
                 disabled={resetLoading}
-                style={{color:resetLoading ? T3 : ACCENT, fontSize:"11px", cursor:resetLoading ? "default" : "pointer", letterSpacing:"1px", border:"none", background:"transparent", padding:0, fontFamily:"inherit"}}
+                style={{
+                  color: resetLoading ? T3 : ACCENT,
+                  fontSize: "11px",
+                  cursor: resetLoading ? "default" : "pointer",
+                  letterSpacing: "1px",
+                  border: "none",
+                  background: "transparent",
+                  padding: 0,
+                  fontFamily: "inherit",
+                }}
               >
-                {resetLoading ? "отправляем..." : "забыл пароль?"}
+                {resetLoading ? t("login.forgotSending") : t("login.forgotPassword")}
               </button>
             </div>
           )}
 
-          {/* Submit */}
-          <button onClick={submit} disabled={loading} style={{
-            width:"100%", marginTop:"24px", padding:"14px",
-            background: loading ? BG : ACCENT,
-            boxShadow: loading ? SH_IN : `0 4px 20px ${ACCENT}55, ${SH_SM}`,
-            color: loading ? T3 : "#fff",
-            border:"none", borderRadius:"14px",
-            fontSize:"12px", cursor: loading ? "default" : "pointer",
-            fontFamily:"'Courier New',monospace",
-            letterSpacing:"3px",
-            display:"flex", alignItems:"center", justifyContent:"center",
-            transition:"all .25s",
-          }}>
-            {loading
-              ? <span style={{display:"flex", alignItems:"center", justifyContent:"center", width:"100%"}}>
-                  <span style={{display:"inline-flex", alignItems:"center", transform:"translateX(5px)"}}>
-                    <span style={{display:"inline-flex", alignItems:"center", justifyContent:"center", width:"18px", flex:"0 0 18px"}}><Whale size={18}/></span>
-                    <span aria-hidden="true" style={{display:"inline-block", width:"8px", flex:"0 0 8px"}} />
-                    <span style={{letterSpacing:"2px"}}>{loadingLabel}</span>
-                    <span aria-hidden="true" style={{display:"inline-block", width:"26px", flex:"0 0 26px"}} />
+          <button
+            onClick={submit}
+            disabled={loading}
+            style={{
+              width: "100%",
+              marginTop: "24px",
+              padding: "14px",
+              background: loading ? BG : ACCENT,
+              boxShadow: loading ? SH_IN : `0 4px 20px ${ACCENT}55, ${SH_SM}`,
+              color: loading ? T3 : "#fff",
+              border: "none",
+              borderRadius: "14px",
+              fontSize: "12px",
+              cursor: loading ? "default" : "pointer",
+              fontFamily: "'Courier New',monospace",
+              letterSpacing: "3px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              transition: "all .25s",
+            }}
+          >
+            {loading ? (
+              <span style={{ display: "flex", alignItems: "center", justifyContent: "center", width: "100%" }}>
+                <span style={{ display: "inline-flex", alignItems: "center", transform: "translateX(5px)" }}>
+                  <span
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      width: "18px",
+                      flex: "0 0 18px",
+                    }}
+                  >
+                    <Whale size={18} />
                   </span>
+                  <span aria-hidden="true" style={{ display: "inline-block", width: "8px", flex: "0 0 8px" }} />
+                  <span style={{ letterSpacing: "2px" }}>{loadingLabel}</span>
+                  <span aria-hidden="true" style={{ display: "inline-block", width: "26px", flex: "0 0 26px" }} />
                 </span>
-              : submitLabel
-            }
+              </span>
+            ) : (
+              submitLabel
+            )}
           </button>
           {authError || resetMessage ? (
             <div
@@ -329,9 +473,8 @@ export function Login({
           ) : null}
         </div>
 
-        {/* Tagline */}
-        <div style={{textAlign:"center", marginTop:"32px", color:T3, fontSize:"10px", letterSpacing:"2px"}}>
-          ПИШИТЕ ИСТОРИИ. НЕ ОБЪЯСНЕНИЯ.
+        <div style={{ textAlign: "center", marginTop: "32px", color: T3, fontSize: "10px", letterSpacing: "2px" }}>
+          {t("login.tagline")}
         </div>
       </div>
     </div>

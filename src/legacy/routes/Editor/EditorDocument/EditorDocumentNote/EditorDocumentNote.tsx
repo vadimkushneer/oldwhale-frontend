@@ -1,4 +1,5 @@
 import type { MutableRefObject, RefObject } from "react";
+import { useTranslation } from "react-i18next";
 import { EditorDocumentNoteToolbar } from "./EditorDocumentNoteToolbar/EditorDocumentNoteToolbar";
 import {
   useEditorDocumentNote,
@@ -31,6 +32,7 @@ export function EditorDocumentNote({
   getTooltipAnchorProps,
   editorVariant = "desktop",
 }: EditorDocumentNoteProps) {
+  const { t } = useTranslation();
   const {
     noteClassName,
     editorClassName,
@@ -69,24 +71,24 @@ export function EditorDocumentNote({
       />
 
       {pasteDiff && (
-        <div className="editor-document-note__paste-diff" role="region" aria-label="Проверка вставленного текста">
+        <div className="editor-document-note__paste-diff" role="region" aria-label={t("note.pasteReview")}>
           <div className="editor-document-note__paste-diff-header">
-            <span className="editor-document-note__paste-diff-title">Вставленный текст отличается от заметки</span>
+            <span className="editor-document-note__paste-diff-title">{t("note.pasteDiffTitle")}</span>
             <div className="editor-document-note__paste-diff-actions">
               <button type="button" className="editor-document-note__paste-diff-button" onClick={acceptPasteDiff}>
-                Принять
+                {t("note.accept")}
               </button>
               <button
                 type="button"
                 className="editor-document-note__paste-diff-button editor-document-note__paste-diff-button--secondary"
                 onClick={declinePasteDiff}
               >
-                Отклонить
+                {t("note.decline")}
               </button>
             </div>
           </div>
 
-          <div className="editor-document-note__paste-diff-preview" aria-label="Изменения вставки">
+          <div className="editor-document-note__paste-diff-preview" aria-label={t("note.pasteChanges")}>
             {pasteDiff.parts.map((part, index) => (
               <span
                 key={`${index}-${part.value}`}
@@ -118,7 +120,7 @@ export function EditorDocumentNote({
         onKeyUp={saveNoteSelection}
         onMouseUp={saveNoteSelection}
         onPaste={handleEditorPaste}
-        data-placeholder="Мысли, идеи, наброски…"
+        data-placeholder={t("note.placeholder")}
       />
     </div>
   );

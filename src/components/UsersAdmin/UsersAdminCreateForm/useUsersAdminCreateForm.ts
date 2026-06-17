@@ -1,5 +1,6 @@
 import type { FormEvent } from "react";
 import { useCallback, useMemo, useState } from "react";
+import i18n from "../../../i18n";
 import type { UserRole } from "../../../api/types";
 import { useCreateUserMutation } from "../../../features/admin/adminApi";
 
@@ -40,7 +41,7 @@ export function useUsersAdminCreateForm() {
       setError(null);
 
       if (login.length < MIN_LOGIN_LENGTH || password.length < MIN_PASSWORD_LENGTH) {
-        setError("Логин ≥2 символа, пароль ≥4 (админ).");
+        setError(i18n.t("admin.users.create.validationError"));
         return;
       }
 

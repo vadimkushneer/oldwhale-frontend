@@ -1,4 +1,5 @@
 import { FormEvent, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Link, Navigate } from "react-router-dom";
 import type { AiGroupAdmin, AiVariantAdmin } from "../api/types";
 import {
@@ -132,6 +133,7 @@ const dangerButtonClassName = cx(
 );
 
 export function AiModelsAdminPage() {
+  const { t } = useTranslation();
   const user = useAppSelector((s) => s.auth.user);
   const token = useAppSelector((s) => s.auth.token);
   const restoreStatus = useAppSelector((s) => s.auth.restoreStatus);
@@ -250,7 +252,7 @@ export function AiModelsAdminPage() {
     return (
       <div className="ai-models-admin ai-models-admin--restoring flex min-h-screen items-center justify-center bg-[#1a1b2e] px-5 font-mono text-[11px] tracking-[2px] text-[#5a587a]">
         <div className="ai-models-admin__restore-message">
-          ВОССТАНОВЛЕНИЕ СЕССИИ…
+          {t("admin.common.sessionRestore")}
         </div>
       </div>
     );
@@ -264,13 +266,13 @@ export function AiModelsAdminPage() {
     return (
       <div className="ai-models-admin ai-models-admin--forbidden flex min-h-screen flex-col items-center justify-center bg-[#1a1b2e] p-6 font-mono text-[#e4e1f5]">
         <div className="ai-models-admin__forbidden-title mb-3 text-[14px] tracking-[2px]">
-          НЕДОСТАТОЧНО ПРАВ
+          {t("admin.common.insufficientRights")}
         </div>
         <Link
           to="/editor"
           className="ai-models-admin__forbidden-link mt-7 text-[11px] tracking-[2px] text-[#7c6af7] no-underline transition-colors duration-150 hover:text-[#978bff]"
         >
-          ← К РЕДАКТОРУ
+          {t("admin.common.backToEditor")}
         </Link>
       </div>
     );
@@ -280,7 +282,7 @@ export function AiModelsAdminPage() {
     e.preventDefault();
     setGErr(null);
     if (gSlug.trim().length < 2 || gLabel.trim().length < 1) {
-      setGErr("slug ≥2, label обязателен");
+      setGErr(t("admin.aiModels.createGroupValidation"));
       return;
     }
     try {
@@ -303,31 +305,31 @@ export function AiModelsAdminPage() {
               surfaceShadowClassName,
             )}
           >
-            НЕТ ПОДКЛЮЧЕНИЯ — ОПЕРАЦИИ НЕДОСТУПНЫ
+            {t("admin.common.offlineOpsUnavailable")}
           </div>
         ) : null}
         <div className="ai-models-admin__toolbar mb-5 flex shrink-0 flex-wrap items-center justify-between gap-3">
           <div className="ai-models-admin__title text-[12px] tracking-[4px]">
-            АДМИН · ИИ МОДЕЛИ
+            {t("admin.aiModels.title")}
           </div>
           <div className="ai-models-admin__toolbar-nav flex items-center gap-4">
             <Link
               to="/admin"
               className="ai-models-admin__toolbar-link ai-models-admin__toolbar-link--muted text-[10px] tracking-[2px] text-[#9896b8] no-underline transition-colors duration-150 hover:text-[#e4e1f5]"
             >
-              ← ПОЛЬЗОВАТЕЛИ
+              {t("admin.common.users")}
             </Link>
             <Link
               to="/admin/ai-chat-logs"
               className="ai-models-admin__toolbar-link ai-models-admin__toolbar-link--muted text-[10px] tracking-[2px] text-[#9896b8] no-underline transition-colors duration-150 hover:text-[#e4e1f5]"
             >
-              ЖУРНАЛ ИИ‑ЧАТА →
+              {t("admin.common.aiChatLogs")}
             </Link>
             <Link
               to="/editor"
               className="ai-models-admin__toolbar-link ai-models-admin__toolbar-link--accent text-[10px] tracking-[2px] text-[#7c6af7] no-underline transition-colors duration-150 hover:text-[#978bff]"
             >
-              РЕДАКТОР →
+              {t("admin.common.editor")}
             </Link>
           </div>
         </div>
@@ -340,11 +342,11 @@ export function AiModelsAdminPage() {
             )}
           >
             <div className="ai-models-admin__panel-title mb-3 shrink-0 text-[10px] tracking-[2px] text-[#5a587a]">
-              ГРУППЫ (ПРОВАЙДЕРЫ)
+              {t("admin.aiModels.groups")}
             </div>
             {isLoading ? (
               <div className="ai-models-admin__loading-state shrink-0 text-[11px] text-[#5a587a]">
-                ЗАГРУЗКА…
+                {t("admin.common.loading")}
               </div>
             ) : (
               <div className="ai-models-admin__groups-list ow-app-scrollbar flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto">
@@ -368,7 +370,7 @@ export function AiModelsAdminPage() {
                         await refetch();
                       }}
                       onDelete={async () => {
-                        if (!window.confirm(`Удалить группу «${g.label}» и все варианты?`)) return;
+                        if (!window.confirm(t("admin.aiModels.confirmDeleteGroup", { label: g.label }))) return;
                         await deleteGroup({ uid: g.uid }).unwrap();
                         if (selectedUid === g.uid) setSelectedUid(null);
                         await refetch();
@@ -387,7 +389,7 @@ export function AiModelsAdminPage() {
                   "ai-models-admin__group-create-input ai-models-admin__group-create-input--slug",
                   inputClassName,
                 )}
-                placeholder="slug (латиница)"
+                placeholder={t("admin.aiModels.slugPlaceholder")}
                 value={gSlug}
                 onChange={(e) => setGSlug(e.target.value)}
               />
@@ -408,7 +410,7 @@ export function AiModelsAdminPage() {
                   primaryButtonClassName,
                 )}
               >
-                + ГРУППА
+                {t("admin.aiModels.addGroup")}
               </button>
               {gErr ? (
                 <div className="ai-models-admin__group-create-error col-[1/-1] text-[11px] text-[#f472b6]">
@@ -425,11 +427,11 @@ export function AiModelsAdminPage() {
             )}
           >
             <div className="ai-models-admin__panel-title mb-3 shrink-0 text-[10px] tracking-[2px] text-[#5a587a]">
-              ВАРИАНТЫ
+              {t("admin.aiModels.variants")}
             </div>
             {!selected ? (
               <div className="ai-models-admin__empty-state shrink-0 text-[11px] text-[#9896b8]">
-                Выберите группу слева
+                {t("admin.aiModels.selectGroup")}
               </div>
             ) : (
               <AiModelVariantsPanel
@@ -472,6 +474,7 @@ function GroupRow({
   }) => Promise<void>;
   onDelete: () => Promise<void>;
 }) {
+  const { t } = useTranslation();
   const [slug, setSlug] = useState(group.slug);
   const [label, setLabel] = useState(group.label);
   const [role, setRole] = useState(group.role);
@@ -647,16 +650,16 @@ function GroupRow({
         envVarName: apiKey.trim(),
       }).unwrap();
       setModelsUrlStatus("ok");
-      setModelsImportMessage(`Импортировано моделей: ${r.imported}`);
+      setModelsImportMessage(t("admin.aiModels.modelsImported", { count: r.imported }));
     } catch (err: unknown) {
       setModelsUrlStatus("error");
       setModelsImportMessage(
         err && typeof err === "object" && "data" in err
-          ? String((err as { data?: { error?: string } }).data?.error || "Не удалось получить модели")
-          : "Не удалось получить модели",
+          ? String((err as { data?: { error?: string } }).data?.error || t("admin.aiModels.fetchModelsFailed"))
+          : t("admin.aiModels.fetchModelsFailed"),
       );
     }
-  }, [aiModelProviders, apiKey, canImportModels, group.uid, importModels, modelsUrl, selectedProviderId]);
+  }, [aiModelProviders, apiKey, canImportModels, group.uid, importModels, modelsUrl, selectedProviderId, t]);
 
   const hasUnsavedChanges = useMemo(() => {
     return (
@@ -672,7 +675,7 @@ function GroupRow({
   return (
     <div className="ai-models-admin__group-editor flex flex-col gap-1.5">
       <div className="ai-models-admin__group-editor-hint text-[9px] text-[#5a587a]">
-        ⋮ drag строки группы
+        {t("admin.aiModels.dragHint")}
       </div>
       <div className="ai-models-admin__group-editor-fields grid grid-cols-2 gap-1.5">
         <input
@@ -696,7 +699,7 @@ function GroupRow({
             className="ai-models-admin__group-editor-label ai-models-admin__group-editor-label--api-key text-[9px] tracking-[1px] text-[#5a587a]"
             htmlFor={apiKeyFieldId}
           >
-            Переменная окружения, содержащая ключ API
+            {t("admin.aiModels.apiKeyEnvLabel")}
           </label>
           <div
             className={cx(
@@ -738,7 +741,7 @@ function GroupRow({
                 if (busy || verifyLoading || apiKey.trim() === "" || envPreviewShowsValue) return;
                 void runVerify();
               }}
-              placeholder="название переменной окружения"
+              placeholder={t("admin.aiModels.apiKeyEnvPlaceholder")}
               autoComplete="off"
               spellCheck={false}
               readOnly={envPreviewShowsValue}
@@ -749,7 +752,7 @@ function GroupRow({
                 <button
                   type="button"
                   className={envVarIconButtonClassName}
-                  title="Проверить переменную окружения на сервере"
+                  title={t("admin.aiModels.verifyEnvTitle")}
                   disabled={busy || verifyLoading || apiKey.trim() === "" || envPreviewShowsValue}
                   onClick={() => void runVerify()}
                 >
@@ -761,8 +764,8 @@ function GroupRow({
                     className={envVarIconButtonClassName}
                     title={
                       revealValue
-                        ? "Показать имя переменной окружения"
-                        : "Показать маску (значение ключа сервер не возвращает)"
+                        ? t("admin.aiModels.showEnvNameTitle")
+                        : t("admin.aiModels.showMaskedTitle")
                     }
                     disabled={busy || verifyLoading}
                     onClick={() => setRevealValue((x) => !x)}
@@ -780,7 +783,7 @@ function GroupRow({
                   className="ai-models-admin__group-editor-label ai-models-admin__group-editor-label--models-url mb-1 block text-[9px] tracking-[1px] text-[#5a587a]"
                   htmlFor={modelsUrlFieldId}
                 >
-                  URL списка моделей (models)
+                  {t("admin.aiModels.modelsUrlLabel")}
                 </label>
                 <input
                   id={modelsUrlFieldId}
@@ -793,7 +796,7 @@ function GroupRow({
                   )}
                   value={modelsUrl}
                   onChange={(e) => onModelsUrlChange(e.target.value)}
-                  placeholder="Base URL для API"
+                  placeholder={t("admin.aiModels.modelsUrlPlaceholder")}
                   autoComplete="off"
                   inputMode="url"
                   spellCheck={false}
@@ -814,7 +817,7 @@ function GroupRow({
                 disabled={!canImportModels}
                 onClick={() => void runImportModels()}
               >
-                {importLoading ? "ПРОВЕРКА…" : "Проверить API-ключ 🔑"}
+                {importLoading ? t("admin.aiModels.checking") : t("admin.aiModels.verifyApiKey")}
               </button>
               <div
                 className={cx(
@@ -827,13 +830,13 @@ function GroupRow({
                 )}
               >
                 {!modelsUrlValid && modelsUrl.trim() !== ""
-                  ? "Введите корректный URL"
+                  ? t("admin.aiModels.invalidUrl")
                   : modelsUrlStatus === "unchecked"
-                    ? "URL не проверен"
+                    ? t("admin.aiModels.urlUnchecked")
                     : modelsUrlStatus === "ok"
-                      ? (modelsImportMessage ?? "URL проверен")
+                      ? (modelsImportMessage ?? t("admin.aiModels.urlVerified"))
                       : modelsUrlStatus === "error"
-                        ? (modelsImportMessage ?? "Ошибка проверки")
+                        ? (modelsImportMessage ?? t("admin.aiModels.verifyError"))
                         : null}
               </div>
             </div>
@@ -859,7 +862,7 @@ function GroupRow({
             successButtonClassName,
           )}
         >
-          СОХРАНИТЬ
+          {t("admin.common.save")}
         </button>
         <button
           type="button"
@@ -870,7 +873,7 @@ function GroupRow({
             dangerButtonClassName,
           )}
         >
-          УДАЛИТЬ ГРУППУ
+          {t("admin.aiModels.deleteGroup")}
         </button>
       </div>
     </div>

@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
+import { LanguageSwitcher } from "../../../../components/LanguageSwitcher/LanguageSwitcher";
 import { Whale } from "../../../ui/Whale";
 import { useEditorSideMenu, type EditorSideMenuProps, type EditorSideMenuProjectRow } from "./useEditorSideMenu";
 import "./EditorSideMenu.scss";
@@ -157,6 +159,7 @@ function IconLogout() {
 }
 
 function SideMenuHeader({ showClose, onClose }: { showClose: boolean; onClose: () => void }) {
+  const { t } = useTranslation();
   return (
     <div className="editor-side-menu__header">
       <div className="editor-side-menu__logo-wrap">
@@ -164,10 +167,10 @@ function SideMenuHeader({ showClose, onClose }: { showClose: boolean; onClose: (
       </div>
       <div className="editor-side-menu__titles">
         <div className="editor-side-menu__title-main">OLD WHALE</div>
-        <div className="editor-side-menu__title-sub">РЕДАКТОР</div>
+        <div className="editor-side-menu__title-sub">{t("editor.subtitle")}</div>
       </div>
       {showClose ? (
-        <button type="button" className="editor-side-menu__close" onClick={onClose} aria-label="Закрыть панель">
+        <button type="button" className="editor-side-menu__close" onClick={onClose} aria-label={t("sideMenu.closePanel")}>
           ✕
         </button>
       ) : null}
@@ -193,6 +196,7 @@ function SideMenuSection({
 }
 
 export function EditorSideMenu(props: EditorSideMenuProps) {
+  const { t } = useTranslation();
   const {
     variant,
     onClose,
@@ -213,18 +217,18 @@ export function EditorSideMenu(props: EditorSideMenuProps) {
         <button
           type="button"
           className="editor-side-menu__overlay"
-          aria-label="Закрыть меню"
+          aria-label={t("sideMenu.closeMenu")}
           onClick={vm.handleOverlayClick}
         />
         <div
           className="editor-side-menu__panel ow-app-scrollbar"
           role="dialog"
           aria-modal="true"
-          aria-label="Меню редактора"
+          aria-label={t("sideMenu.menuLabel")}
         >
           <SideMenuHeader showClose={vm.showHeaderClose} onClose={onClose} />
 
-          <SideMenuSection title="ПРОЕКТ" variantClass="project">
+          <SideMenuSection title={t("sideMenu.project")} variantClass="project">
             {vm.projectRows.map((row) => (
               <button key={row.key} type="button" className="editor-side-menu__simple-row" onClick={row.onClick}>
                 <span className="editor-side-menu__row-icon">
@@ -235,7 +239,7 @@ export function EditorSideMenu(props: EditorSideMenuProps) {
             ))}
           </SideMenuSection>
 
-          <SideMenuSection title="ФАЙЛЫ" variantClass="files">
+          <SideMenuSection title={t("sideMenu.files")} variantClass="files">
             <input
               id={vm.importInputId}
               className="editor-side-menu__import-input"
@@ -258,7 +262,7 @@ export function EditorSideMenu(props: EditorSideMenuProps) {
                   <div className="editor-side-menu__rich-row-body">
                     <div>{row.label}</div>
                     <div className="editor-side-menu__rich-row-sub">
-                      {row.locked ? "Войдите чтобы использовать" : row.sub}
+                      {row.locked ? t("sideMenu.loginToUse") : row.sub}
                     </div>
                   </div>
                 </button>
@@ -269,13 +273,13 @@ export function EditorSideMenu(props: EditorSideMenuProps) {
                 <IconOpenFile />
               </span>
               <div className="editor-side-menu__rich-row-body">
-                <div>Открыть</div>
+                <div>{t("sideMenu.open")}</div>
                 <div className="editor-side-menu__rich-row-sub">{vm.openFormatsHint}</div>
               </div>
             </button>
           </SideMenuSection>
 
-          <SideMenuSection title="РЕЖИМ" variantClass="modes">
+          <SideMenuSection title={t("sideMenu.mode")} variantClass="modes">
             {vm.modeRows.map((m) => {
               const rowClass = [
                 "editor-side-menu__mode-row",
@@ -297,7 +301,7 @@ export function EditorSideMenu(props: EditorSideMenuProps) {
                   <span className="editor-side-menu__mode-icon">{m.icon}</span>
                   {m.label}
                   {vm.showGuestLoginOnModeRow && m.locked ? (
-                    <span className="editor-side-menu__mode-login">ВОЙТИ</span>
+                    <span className="editor-side-menu__mode-login">{t("sideMenu.login")}</span>
                   ) : null}
                   {(variant === "mobile" ? !m.locked && m.active : m.active) ? (
                     <span className="editor-side-menu__mode-check">✓</span>
@@ -307,13 +311,13 @@ export function EditorSideMenu(props: EditorSideMenuProps) {
             })}
           </SideMenuSection>
 
-          <SideMenuSection title="ПРОЧЕЕ" variantClass="misc">
+          <SideMenuSection title={t("sideMenu.misc")} variantClass="misc">
             {vm.showShare && onShare ? (
               <button type="button" className="editor-side-menu__simple-row" onClick={onShare}>
                 <span className="editor-side-menu__row-icon">
                   <IconShare />
                 </span>
-                Поделиться
+                {t("sideMenu.share")}
               </button>
             ) : null}
             {showProfileLink ? (
@@ -321,7 +325,7 @@ export function EditorSideMenu(props: EditorSideMenuProps) {
                 <span className="editor-side-menu__row-icon">
                   <IconProfile />
                 </span>
-                ПРОФИЛЬ
+                {t("sideMenu.profile")}
               </Link>
             ) : null}
             {showAdminLink ? (
@@ -329,18 +333,21 @@ export function EditorSideMenu(props: EditorSideMenuProps) {
                 <span className="editor-side-menu__row-icon">
                   <IconAdmin />
                 </span>
-                АДМИН
+                {t("sideMenu.admin")}
               </Link>
             ) : null}
+            <div className="editor-side-menu__language-row">
+              <LanguageSwitcher />
+            </div>
             <button type="button" className="editor-side-menu__simple-row" onClick={onGoHome}>
               <span className="editor-side-menu__misc-icon">⏻</span>
-              На главную
+              {t("sideMenu.goHome")}
             </button>
             <button type="button" className="editor-side-menu__simple-row" onClick={onLogout}>
               <span className="editor-side-menu__row-icon">
                 <IconLogout />
               </span>
-              Выйти
+              {t("sideMenu.logout")}
             </button>
           </SideMenuSection>
         </div>

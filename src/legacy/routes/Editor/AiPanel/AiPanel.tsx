@@ -1,4 +1,5 @@
 import type { CSSProperties, MouseEvent, ReactNode, Ref } from "react";
+import { useTranslation } from "react-i18next";
 import { AiMessageList, type AiMessageListMessage } from "./AiMessageList";
 import { AiSelectionActionBar } from "./AiSelectionActionBar/AiSelectionActionBar";
 import {
@@ -99,6 +100,7 @@ export function AiPanel({
   tooltip?: ReactNode;
   accent: string;
 }) {
+  const { t } = useTranslation();
   const { cssVars, onHorizontalResizeMouseDown, onComposerGripMouseDown } = useAiPanel({
     width,
     sidebarWidth,
@@ -122,7 +124,7 @@ export function AiPanel({
           className="ai-panel__collapse-tab"
           onMouseDown={(e) => e.preventDefault()}
           onClick={onCollapse}
-          title="Свернуть ИИ-панель"
+          title={t("ai.collapsePanel")}
         >
           <AiPanelChevron dir="right" />
         </button>
@@ -162,7 +164,7 @@ export function AiPanel({
           <div
             className="ai-panel__composer-grip"
             onMouseDown={onComposerGripMouseDown}
-            title="Тянуть вверх/вниз"
+            title={t("ai.resizeGrip")}
           >
             <div className="ai-panel__composer-grip-handle" />
           </div>

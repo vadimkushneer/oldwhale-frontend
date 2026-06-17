@@ -1,0 +1,83 @@
+.payment-return {
+  min-height: 100%;
+  display: flex;
+  justify-content: center;
+  padding: 2rem 1rem;
+}
+
+.payment-return__inner {
+  width: 100%;
+  max-width: 28rem;
+}
+
+.payment-return__title {
+  font-size: 0.75rem;
+  letter-spacing: 0.12em;
+  margin: 0 0 1.5rem;
+  opacity: 0.7;
+}
+
+.payment-return__message {
+  margin: 0 0 1rem;
+  font-size: 0.875rem;
+}
+
+.payment-return__card {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 0.5rem;
+  padding: 1.25rem;
+  margin-bottom: 1.5rem;
+}
+
+.payment-return__card--success {
+  border-color: rgba(74, 222, 128, 0.4);
+}
+
+.payment-return__card--failed {
+  border-color: rgba(248, 113, 113, 0.4);
+}
+
+.payment-return__headline {
+  margin: 0 0 0.75rem;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.payment-return__detail,
+.payment-return__meta {
+  margin: 0 0 0.5rem;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  opacity: 0.85;
+}
+
+.payment-return__meta {
+  font-size: 0.75rem;
+  opacity: 0.6;
+  word-break: break-all;
+}
+
+.payment-return__button {
+  margin-top: 1rem;
+  padding: 0.5rem 1rem;
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+}
+
+.payment-return__nav {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.payment-return__link {
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-decoration: none;
+  opacity: 0.7;
+}
+
+.payment-return__link--accent {
+  opacity: 1;
+}

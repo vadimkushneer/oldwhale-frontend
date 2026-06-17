@@ -132,7 +132,7 @@ export default function App() {
             }
           />
           <Route
-            path="/payment/return"
+            path="/payment/fail/:paymentId"
             element={
               <IonicRouteShell>
                 <PaymentReturnPage />

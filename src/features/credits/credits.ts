@@ -21,12 +21,8 @@ export const CREDITS_UNIT_SHORT = "OWK";
  */
 export const CREDITS_PER_PAID_REQUEST = 12;
 
-/**
- * Preset top-up amounts (Krill) offered on the profile page. `1` (= 1 KZT, the
- * gateway minimum) is kept first as a cheap way to exercise the real VTB payment
- * flow end-to-end.
- */
-export const CREDITS_TOPUP_PRESETS = [1, 100, 500, 1000] as const;
+/** Preset top-up amounts (Krill) offered on the profile page. */
+export const CREDITS_TOPUP_PRESETS = [100, 500, 1000] as const;
 
 /** Renders a balance as e.g. `300 OWK`, clamping to a non-negative integer. */
 export function formatCredits(amount: number): string {

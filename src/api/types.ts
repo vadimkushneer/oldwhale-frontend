@@ -33,7 +33,6 @@ export interface ApiErrorBody {
   error: string;
 }
 
-/** Local payment state machine — mirrors `PaymentStatus` in the backend. */
 export type PaymentStatus =
   | "created"
   | "registered"
@@ -43,34 +42,25 @@ export type PaymentStatus =
   | "canceled"
   | "refunded";
 
-/** A VTB top-up payment as returned by `/api/me/payments*` (no secrets). */
-export interface Payment {
-  uid: string;
-  orderNumber: string;
-  /** OWK to grant on success (1 OWK = 1 KZT). */
-  credits: number;
-  /** Gateway amount in minor units (tiyin). */
-  amountMinor: number;
-  /** ISO 4217 numeric currency code (398 = KZT). */
-  currency: string;
+export interface PaymentPublic {
+  id: string;
   status: PaymentStatus;
-  gatewayOrderId: string | null;
-  /** Hosted payment page to redirect to (present once registered). */
-  formUrl: string | null;
-  orderStatus: number | null;
-  actionCode: string | null;
-  errorCode: string | null;
-  errorMessage: string | null;
-  creditedAt: string | null;
-  expiresAt: string | null;
-  createdAt: string;
-  updatedAt: string;
+  credits: number;
+  amount_kzt: number;
+  credited: boolean;
+  order_status: number | null;
+  created_at: string;
+  updated_at: string;
 }
 
-/** Response of `POST /api/me/payments/{uid}/sync`. */
+export interface PaymentCreateResponse {
+  paymentId: string;
+  formUrl: string;
+}
+
 export interface PaymentSyncResponse {
-  payment: Payment;
-  user: User;
+  payment: PaymentPublic;
+  user?: User;
 }
 
 /** Current-user `GET /api/ai/models` (optional auth; guests receive free groups only). */

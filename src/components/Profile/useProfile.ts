@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { clearAuth, createPaymentThunk, restoreSession } from "../../features/auth/authSlice";
+import { clearAuth, restoreSession, topUpCreditsThunk } from "../../features/auth/authSlice";
+import { createPaymentThunk, type CreatePaymentRejected } from "../../features/payments/paymentsThunks";
 import { CREDITS_TOPUP_PRESETS, formatCredits } from "../../features/credits/credits";
 import { useAppDispatch, useAppSelector } from "../../hooks";
 import { useOnlineStatus } from "../../hooks/useOnlineStatus";
@@ -77,18 +78,29 @@ export function useProfile(): UseProfileResult {
       setTopUpError(null);
       setTopUpBusy(true);
       try {
-        // Register the order on the gateway, then hand the browser off to the
-        // hosted payment page. Credits are granted only after the gateway
-        // confirms payment (handled by the /payment/return page on the way back).
         const payment = await dispatch(createPaymentThunk({ credits: amount })).unwrap();
-        if (payment.formUrl) {
-          window.location.assign(payment.formUrl);
-          return; // navigating away — keep the busy state so buttons stay disabled
-        }
-        setTopUpError("Платёжный шлюз не вернул ссылку на оплату");
-        setTopUpBusy(false);
+        window.location.href = payment.formUrl;
       } catch (e: unknown) {
-        setTopUpError(typeof e === "string" ? e : "Не удалось начать оплату");
+        const rejected = e as CreatePaymentRejected | string;
+        if (typeof rejected === "object" && rejected?.status === 503) {
+          try {
+            await dispatch(topUpCreditsThunk({ amount })).unwrap();
+            return;
+          } catch (fallbackError: unknown) {
+            setTopUpError(
+              typeof fallbackError === "string" ? fallbackError : "Не удалось пополнить баланс",
+            );
+            return;
+          }
+        }
+        const message =
+          typeof rejected === "object" && rejected?.message
+            ? rejected.message
+            : typeof e === "string"
+              ? e
+              : "Не удалось начать оплату";
+        setTopUpError(message);
+      } finally {
         setTopUpBusy(false);
       }
     },

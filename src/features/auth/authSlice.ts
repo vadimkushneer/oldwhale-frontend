@@ -1,7 +1,8 @@
 import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
 import type { PayloadAction } from "@reduxjs/toolkit";
-import type { Payment, PaymentSyncResponse, User } from "../../api/types";
+import type { User } from "../../api/types";
 import { apiRequestBase } from "../../api/env";
+import { syncPaymentThunk } from "../payments/paymentsThunks";
 
 const TOKEN_KEY = "ow_token";
 
@@ -239,59 +240,6 @@ export const topUpCreditsThunk = createAsyncThunk(
   },
 );
 
-/**
- * Registers a VTB top-up order on the backend. Resolves with the {@link Payment}
- * whose `formUrl` the caller must redirect the browser to. The credits are only
- * granted later, after the gateway confirms the payment (see {@link syncPaymentThunk}).
- */
-export const createPaymentThunk = createAsyncThunk(
-  "auth/payments/create",
-  async ({ credits }: { credits: number }, { getState, rejectWithValue }) => {
-    const token = (getState() as { auth: AuthState }).auth.token;
-    if (!token) return rejectWithValue("Не авторизован");
-    const base = apiRequestBase();
-    if (!base) return rejectWithValue("API base URL unavailable");
-    const res = await fetch(`${base}/api/me/payments`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ credits }),
-    });
-    const data = (await readJsonSafe(res)) as Payment | { error?: string } | null;
-    if (!res.ok) {
-      const message =
-        data && typeof data === "object" && "error" in data && data.error ? data.error : res.statusText;
-      return rejectWithValue(message);
-    }
-    return data as Payment;
-  },
-);
-
-/**
- * Asks the backend to re-check the authoritative gateway status for a payment
- * and (when paid) grant credits. Resolves with the payment and the refreshed
- * user; the reducer then updates the cached account so the new balance shows.
- */
-export const syncPaymentThunk = createAsyncThunk(
-  "auth/payments/sync",
-  async ({ uid }: { uid: string }, { getState, rejectWithValue }) => {
-    const token = (getState() as { auth: AuthState }).auth.token;
-    if (!token) return rejectWithValue("Не авторизован");
-    const base = apiRequestBase();
-    if (!base) return rejectWithValue("API base URL unavailable");
-    const res = await fetch(`${base}/api/me/payments/${encodeURIComponent(uid)}/sync`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-    });
-    const data = (await readJsonSafe(res)) as PaymentSyncResponse | { error?: string } | null;
-    if (!res.ok) {
-      const message =
-        data && typeof data === "object" && "error" in data && data.error ? data.error : res.statusText;
-      return rejectWithValue(message);
-    }
-    return data as PaymentSyncResponse;
-  },
-);
-
 export const authSlice = createSlice({
   name: "auth",
   initialState,
@@ -299,10 +247,6 @@ export const authSlice = createSlice({
     /** Replaces just the credit balance (e.g. after a paid AI request debits it). */
     setUserCredits(state, action: PayloadAction<number>) {
       if (state.user) state.user.credits = Math.max(0, Math.trunc(action.payload));
-    },
-    /** Replaces the whole cached account (e.g. after a payment is confirmed). */
-    setUser(state, action: PayloadAction<User>) {
-      state.user = action.payload;
     },
     clearAuth(state) {
       state.token = null;
@@ -438,7 +382,7 @@ export const authSlice = createSlice({
         state.user = action.payload;
       })
       .addCase(syncPaymentThunk.fulfilled, (state, action) => {
-        state.user = action.payload.user;
+        if (action.payload.user) state.user = action.payload.user;
       });
   },
 });
@@ -450,5 +394,4 @@ export const {
   markRestoreSkipped,
   acknowledgeSessionExpired,
   setUserCredits,
-  setUser,
 } = authSlice.actions;

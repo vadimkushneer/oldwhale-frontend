@@ -73,9 +73,7 @@ export function Profile() {
                 <span className="profile__balance-value">{vm.creditsText}</span>
               </div>
               <div className="profile__topup">
-                <span className="profile__topup-label">
-                  {vm.topUpBusy ? "ПЕРЕХОД К ОПЛАТЕ…" : "ПОПОЛНИТЬ"}
-                </span>
+                <span className="profile__topup-label">ПОПОЛНИТЬ</span>
                 <div className="profile__topup-options">
                   {vm.topUpPresets.map((amount) => (
                     <button
@@ -89,7 +87,6 @@ export function Profile() {
                     </button>
                   ))}
                 </div>
-                <span className="profile__topup-hint">Оплата картой через VTB · 1 OWK = 1 ₸</span>
               </div>
               {vm.topUpError ? (
                 <div className="profile__topup-error" role="alert">
